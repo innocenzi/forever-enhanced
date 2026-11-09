@@ -25,6 +25,8 @@ test("fills schema defaults", function(world)
     local db = world.env.ForeverEnhancedDB.modules.inventory
     equal(db.enabled, true, "module enabled by default")
     equal(db.features.locking.enabled, true, "feature enabled by default")
+    equal(world.env.ForeverEnhancedDB.modules.quests.features.announce.enabled, false, "unless it opts out")
+    equal(world:Setting("quests.announce.enabled").default, false, "the panel's default too")
     equal(db.features.locking.indicator, "padlock", "dropdown default")
     equal(db.features.locking.keepInPlace, true, "toggle default")
 end)
@@ -71,6 +73,31 @@ test("a setting that requires another sits under it and greys out", function(wor
     expect(range.predicate(), "editable with the scope set to 'range'")
     world:Setting("quests.nearby.enabled"):SetValue(false)
     expect(not range.predicate(), "greyed out with the feature off")
+end)
+
+test("a text setting uses our text row and takes its default from the locale", function(world)
+    local setting = world:Setting("quests.announce.template")
+    local row
+    for _, initializer in ipairs(world.categories[3].items) do
+        if initializer.setting == setting then
+            row = initializer
+        end
+    end
+    expect(row, "text row registered on the quests page")
+    equal(row.template, "ForeverEnhancedSettingsTextControlTemplate", "row template")
+    equal(row.tooltip, world.L["quests.announce.template.tooltip"], "tooltip")
+    expect(not row.predicate(), "greyed out with its feature off by default")
+    world:Setting("quests.announce.enabled"):SetValue(true)
+    expect(row.predicate(), "editable with its feature on")
+
+    local default = world.L["quests.announce.template.default"]
+    local db = world.env.ForeverEnhancedDB.modules.quests.features.announce
+    equal(setting:GetDefaultValue(), default, "default")
+    equal(db.template, default, "saved default")
+
+    db.template = " "
+    world.ns.Database:Initialize()
+    equal(db.template, default, "blank text")
 end)
 
 test("activates features at login", function(world)

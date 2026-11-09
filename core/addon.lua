@@ -37,6 +37,13 @@ function FeatureMixin:GetSetting(key)
     return self.db[key]
 end
 
+-- "<module>.<feature>", or "<module>.<feature>.<suffix>": the locale keys of
+-- the feature and of its settings.
+function FeatureMixin:GetLocaleKey(suffix)
+    local key = self.module.id .. "." .. self.id
+    return suffix and key .. "." .. suffix or key
+end
+
 -- Per-character saved table owned by this feature.
 function FeatureMixin:GetCharacterStore()
     return ns.Database:GetCharacterStore(self)
@@ -62,7 +69,8 @@ function ns:RegisterModule(id, definition)
     return module
 end
 
--- `definition` becomes the feature object: { order, settings = { schema entries } }.
+-- `definition` becomes the feature object:
+-- { order, enabledByDefault (true when omitted), settings = { schema entries } }.
 function ns:RegisterFeature(moduleId, id, definition)
     local module = assert(modules[moduleId], "unknown module: " .. moduleId)
     assert(not module.features[id], "feature already registered: " .. moduleId .. "." .. id)
@@ -71,6 +79,7 @@ function ns:RegisterFeature(moduleId, id, definition)
     feature.id = id
     feature.module = module
     feature.order = feature.order or math.huge
+    feature.enabledByDefault = feature.enabledByDefault ~= false
     feature.settings = feature.settings or {}
     feature.active = false
 

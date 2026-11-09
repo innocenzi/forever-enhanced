@@ -5,8 +5,11 @@
 -- The world has one bag (ID 0) of BAG_SIZE slots holding item GUID strings, a
 -- cursor, a fake clock, and a server that applies sorts on demand and confirms
 -- item swaps after SERVER_CONFIRM_SECONDS. It also has a quest log (entries
--- with a distance to the player), a quest watch list and a combat flag, plus a
--- player position (world.position) and the map pin (world.waypoint).
+-- with a distance to the player and objectives), a quest watch list and a
+-- combat flag, plus a player position (world.position) and the map pin
+-- (world.waypoint). The player can be in a party and/or an instance group
+-- (world.party, world.instanceGroup); group chat goes to world.sentChat and
+-- incoming chat runs through the registered chat filters (world:ReceiveChat).
 --
 -- The character bank is two purchased tabs (containers 6 and 7, of
 -- world.bagSizes slots) out of world.maxBankTabs, with a bag in tab 2's bank bag
@@ -60,6 +63,10 @@ local world = {
     questSorts = 0,
     position = { x = 0, y = 0, continentID = 0 },
     onTaxi = false,
+    party = false,
+    instanceGroup = false,
+    sentChat = {},
+    chatFilters = {},
     SERVER_CONFIRM_SECONDS = SERVER_CONFIRM_SECONDS,
 }
 
@@ -611,6 +618,10 @@ function Setting:SetValue(value)
     end
 end
 
+function Setting:GetDefaultValue()
+    return self.default
+end
+
 local Initializer = {}
 Initializer.__index = Initializer
 
@@ -663,7 +674,7 @@ Settings = {
         if tbl[key] == nil then
             tbl[key] = default
         end
-        local setting = setmetatable({ key = key, tbl = tbl, name = name }, Setting)
+        local setting = setmetatable({ key = key, tbl = tbl, name = name, default = default }, Setting)
         world.settings[variable] = setting
         return setting
     end,
@@ -685,6 +696,17 @@ Settings = {
     end,
     CreateSlider = function(category, setting, sliderOptions, tooltip)
         return AddInitializer(category, { setting = setting, tooltip = tooltip, slider = sliderOptions })
+    end,
+    -- A custom row (our text control): created, then registered to the category.
+    CreateControlInitializer = function(template, setting, options, tooltip)
+        assert(template, "missing template")
+        return setmetatable(
+            { template = template, setting = setting, options = options, tooltip = tooltip },
+            Initializer
+        )
+    end,
+    RegisterInitializer = function(category, initializer)
+        table.insert(category.items, initializer)
     end,
     CreateControlTextContainer = function()
         local data = {}
@@ -952,8 +974,9 @@ C_Container = {
 }
 
 -- Quests ----------------------------------------------------------------------------------
--- world.questLog entries: { questID, distance (yards, nil = no location),
--- offContinent, onMap, isHeader, isHidden, isTask, isBounty, isWorldQuest }.
+-- world.questLog entries: { questID, title, distance (yards, nil = no location),
+-- offContinent, onMap, isHeader, isHidden, isTask, isBounty, isWorldQuest,
+-- objectives = { { text, finished, numFulfilled, numRequired }, ... } }.
 
 local function FindQuest(questID)
     for _, quest in ipairs(world.questLog) do
@@ -1022,6 +1045,75 @@ C_QuestLog = {
     end,
     SortQuestWatches = function()
         world.questSorts = world.questSorts + 1
+    end,
+    -- Nothing for a quest that isn't in the log or whose data hasn't loaded.
+    GetQuestObjectives = function(questID)
+        local quest = FindQuest(questID)
+        return quest and quest.objectives
+    end,
+    GetTitleForQuestID = function(questID)
+        local quest = FindQuest(questID)
+        return quest and quest.title
+    end,
+}
+
+function GetQuestLink(questID)
+    local quest = FindQuest(questID)
+    if quest and quest.title then
+        return ("|cffffff00|Hquest:%d:10|h[%s]|h|r"):format(questID, quest.title)
+    end
+end
+
+-- Group and chat ----------------------------------------------------------------------------
+
+LE_PARTY_CATEGORY_HOME = 1
+LE_PARTY_CATEGORY_INSTANCE = 2
+
+function IsInGroup(category)
+    if category == LE_PARTY_CATEGORY_HOME then
+        return world.party
+    elseif category == LE_PARTY_CATEGORY_INSTANCE then
+        return world.instanceGroup
+    end
+    return world.party or world.instanceGroup
+end
+
+-- "Name-Realm" -> "Name" for players of the player's realm.
+function Ambiguate(fullName, context)
+    assert(context == "none", "only the none context is modelled")
+    local name, realm = fullName:match("^(.-)%-(.+)$")
+    if name and realm == world.player.realm then
+        return name
+    end
+    return fullName
+end
+
+C_ChatInfo = {
+    SendChatMessage = function(message, chatType)
+        assert(#message <= 255, "chat message too long")
+        assert(not message:find("|4"), "chat refuses grammar codes")
+        table.insert(world.sentChat, { message = message, chatType = chatType })
+    end,
+    ReplaceIconAndGroupExpressions = function(message)
+        return message
+    end,
+}
+
+-- world.chatFilters[event] = { filter, ... }, in registration order, without duplicates.
+ChatFrameUtil = {
+    AddMessageEventFilter = function(event, filter)
+        world.chatFilters[event] = world.chatFilters[event] or {}
+        if not tContains(world.chatFilters[event], filter) then
+            table.insert(world.chatFilters[event], filter)
+        end
+    end,
+    RemoveMessageEventFilter = function(event, filter)
+        local filters = world.chatFilters[event] or {}
+        for index = #filters, 1, -1 do
+            if filters[index] == filter then
+                table.remove(filters, index)
+            end
+        end
     end,
 }
 
@@ -1453,6 +1545,42 @@ function world:AcceptQuest(quest)
     table.insert(self.questLog, quest)
     C_QuestLog.AddQuestWatch(quest.questID)
     self:Fire("QUEST_ACCEPTED", quest.questID)
+end
+
+-- Objective `index` of a quest now has `numFulfilled` (and the objective text
+-- `text`, if given; "<n>/<total> <name>" stays in sync otherwise), then the
+-- client fires QUEST_LOG_UPDATE.
+function world:Progress(questID, index, numFulfilled, text)
+    local objective = FindQuest(questID).objectives[index]
+    if not text and objective.name then
+        text = ("%d/%d %s"):format(numFulfilled, objective.numRequired, objective.name)
+    end
+    objective.numFulfilled = numFulfilled
+    objective.finished = numFulfilled >= objective.numRequired
+    objective.text = text or objective.text
+    self:Fire("QUEST_LOG_UPDATE")
+end
+
+-- A counted objective, like the client's: "0/8 Kobold Vermin slain".
+function world:Objective(name, numRequired, numFulfilled)
+    numFulfilled = numFulfilled or 0
+    return {
+        name = name,
+        text = ("%d/%d %s"):format(numFulfilled, numRequired, name),
+        finished = numFulfilled >= numRequired,
+        numFulfilled = numFulfilled,
+        numRequired = numRequired,
+    }
+end
+
+-- A group chat message from `author` ("Name-Realm"); true when a filter hid it.
+function world:ReceiveChat(event, message, author)
+    for _, filter in ipairs(self.chatFilters[event] or {}) do
+        if filter(DEFAULT_CHAT_FRAME, event, message, author) then
+            return true
+        end
+    end
+    return false
 end
 
 -- Watched quest IDs, sorted: "1 3 4".

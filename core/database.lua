@@ -6,12 +6,14 @@
 -- ForeverEnhancedCharacterDB (character):
 --   [moduleId][featureId] = feature-owned table
 --
--- Account settings are derived from the registered schemas: missing, mistyped
--- or unknown-option values get their default, unknown keys are dropped.
+-- Account settings are derived from the registered schemas: missing, mistyped,
+-- unknown-option, out-of-range or blank text values get their default, unknown
+-- keys are dropped.
 
 local _, ns = ...
 
 local Database = {
+    -- Modules are enabled by default; features unless they say otherwise.
     ENABLED_DEFAULT = true,
 }
 ns.Database = Database
@@ -25,8 +27,12 @@ local function GetOrCreateTable(parent, key)
     return value
 end
 
--- Whether a value of the right type is allowed by the entry (dropdown options, slider bounds).
+-- Whether a value of the right type is allowed by the entry (dropdown options,
+-- slider bounds, text that isn't blank).
 local function IsAllowed(entry, value)
+    if entry.type == "text" then
+        return value:find("%S") ~= nil
+    end
     if entry.options then
         return tContains(entry.options, value)
     end
@@ -51,12 +57,22 @@ local function KeepOnly(tbl, allowedKeys)
     end
 end
 
+-- An entry without a default takes it from the locale, so it can be in the
+-- player's language (every locale file is loaded by now).
+local function ResolveDefault(feature, entry)
+    if entry.default == nil then
+        local key = feature:GetLocaleKey(entry.key .. ".default")
+        entry.default = assert(rawget(ns.L, key), "missing default: " .. key)
+    end
+end
+
 local function InitializeFeature(savedFeatures, feature)
     local featureDb = GetOrCreateTable(savedFeatures, feature.id)
     local knownKeys = { enabled = true }
 
-    ApplyDefault(featureDb, "enabled", Database.ENABLED_DEFAULT)
+    ApplyDefault(featureDb, "enabled", feature.enabledByDefault)
     for _, entry in ipairs(feature.settings) do
+        ResolveDefault(feature, entry)
         knownKeys[entry.key] = true
         ApplyDefault(featureDb, entry.key, entry.default, entry)
     end

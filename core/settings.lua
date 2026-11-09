@@ -10,6 +10,7 @@
 --   <module>.<feature>.<key>, <module>.<feature>.<key>.tooltip (optional)
 --   <module>.<feature>.<key>.<option> for each dropdown option
 --   <module>.<feature>.<key>.format for a slider's value label (optional)
+--   <module>.<feature>.<key>.default for an entry without a `default`
 --
 -- An entry with `requires = { key = value }` sits under that earlier entry and
 -- is greyed out unless it has that value.
@@ -22,9 +23,93 @@ local SettingsPanel = {}
 ns.SettingsPanel = SettingsPanel
 
 local VARIABLE_PREFIX = "ForeverEnhanced."
+-- Our text row, defined in settings.xml.
+local TEXT_TEMPLATE = "ForeverEnhancedSettingsTextControlTemplate"
+local TEXT_MAX_LETTERS = 200
 
 local function OptionalText(key)
     return rawget(L, key)
+end
+
+-- Text row: Blizzard's settings have no edit box control, so settings.xml
+-- defines a row built like theirs (SettingsControlMixin) with this mixin on top.
+local TextControlMixin = {}
+SettingsPanel.TextControlMixin = TextControlMixin
+
+function TextControlMixin:OnLoad()
+    SettingsControlMixin.OnLoad(self)
+
+    local editBox = CreateFrame("EditBox", nil, self, "InputBoxTemplate")
+    editBox:SetHeight(22)
+    editBox:SetPoint("LEFT", self, "CENTER", -75, 0)
+    editBox:SetPoint("RIGHT", self, "RIGHT", -20, 0)
+    editBox:SetAutoFocus(false)
+    editBox:SetMaxLetters(TEXT_MAX_LETTERS)
+    editBox:SetScript("OnEnterPressed", function(box)
+        box:ClearFocus()
+    end)
+    editBox:SetScript("OnEscapePressed", function(box)
+        box:SetText(self:GetSetting():GetValue())
+        box:ClearFocus()
+    end)
+    editBox:SetScript("OnEditFocusLost", function(box)
+        box:HighlightText(0, 0)
+        self:Commit()
+    end)
+    editBox:SetScript("OnEnter", function()
+        self.Tooltip:OnEnter()
+    end)
+    editBox:SetScript("OnLeave", function()
+        self.Tooltip:OnLeave()
+    end)
+    self.EditBox = editBox
+end
+
+function TextControlMixin:Init(initializer)
+    SettingsControlMixin.Init(self, initializer)
+    self:ShowValue(self:GetSetting():GetValue())
+    self:EvaluateState()
+end
+
+function TextControlMixin:Release()
+    -- Commits a pending edit while the row still knows its setting.
+    self.EditBox:ClearFocus()
+    SettingsControlMixin.Release(self)
+end
+
+function TextControlMixin:ShowValue(value)
+    self.EditBox:SetText(value)
+    self.EditBox:SetCursorPosition(0)
+end
+
+-- A blank text restores the default.
+function TextControlMixin:Commit()
+    if not self.data then
+        return
+    end
+    local setting = self:GetSetting()
+    local text = self.EditBox:GetText()
+    if not text:find("%S") then
+        text = setting:GetDefaultValue()
+    end
+    if text ~= setting:GetValue() then
+        setting:SetValue(text)
+    end
+    self:ShowValue(setting:GetValue())
+end
+
+-- The setting changed elsewhere (e.g. the Defaults button).
+function TextControlMixin:SetValue(value)
+    if not self.EditBox:HasFocus() then
+        self:ShowValue(value)
+    end
+end
+
+function TextControlMixin:EvaluateState()
+    SettingsListElementMixin.EvaluateState(self)
+    local enabled = self:IsEnabled()
+    self.EditBox:SetEnabled(enabled)
+    self:DisplayEnabled(enabled)
 end
 
 -- Schema entry type -> setting type and control factory.
@@ -65,6 +150,15 @@ local controls = {
             return Settings.CreateSlider(category, setting, options, tooltip)
         end,
     },
+    -- { key, type = "text", default = string } (a blank text resets to the default)
+    text = {
+        varType = Settings.VarType.String,
+        create = function(category, setting, tooltip)
+            local initializer = Settings.CreateControlInitializer(TEXT_TEMPLATE, setting, nil, tooltip)
+            Settings.RegisterInitializer(category, initializer)
+            return initializer
+        end,
+    },
 }
 
 local rootCategory
@@ -100,7 +194,7 @@ end
 
 local function AddSchemaEntry(category, feature, entry, parentInitializer)
     local control = assert(controls[entry.type], "unknown setting type: " .. tostring(entry.type))
-    local labelKey = feature.module.id .. "." .. feature.id .. "." .. entry.key
+    local labelKey = feature:GetLocaleKey(entry.key)
     local setting =
         RegisterSetting(category, labelKey, entry.key, feature.db, control.varType, L[labelKey], entry.default)
 
@@ -120,7 +214,7 @@ end
 
 local function AddFeature(category, layout, feature)
     local module = feature.module
-    local prefix = module.id .. "." .. feature.id
+    local prefix = feature:GetLocaleKey()
     local description = L[prefix .. ".description"]
 
     layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(L[prefix .. ".title"], description))
@@ -132,7 +226,7 @@ local function AddFeature(category, layout, feature)
         feature.db,
         Settings.VarType.Boolean,
         L["core.enable"],
-        ns.Database.ENABLED_DEFAULT
+        feature.enabledByDefault
     )
     local enabledInitializer = Settings.CreateCheckbox(category, enabledSetting, description)
     enabledInitializer:AddModifyPredicate(function()
