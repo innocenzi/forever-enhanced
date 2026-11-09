@@ -14,10 +14,10 @@ Bank.Snapshot = Snapshot
 local bankOpen = false
 local captureScheduled = false
 
-local function CaptureTab(tabData)
-    local tab = { size = C_Container.GetContainerNumSlots(tabData.ID), items = {} }
+local function CaptureTab(bagID)
+    local tab = { size = C_Container.GetContainerNumSlots(bagID), items = {} }
     for slot = 1, tab.size do
-        local info = C_Container.GetContainerItemInfo(tabData.ID, slot)
+        local info = C_Container.GetContainerItemInfo(bagID, slot)
         if info then
             tab.items[slot] = {
                 link = info.hyperlink,
@@ -34,8 +34,8 @@ local function CaptureTab(tabData)
 end
 
 -- The bag placed in bank tab `tabNumber` (tab 1 is the bank itself).
-local function CaptureBag(tabsData, tabNumber)
-    local bag = { purchased = tabsData[tabNumber] ~= nil }
+local function CaptureBag(bankIDs, tabNumber)
+    local bag = { purchased = bankIDs[tabNumber] ~= nil }
     local location = ItemLocation:CreateFromBagAndSlot(Enum.BagIndex.Characterbanktab, tabNumber)
     if C_Item.DoesItemExist(location) then
         bag.link = C_Item.GetItemLink(location)
@@ -60,12 +60,12 @@ local function Capture()
         bags = {},
     }
 
-    local tabsData = C_Bank.FetchPurchasedBankTabData(Enum.BankType.Character) or {}
-    for index, tabData in ipairs(tabsData) do
-        record.tabs[index] = CaptureTab(tabData)
+    local bankIDs = ns.Containers:GetBankContainerIDs()
+    for index, bagID in ipairs(bankIDs) do
+        record.tabs[index] = CaptureTab(bagID)
     end
     for tabNumber = 2, C_Bank.FetchMaxNumBankTabs(Enum.BankType.Character) do
-        record.bags[tabNumber] = CaptureBag(tabsData, tabNumber)
+        record.bags[tabNumber] = CaptureBag(bankIDs, tabNumber)
     end
 
     Bank.Store:Save(record)

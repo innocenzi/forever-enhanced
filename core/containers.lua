@@ -20,7 +20,8 @@ for _, bagID in pairs(Enum.BagIndex) do
 end
 table.sort(Containers.ALL_CONTAINER_IDS)
 
--- The character bank's purchased tabs. Their slots only exist while the bank is open.
+-- The character bank's purchased tabs, in tab order (index N is tab N; tabs 2
+-- and up hold the bank bags). Their slots only exist while the bank is open.
 function Containers:GetBankContainerIDs()
     local containerIDs = {}
     for _, tabData in ipairs(C_Bank.FetchPurchasedBankTabData(Enum.BankType.Character) or {}) do
