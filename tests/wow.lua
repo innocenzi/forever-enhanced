@@ -6,6 +6,10 @@
 -- cursor, a fake clock, and a server that applies sorts on demand and confirms
 -- item swaps after SERVER_CONFIRM_SECONDS. It also has a quest log (entries
 -- with a distance to the player), a quest watch list and a combat flag.
+--
+-- The character bank is two purchased tabs (containers 6 and 7, of
+-- world.bagSizes slots) out of world.maxBankTabs, with a bag in tab 2's bank bag
+-- slot. Like the client, bank contents only exist while the bank is open.
 
 local BAG_SIZE = 4
 local SERVER_CONFIRM_SECONDS = 0.05
@@ -14,6 +18,7 @@ local world = {
     now = 0,
     frames = {},
     textures = {},
+    fontStrings = {},
     timers = {},
     nextFrameCallbacks = {},
     settings = {},
@@ -29,8 +34,18 @@ local world = {
     pickups = 0,
     alt = false,
     cursor = nil,
-    bags = { [0] = { "G1", "G2", nil, "GJUNK" } },
+    bags = { [0] = { "G1", "G2", nil, "GJUNK" }, [6] = { "B1", nil, "B2" }, [7] = { nil, "B3" } },
+    bagSizes = { [6] = 4, [7] = 2 },
     quality = { GJUNK = 0 },
+    counts = { B2 = 20 },
+    itemTypes = {},
+    bankOpen = false,
+    bankTabs = { 6, 7 },
+    maxBankTabs = 3,
+    bankBags = { [2] = "GBAG" },
+    player = { guid = "Player-1-00000001", name = "Hylmew", class = "MAGE", realm = "Forever" },
+    itemSearch = "",
+    modifiedClicks = {},
     sortRequested = false,
     questLog = {},
     watches = {},
@@ -86,8 +101,19 @@ function CreateColor(r, g, b, a)
         GetRGBA = function()
             return r, g, b, a or 1
         end,
+        WrapTextInColorCode = function(_, text)
+            return ("|cff%02x%02x%02x%s|r"):format(math.floor(r * 255), math.floor(g * 255), math.floor(b * 255), text)
+        end,
     }
 end
+
+RAID_CLASS_COLORS = { MAGE = CreateColor(0.25, 0.78, 0.92), WARRIOR = CreateColor(0.78, 0.61, 0.43) }
+
+PAGE_NUMBER = "Page %d"
+BANK_BAG = "Bank Bag"
+BANK_BAG_PURCHASE = "Purchase Bank Bag"
+BAGSLOTTEXT_COLON = "Bag Slots:"
+INVTYPE_HEAD = "Head"
 
 function CreateAtlasMarkup(atlas)
     return "|A:" .. atlas .. "|a"
@@ -109,6 +135,7 @@ local Region = {}
 Region.__index = Region
 
 local function NoOp() end
+-- Cosmetic methods: nothing a test needs to observe.
 for _, name in ipairs({
     "SetAllPoints",
     "RegisterForClicks",
@@ -116,8 +143,72 @@ for _, name in ipairs({
     "SetHighlightTexture",
     "SetVertexColor",
     "SetFrameLevel",
+    "SetToplevel",
+    "EnableMouse",
+    "SetHorizTile",
+    "SetVertTile",
+    "SetRotation",
+    "SetJustifyH",
+    "SetScale",
 }) do
     Region[name] = NoOp
+end
+
+local function NewRegion(fields)
+    fields.shown = true
+    fields.events = {}
+    fields.scripts = {}
+    fields.hooks = {}
+    return setmetatable(fields, Region)
+end
+
+-- Runs a script handler, then its hooks, like the client.
+function Region:RunScript(name, ...)
+    if self.scripts[name] then
+        self.scripts[name](self, ...)
+    end
+    for _, hook in ipairs(self.hooks[name] or {}) do
+        hook(self, ...)
+    end
+end
+
+function Region:HookScript(name, hook)
+    self.hooks[name] = self.hooks[name] or {}
+    table.insert(self.hooks[name], hook)
+end
+
+function Region:SetParent(parent)
+    self.parent = parent
+end
+
+function Region:SetWidth(width)
+    self.width = width
+end
+
+function Region:SetHeight(height)
+    self.height = height
+end
+
+function Region:SetTexture(texture)
+    self.texture = texture
+end
+
+-- Edit boxes fire OnTextChanged (userInput false) when set from code.
+function Region:SetText(text)
+    self.text = text
+    if self.frameType == "EditBox" then
+        self:RunScript("OnTextChanged", false)
+    end
+end
+
+function Region:GetText()
+    return self.text or ""
+end
+
+function Region:CreateFontString()
+    local fontString = NewRegion({ owner = self, frameType = "FontString" })
+    table.insert(world.fontStrings, fontString)
+    return fontString
 end
 
 function Region:RegisterEvent(event)
@@ -137,15 +228,25 @@ function Region:SetScript(name, func)
 end
 
 function Region:Show()
-    self.shown = true
+    if not self.shown then
+        self.shown = true
+        self:RunScript("OnShow")
+    end
 end
 
 function Region:Hide()
-    self.shown = false
+    if self.shown then
+        self.shown = false
+        self:RunScript("OnHide")
+    end
 end
 
 function Region:SetShown(shown)
-    self.shown = not not shown
+    if shown then
+        self:Show()
+    else
+        self:Hide()
+    end
 end
 
 function Region:IsShown()
@@ -181,15 +282,113 @@ function Region:SetDesaturated(desaturated)
 end
 
 function Region:CreateTexture()
-    local texture = setmetatable({ owner = self, shown = true, events = {}, scripts = {} }, Region)
+    local texture = NewRegion({ owner = self })
     table.insert(world.textures, texture)
     return texture
 end
 
-function CreateFrame(_, _, parent)
-    local frame = setmetatable({ parent = parent, shown = true, events = {}, scripts = {} }, Region)
+-- Item buttons.
+function Region:GetNormalTexture()
+    self.normalTexture = self.normalTexture or self:CreateTexture()
+    return self.normalTexture
+end
+
+function Region:SetMatchesSearch(matches)
+    self.matchesSearch = matches
+end
+
+function SetItemButtonTexture(button, texture)
+    button.icon = texture
+end
+
+function SetItemButtonCount(button, count)
+    button.count = count
+end
+
+function SetItemButtonQuality(button, quality)
+    button.quality = quality
+end
+
+function HandleModifiedItemClick(link)
+    table.insert(world.modifiedClicks, link)
+end
+
+TextureKitConstants = { UseAtlasSize = true, IgnoreAtlasSize = false }
+NineSliceUtil = { ApplyLayoutByName = NoOp }
+
+-- The Blizzard templates the addon uses: the parts it touches.
+local templates = {
+    NineSlicePanelTemplate = NoOp,
+    BankPanelEdgeShadowTemplate = NoOp,
+    SearchBoxTemplate = NoOp,
+    PortraitFrameTemplate = function(frame)
+        function frame:SetTitle(title)
+            self.title = title
+        end
+        function frame:SetPortraitToClassIcon(class)
+            self.portraitClass = class
+        end
+    end,
+    -- SidePanelTabButtonMixin
+    LargeSideTabButtonTemplate = function(frame)
+        for _, key in ipairs({ "Background", "Icon", "Mask", "SelectedTexture", "TabGlow", "HighlightTexture" }) do
+            frame[key] = frame:CreateTexture()
+        end
+        function frame:SetChecked(checked)
+            self.checked = checked
+        end
+        function frame:SetCustomOnMouseUpHandler(handler)
+            self.customMouseUpHandler = handler
+        end
+        frame.SetFillToInterior = NoOp
+        function frame:GetIconAnchorOffsetsForTabArt()
+            return -3, 0
+        end
+        function frame:InitializeIconAnchoring()
+            self.iconOffsetX = self:GetFinalIconAnchorOffsets()
+        end
+        frame.GetFinalIconAnchorOffsets = frame.GetIconAnchorOffsetsForTabArt
+    end,
+    WowStyle1DropdownTemplate = function(frame)
+        function frame:SetupMenu(generator)
+            self.menuGenerator = generator
+        end
+        frame.GenerateMenu = NoOp
+    end,
+}
+
+function CreateFrame(frameType, name, parent, template)
+    local frame = NewRegion({ frameType = frameType, name = name, parent = parent, template = template })
+    if template then
+        assert(templates[template], "unknown template " .. template)(frame)
+    end
+    if name then
+        _G[name] = frame
+    end
     table.insert(world.frames, frame)
     return frame
+end
+
+UIParent = CreateFrame("Frame")
+
+-- UI panels. The panel manager does nothing in combat (CheckProtectedFunctionsAllowed).
+UIPanelWindows = {}
+UISpecialFrames = {}
+
+function RegisterUIPanel(frame, attributes)
+    UIPanelWindows[assert(frame.name, "UI panels need a name")] = attributes
+end
+
+function ShowUIPanel(frame)
+    if not world.inCombat then
+        frame:Show()
+    end
+end
+
+function HideUIPanel(frame)
+    if not world.inCombat then
+        frame:Hide()
+    end
 end
 
 -- Timers -----------------------------------------------------------------------
@@ -324,7 +523,14 @@ end
 -- Items, bags and cursor ------------------------------------------------------------
 
 Enum = {
-    BagIndex = { Backpack = 0 },
+    BagIndex = {
+        Characterbanktab = -2,
+        Backpack = 0,
+        CharacterBankTab_1 = 6,
+        CharacterBankTab_2 = 7,
+        CharacterBankTab_3 = 8,
+    },
+    BankType = { Character = 0, Account = 2 },
     BagSlotFlags = { ExcludeJunkSell = 64 },
     ItemQuality = { Poor = 0 },
     TooltipDataType = { Item = 0 },
@@ -348,9 +554,25 @@ function ItemLocation:CreateFromBagAndSlot(bagID, slot)
     return setmetatable({ bagID = bagID, slot = slot }, ItemLocationMixin)
 end
 
+-- Bank bag slots: slot N of Characterbanktab holds the bag of bank tab N.
 local function ItemAt(location)
+    if location.bagID == Enum.BagIndex.Characterbanktab then
+        return world.bankBags[location.slot]
+    end
     local bag = world.bags[location.bagID]
     return bag and bag[location.slot]
+end
+
+local function ItemLink(guid)
+    return "|cffffffff|Hitem:" .. guid .. "|h[" .. guid .. "]|h|r"
+end
+
+local function ItemIcon(guid)
+    return "icon:" .. guid
+end
+
+local function ItemQuality(guid)
+    return world.quality[guid] or 2
 end
 
 C_Item = {
@@ -359,7 +581,19 @@ C_Item = {
     end,
     GetItemGUID = ItemAt,
     GetItemLink = function(location)
-        return "[" .. ItemAt(location) .. "]"
+        return ItemLink(ItemAt(location))
+    end,
+    GetItemIcon = function(location)
+        return ItemIcon(ItemAt(location))
+    end,
+    GetItemQuality = function(location)
+        return ItemQuality(ItemAt(location))
+    end,
+    -- world.itemTypes[guid] = { itemType, itemSubType, equipLoc }; items are their own IDs.
+    GetItemInfoInstant = function(itemIDOrLink)
+        local guid = itemIDOrLink:match("%[(.-)%]") or itemIDOrLink
+        local itemType = world.itemTypes[guid] or { "Miscellaneous", "Other", "" }
+        return guid, itemType[1], itemType[2], itemType[3]
     end,
 }
 
@@ -392,13 +626,39 @@ function IsAltKeyDown()
     return world.alt
 end
 
+local function IsBankTab(bagID)
+    return bagID >= Enum.BagIndex.CharacterBankTab_1 and bagID <= Enum.BagIndex.CharacterBankTab_3
+end
+
 C_Container = {
     GetContainerNumSlots = function(bagID)
-        return world.bags[bagID] and BAG_SIZE or 0
+        if not world.bags[bagID] or (IsBankTab(bagID) and not world.bankOpen) then
+            return 0
+        end
+        return world.bagSizes[bagID] or BAG_SIZE
     end,
     GetContainerItemInfo = function(bagID, slot)
+        if IsBankTab(bagID) and not world.bankOpen then
+            return nil
+        end
         local guid = world.bags[bagID][slot]
-        return guid and { quality = world.quality[guid] or 2, hasNoValue = false, isLocked = false }
+        return guid
+            and {
+                quality = ItemQuality(guid),
+                hasNoValue = false,
+                isLocked = false,
+                isBound = false,
+                hyperlink = ItemLink(guid),
+                itemName = guid,
+                itemID = guid,
+                iconFileID = ItemIcon(guid),
+                stackCount = world.counts[guid] or 1,
+            }
+    end,
+    -- Blizzard's bag search box calls this on every change.
+    SetItemSearch = function(text)
+        world.itemSearch = text
+        world:Fire("INVENTORY_SEARCH_UPDATE")
     end,
     -- Empty cursor: pick up. Holding an item: swap it with the slot, confirmed by the server later.
     PickupContainerItem = function(bagID, slot)
@@ -513,6 +773,45 @@ C_QuestLog = {
     end,
 }
 
+-- Bank -----------------------------------------------------------------------------------
+
+C_Bank = {
+    CanViewBank = function(bankType)
+        return world.bankOpen and bankType == Enum.BankType.Character
+    end,
+    -- Index N is bank tab N; tabs 2 and up are the bank bag slots.
+    FetchPurchasedBankTabData = function(bankType)
+        assert(bankType == Enum.BankType.Character, "only the character bank is modelled")
+        local tabs = {}
+        for index, bagID in ipairs(world.bankTabs) do
+            tabs[index] = { ID = bagID, bankType = bankType }
+        end
+        return tabs
+    end,
+    FetchMaxNumBankTabs = function()
+        return world.maxBankTabs
+    end,
+}
+
+-- Player ----------------------------------------------------------------------------------
+
+function UnitGUID(unit)
+    assert(unit == "player", "only the player is modelled")
+    return world.player.guid
+end
+
+function UnitName()
+    return world.player.name
+end
+
+function UnitClass()
+    return world.player.class:lower(), world.player.class
+end
+
+function GetNormalizedRealmName()
+    return world.player.realm
+end
+
 C_SuperTrack = {
     GetSuperTrackedQuestID = function()
         return world.superTracked
@@ -534,6 +833,12 @@ end
 GameTooltip = {
     SetOwner = NoOp,
     SetBagItem = NoOp,
+    SetHyperlink = function(_, link)
+        world.tooltip = link
+    end,
+    SetText = function(_, text)
+        world.tooltip = text
+    end,
     Show = NoOp,
     IsOwned = function()
         return false
@@ -553,12 +858,25 @@ DEFAULT_CHAT_FRAME = {
     end,
 }
 
+-- world.eventRegistry[event] = { [owner] = callback }, nil once empty.
 EventRegistry = {
-    RegisterCallback = function(_, event, callback)
-        world.eventRegistry[event] = callback
+    RegisterCallback = function(_, event, callback, owner)
+        world.eventRegistry[event] = world.eventRegistry[event] or {}
+        world.eventRegistry[event][owner] = callback
     end,
-    UnregisterCallback = function(_, event)
-        world.eventRegistry[event] = nil
+    UnregisterCallback = function(_, event, owner)
+        local callbacks = world.eventRegistry[event]
+        if callbacks then
+            callbacks[owner] = nil
+            if next(callbacks) == nil then
+                world.eventRegistry[event] = nil
+            end
+        end
+    end,
+    TriggerEvent = function(_, event, ...)
+        for owner, callback in pairs(world.eventRegistry[event] or {}) do
+            callback(owner, ...)
+        end
     end,
 }
 
@@ -596,6 +914,19 @@ end
 ContainerFrameCombinedBags.UpdateItems = NoOp
 
 ContainerFrameContainer = { ContainerFrames = {} }
+
+-- The backpack frame, used when bags aren't combined.
+ContainerFrame1 = CreateFrame("Frame")
+ContainerFrame1.shown = false
+
+-- BagSearch_OnTextChanged
+BagItemSearchBox = CreateFrame("EditBox")
+BagItemSearchBox:SetScript("OnTextChanged", function(box)
+    C_Container.SetItemSearch(box:GetText())
+end)
+
+BankFrame = CreateFrame("Frame")
+BankFrame.shown = false
 
 BankPanel = CreateFrame("Frame")
 BankPanel.shown = false
@@ -743,10 +1074,7 @@ end
 
 -- Clicks the merchant's Sell All Junk button: Blizzard shows its confirmation, then notifies.
 function world:ClickSellAllJunk()
-    local onClicked = self.eventRegistry["MerchantFrame.SellAllJunkButtonClicked"]
-    if onClicked then
-        onClicked()
-    end
+    EventRegistry:TriggerEvent("MerchantFrame.SellAllJunkButtonClicked")
 end
 
 -- Replaces the quest log: { { questID = 1, distance = 100, ... }, ... } (see Quests above).
@@ -795,6 +1123,170 @@ function world:Bag()
         slots[slot] = bag[slot] or "-"
     end
     return table.concat(slots, " ")
+end
+
+-- Bags: the combined bags frame fires Blizzard's OpenBag / CloseBag callbacks.
+function world:OpenBags()
+    if not ContainerFrameCombinedBags:IsShown() then
+        ContainerFrameCombinedBags:Show()
+        EventRegistry:TriggerEvent("ContainerFrame.OpenBag", ContainerFrameCombinedBags)
+    end
+end
+
+function world:CloseBags()
+    if ContainerFrameCombinedBags:IsShown() then
+        ContainerFrameCombinedBags:Hide()
+        EventRegistry:TriggerEvent("ContainerFrame.CloseBag", ContainerFrameCombinedBags)
+    end
+end
+
+-- Like the client: Blizzard's handler shows BankFrame, which opens the bags,
+-- before addons see BANKFRAME_OPENED.
+function world:OpenBank()
+    self.bankOpen = true
+    BankFrame:Show()
+    self:OpenBags()
+    self:Fire("BANKFRAME_OPENED")
+end
+
+function world:CloseBank()
+    self.bankOpen = false
+    BankFrame:Hide()
+    self:CloseBags()
+    self:Fire("BANKFRAME_CLOSED")
+end
+
+-- The player types in the bags' search box.
+function world:SearchBags(text)
+    BagItemSearchBox.text = text
+    BagItemSearchBox:RunScript("OnTextChanged", true)
+end
+
+-- Saved Bank frames ---------------------------------------------------------------------
+
+local function FindFrame(predicate)
+    for _, frame in ipairs(world.frames) do
+        if predicate(frame) then
+            return frame
+        end
+    end
+end
+
+function world:SavedBank()
+    return ForeverEnhancedSavedBankFrame
+end
+
+function world:IsSavedBankShown()
+    local frame = self:SavedBank()
+    return frame ~= nil and frame:IsShown()
+end
+
+-- The side tab on the bags.
+function world:BankSideTab()
+    return FindFrame(function(frame)
+        return frame.template == "LargeSideTabButtonTemplate" and frame.parent ~= self:SavedBank()
+    end)
+end
+
+function world:ClickSideTab(tab)
+    tab.customMouseUpHandler(tab, "LeftButton", true)
+end
+
+local function FindTexture(owner, atlas)
+    for _, texture in ipairs(world.textures) do
+        if texture.owner == owner and texture.atlas == atlas then
+            return texture
+        end
+    end
+end
+
+-- Shown item buttons of the saved bank: bank slots, or bank bag slots (bag background).
+local function SavedBankButtons(isBag)
+    local buttons = {}
+    for _, frame in ipairs(world.frames) do
+        if frame.frameType == "ItemButton" and frame.parent == world:SavedBank() and frame.shown then
+            if (FindTexture(frame, "bank-frame-bag-slot-bg") ~= nil) == isBag then
+                table.insert(buttons, frame)
+            end
+        end
+    end
+    return buttons
+end
+
+-- The saved bank's visible item slots: "B1 - B2(20) ~B3", "~" when dimmed by the search.
+function world:SavedBankSlots()
+    local slots = {}
+    for _, button in ipairs(SavedBankButtons(false)) do
+        local slot = button.icon and button.icon:gsub("^icon:", "") or "-"
+        if button.count and button.count > 1 then
+            slot = slot .. "(" .. button.count .. ")"
+        end
+        if button.matchesSearch == false then
+            slot = "~" .. slot
+        end
+        table.insert(slots, slot)
+    end
+    return table.concat(slots, " ")
+end
+
+function world:SavedBankButton(index)
+    return SavedBankButtons(false)[index]
+end
+
+-- The saved bank's bag slots: "GBAG -", "x" for a slot not purchased.
+function world:SavedBankBags()
+    local slots = {}
+    for _, button in ipairs(SavedBankButtons(true)) do
+        local slot = button.icon and button.icon:gsub("^icon:", "") or "-"
+        table.insert(slots, FindTexture(button, "bankslot-icon-lock").shown and "x" or slot)
+    end
+    return table.concat(slots, " ")
+end
+
+-- Runs the character dropdown's menu generator: a list of
+-- { kind = "radio" | "button" | "divider", text, isSelected(), select(), callback(), children }.
+function world:SavedBankMenu()
+    local function NewDescription()
+        local description = { children = {} }
+        function description:CreateRadio(text, isSelected, setSelected)
+            local entry = { kind = "radio", text = text, isSelected = isSelected, select = setSelected }
+            table.insert(self.children, entry)
+            return entry
+        end
+        function description:CreateButton(text, callback)
+            local entry = NewDescription()
+            entry.kind, entry.text, entry.callback = "button", text, callback
+            table.insert(self.children, entry)
+            return entry
+        end
+        function description:CreateDivider()
+            table.insert(self.children, { kind = "divider" })
+        end
+        return description
+    end
+
+    local dropdown = FindFrame(function(frame)
+        return frame.template == "WowStyle1DropdownTemplate"
+    end)
+    local root = NewDescription()
+    dropdown.menuGenerator(dropdown, root)
+    return root.children
+end
+
+-- Whether the saved bank shows this text.
+function world:SavedBankShowsText(text)
+    for _, fontString in ipairs(self.fontStrings) do
+        if fontString.owner == self:SavedBank() and fontString.shown and fontString.text == text then
+            return true
+        end
+    end
+    return false
+end
+
+function world:SavedBankSearchBox()
+    return FindFrame(function(frame)
+        return frame.template == "SearchBoxTemplate"
+    end)
 end
 
 return world

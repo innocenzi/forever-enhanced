@@ -2,6 +2,7 @@
 --
 -- ForeverEnhancedDB (account):
 --   modules[moduleId] = { enabled, features = { [featureId] = { enabled, <schema keys> } } }
+--   stores[moduleId][featureId] = feature-owned table, shared by every character
 -- ForeverEnhancedCharacterDB (character):
 --   [moduleId][featureId] = feature-owned table
 --
@@ -98,5 +99,11 @@ end
 
 function Database:GetCharacterStore(feature)
     local moduleStore = GetOrCreateTable(ForeverEnhancedCharacterDB, feature.module.id)
+    return GetOrCreateTable(moduleStore, feature.id)
+end
+
+function Database:GetAccountStore(feature)
+    local stores = GetOrCreateTable(ForeverEnhancedDB, "stores")
+    local moduleStore = GetOrCreateTable(stores, feature.module.id)
     return GetOrCreateTable(moduleStore, feature.id)
 end

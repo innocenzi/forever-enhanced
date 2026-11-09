@@ -5,8 +5,13 @@
 -- in TOC order and the player logged in, once per supported locale.
 
 local LOCALES = { "enUS", "frFR" }
-local TEST_FILES =
-    { "tests/core_test.lua", "tests/locking_test.lua", "tests/sorting_test.lua", "tests/quests_test.lua" }
+local TEST_FILES = {
+    "tests/core_test.lua",
+    "tests/locking_test.lua",
+    "tests/sorting_test.lua",
+    "tests/quests_test.lua",
+    "tests/bank_test.lua",
+}
 
 local function ReadAddonFiles()
     local files = {}

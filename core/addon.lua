@@ -42,6 +42,11 @@ function FeatureMixin:GetCharacterStore()
     return ns.Database:GetCharacterStore(self)
 end
 
+-- Account-wide saved table owned by this feature, readable from every character.
+function FeatureMixin:GetAccountStore()
+    return ns.Database:GetAccountStore(self)
+end
+
 function ns:RegisterModule(id, definition)
     assert(not modules[id], "module already registered: " .. id)
 

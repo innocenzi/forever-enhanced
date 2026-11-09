@@ -17,7 +17,7 @@ Forever Enhanced: a World of Warcraft Forever addon of small, independent qualit
 - `hooksecurefunc` and tooltip post-calls can't be removed: install them once on first enable, and check `feature:IsActive()` first thing in the body.
 - Features never reach into each other; cross-feature calls go through a small public API on the feature object (e.g. `Locking:IsLocked(itemLocation)`).
 - Settings are data: each `settings` entry is `{ key, type = "toggle", default }`, `{ key, type = "dropdown", default, options = { ... } }` or `{ key, type = "slider", default, min, max, step }` (out-of-range saved values reset to the default). Add `requires = { otherKey = value }` (one setting) to nest an entry under an earlier one and grey it out unless that setting has that value. `core/settings.lua` builds the Options > AddOns panel from them; features never call the Settings API. A new widget type is a new entry in its `controls` table.
-- Saved variables: `feature.db` (account, derived from the schema; unknown keys are dropped) and `feature:GetCharacterStore()` (per character, feature-owned).
+- Saved variables: `feature.db` (account, derived from the schema; unknown keys are dropped), `feature:GetCharacterStore()` (per character, feature-owned) and `feature:GetAccountStore()` (account-wide, feature-owned: data one character saves for the others to read).
 - Events: `ns:CreateEventListener({ EVENT = function(listener, ...) end })`, then `:Start()` / `:Stop()` with the feature lifecycle.
 
 ## Localization
@@ -29,7 +29,7 @@ Forever Enhanced: a World of Warcraft Forever addon of small, independent qualit
 
 ## Lua style
 
-- File-local state; nothing global besides the namespace and saved variables.
+- File-local state; nothing global besides the namespace and saved variables. One exception: a window that must behave like a Blizzard panel (`RegisterUIPanel`, `UISpecialFrames` for Escape) needs a frame name, prefixed `ForeverEnhanced` (e.g. `ForeverEnhancedSavedBankFrame`). The panel manager does nothing in combat, so show and hide it directly when `ShowUIPanel` / `HideUIPanel` didn't.
 - Functions on the namespace and on feature or component tables are always called with a colon (`ns:Print`, `Locking:IsLocked`), whether or not they use `self`. Dot calls are for plain data records (e.g. the `sources` entries in `buttons.lua`) and Blizzard APIs.
 - Never implement slash commands (one global namespace shared by all addons); settings live only in the Options > AddOns panel.
 - Never stamp fields onto Blizzard frames: keep per-frame state in a weak-keyed local table.

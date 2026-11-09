@@ -30,6 +30,13 @@ modules\inventory\locking\guards.lua
 modules\inventory\locking\junk.lua
 modules\inventory\locking\sorting.lua
 modules\inventory\locking\tooltip.lua
+modules\inventory\bank\feature.lua
+modules\inventory\bank\locales.lua
+modules\inventory\bank\store.lua
+modules\inventory\bank\snapshot.lua
+modules\inventory\bank\search.lua
+modules\inventory\bank\view.lua
+modules\inventory\bank\tab.lua
 
 # Quests
 modules\quests\module.lua
