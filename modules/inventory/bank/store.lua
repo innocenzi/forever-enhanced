@@ -42,6 +42,20 @@ function Store:Forget(key)
     GetCharacters()[key] = nil
 end
 
+-- How many of the item the character's saved bank holds (0 when none, or not saved).
+function Store:CountItem(key, itemID)
+    local record = self:Get(key)
+    local count = 0
+    for _, tab in ipairs(record and record.tabs or {}) do
+        for _, item in pairs(tab.items) do
+            if item.itemID == itemID then
+                count = count + item.count
+            end
+        end
+    end
+    return count
+end
+
 -- Characters to pick from: { key, name, class, isPlayer }, the player first
 -- (saved bank or not), then the alts of the same realm by name.
 function Store:List()

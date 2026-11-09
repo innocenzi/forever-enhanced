@@ -236,3 +236,57 @@ test("turning the feature off hides everything and stops saving", function(world
     world:OpenBags()
     expect(world:BankSideTab().shown, "tab back")
 end)
+
+-- Bank count in tooltips. B1 (5) and B3 (7) are the same item, linen.
+local function SetUpLinen(world)
+    world.itemIDs.B1, world.itemIDs.B3 = "linen", "linen"
+    world.counts.B1, world.counts.B3 = 5, 7
+end
+
+local function BankLine(world, count)
+    return world.L["inventory.bank.tooltipLine"]:format(count)
+end
+
+test("item tooltips count the item across the saved bank", function(world)
+    SetUpLinen(world)
+    VisitBank(world)
+    local lines = world:ItemTooltip({ id = "linen" })
+    equal(#lines, 1, "lines")
+    equal(lines[1], BankLine(world, 12), "count across tabs")
+    equal(#world:ItemTooltip({ id = "G1" }), 0, "nothing for items the bank lacks")
+end)
+
+test("no bank count before the bank was ever saved", function(world)
+    equal(#world:ItemTooltip({ id = "B2" }), 0, "lines")
+end)
+
+test("the bank count follows changes at the bank", function(world)
+    SetUpLinen(world)
+    world:OpenBank()
+    world:NextFrame()
+    world.bags[7][2] = nil
+    world:Fire("BAG_UPDATE_DELAYED")
+    world:NextFrame()
+    equal(world:ItemTooltip({ id = "linen" })[1], BankLine(world, 5), "count after a change")
+end)
+
+test("the bank count sits with the lock line", function(world)
+    world.bags[0][1] = "L1"
+    world.itemIDs.L1 = "linen"
+    SetUpLinen(world)
+    world:AltClick(1)
+    VisitBank(world)
+    local lines = world:ItemTooltip({ guid = "L1", id = "linen" })
+    equal(#lines, 2, "both lines")
+    equal(lines[2], BankLine(world, 12), "bank count")
+end)
+
+test("no bank count with the option or the feature off", function(world)
+    VisitBank(world)
+    world:Setting("inventory.bank.tooltipCount"):SetValue(false)
+    equal(#world:ItemTooltip({ id = "B2" }), 0, "option off")
+    world:Setting("inventory.bank.tooltipCount"):SetValue(true)
+    equal(#world:ItemTooltip({ id = "B2" }), 1, "option on")
+    world:Setting("inventory.bank.enabled"):SetValue(false)
+    equal(#world:ItemTooltip({ id = "B2" }), 0, "feature off")
+end)

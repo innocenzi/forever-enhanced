@@ -2,6 +2,7 @@
 -- anywhere in a read-only copy of Blizzard's bank frame, for this character
 -- and the alts on the same ruleset. Opened from a side tab on the bags, or with
 -- the bags when "openWithBags" is on. At a banker, Blizzard's bank takes over.
+-- With "tooltipCount", item tooltips show how many the saved bank holds.
 --
 -- Files of this slice:
 --   feature.lua   registration, schema and lifecycle (this file)
@@ -11,6 +12,7 @@
 --   search.lua    search box, kept in sync with the bags' search
 --   view.lua      the saved bank frame
 --   tab.lua       side tab on the bags, opening with the bags
+--   tooltip.lua   bank count in item tooltips
 
 local _, ns = ...
 
@@ -18,6 +20,7 @@ local Bank = ns:RegisterFeature("inventory", "bank", {
     order = 2,
     settings = {
         { key = "openWithBags", type = "toggle", default = false },
+        { key = "tooltipCount", type = "toggle", default = true },
     },
 })
 

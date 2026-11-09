@@ -40,6 +40,7 @@ modules\inventory\bank\snapshot.lua
 modules\inventory\bank\search.lua
 modules\inventory\bank\view.lua
 modules\inventory\bank\tab.lua
+modules\inventory\bank\tooltip.lua
 modules\inventory\transfers\feature.lua
 modules\inventory\transfers\locales.lua
 modules\inventory\transfers\planner.lua
