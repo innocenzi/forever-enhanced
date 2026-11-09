@@ -244,7 +244,7 @@ local function SetUpLinen(world)
 end
 
 local function BankLine(world, count)
-    return world.L["inventory.bank.tooltipLine"]:format(count)
+    return world.L["inventory.bank.countLine"]:format(count)
 end
 
 test("item tooltips count the item across the saved bank", function(world)
@@ -289,4 +289,104 @@ test("no bank count with the option or the feature off", function(world)
     equal(#world:ItemTooltip({ id = "B2" }), 1, "option on")
     world:Setting("inventory.bank.enabled"):SetValue(false)
     equal(#world:ItemTooltip({ id = "B2" }), 0, "feature off")
+end)
+
+-- Bank mark on recipe reagents. The saved bank holds 12 linen (B1 + B3).
+local function LinenInBags(world, count)
+    world.bags[0][3] = "L1"
+    world.itemIDs.L1, world.counts.L1 = "linen", count
+end
+
+local function OpenRecipe(world)
+    SetUpLinen(world)
+    VisitBank(world)
+    world:LoadProfessions()
+end
+
+local function Mark(world, itemID, quantityRequired)
+    return world:ReagentMark(world:ShowReagentSlot(world:Reagent(itemID, quantityRequired)))
+end
+
+local function BankLine(world, count)
+    return "line " .. world.L["inventory.bank.countLine"]:format(count)
+end
+
+test("marks reagents the bags lack but the bank can supply", function(world)
+    OpenRecipe(world)
+    equal(Mark(world, "linen", 3), BankLine(world, 12), "bags 0, bank 12, need 3")
+
+    LinenInBags(world, 3)
+    equal(Mark(world, "linen", 3), "none", "bags already enough")
+
+    LinenInBags(world, 1)
+    equal(Mark(world, "linen", 13), BankLine(world, 12), "bags 1 + bank 12 = 13")
+    equal(Mark(world, "linen", 14), "none", "bags + bank still short")
+end)
+
+test("the reagent mark follows the chosen style", function(world)
+    OpenRecipe(world)
+    local slot = world:ShowReagentSlot(world:Reagent("linen", 1))
+    local style = world:Setting("inventory.bank.reagentMark")
+    equal(world:ReagentMark(slot), BankLine(world, 12), "line by default")
+
+    style:SetValue("icon")
+    equal(world:ReagentMark(slot), "icon", "icon")
+    equal(slot.Name:GetText(), "0/1 linen", "name put back")
+
+    style:SetValue("count")
+    equal(world:ReagentMark(slot), "count 12", "count")
+
+    style:SetValue("none")
+    equal(world:ReagentMark(slot), "none", "none")
+
+    style:SetValue("line")
+    equal(world:ReagentMark(slot), BankLine(world, 12), "line again")
+end)
+
+test("the line follows Blizzard rewriting the name", function(world)
+    OpenRecipe(world)
+    local slot = world:ShowReagentSlot(world:Reagent("linen", 1))
+    world:ShowReagentSlot(world:Reagent("linen", 1), slot)
+    equal(slot.Name:GetText():match("\n(.*)$") ~= nil, true, "one line")
+    equal(select(2, slot.Name:GetText():gsub("\n", "")), 1, "not added twice")
+end)
+
+test("no reagent mark before the bank was saved, or while items load", function(world)
+    SetUpLinen(world)
+    world:LoadProfessions()
+    equal(Mark(world, "linen", 1), "none", "never saved")
+
+    VisitBank(world)
+    local slot = world:ShowReagentSlot(world:Reagent("linen", 1), nil, true)
+    equal(world:ReagentMark(slot), "none", "loading")
+    world:ShowReagentSlot(world:Reagent("linen", 1), slot)
+    equal(world:ReagentMark(slot), BankLine(world, 12), "loaded")
+end)
+
+test("a reused reagent slot drops the mark", function(world)
+    OpenRecipe(world)
+    world:Setting("inventory.bank.reagentMark"):SetValue("icon")
+    local slot = world:ShowReagentSlot(world:Reagent("linen", 1))
+    equal(world:ReagentMark(slot), "icon", "linen")
+    world:ShowReagentSlot(world:Reagent("wool", 1), slot)
+    equal(world:ReagentMark(slot), "none", "wool, not in the bank")
+end)
+
+test("turning the feature off removes reagent marks", function(world)
+    OpenRecipe(world)
+    local slot = world:ShowReagentSlot(world:Reagent("linen", 1))
+    world:Setting("inventory.bank.enabled"):SetValue(false)
+    equal(world:ReagentMark(slot), "none", "feature off")
+    equal(slot.Name:GetText(), "0/1 linen", "name put back")
+    world:Setting("inventory.bank.enabled"):SetValue(true)
+    equal(world:ReagentMark(slot), BankLine(world, 12), "feature on")
+end)
+
+test("reagent marks work when professions loaded while the feature was off", function(world)
+    SetUpLinen(world)
+    VisitBank(world)
+    world:Setting("inventory.bank.enabled"):SetValue(false)
+    world:LoadProfessions()
+    world:Setting("inventory.bank.enabled"):SetValue(true)
+    equal(Mark(world, "linen", 1), BankLine(world, 12), "mark")
 end)

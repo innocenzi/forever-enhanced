@@ -141,9 +141,14 @@ function GetLocale()
     return TEST_LOCALE
 end
 
+-- world.loadedAddOns: load-on-demand Blizzard addons loaded so far.
+world.loadedAddOns = {}
 C_AddOns = {
     GetAddOnMetadata = function(_, field)
         return field == "Title" and "Forever Enhanced" or nil
+    end,
+    IsAddOnLoaded = function(name)
+        return world.loadedAddOns[name] == true
     end,
 }
 
@@ -168,6 +173,7 @@ for _, name in ipairs({
     "SetRotation",
     "SetJustifyH",
     "SetScale",
+    "SetTextColor",
 }) do
     Region[name] = NoOp
 end
@@ -560,6 +566,7 @@ Enum = {
     BagSlotFlags = { ExcludeJunkSell = 64 },
     ItemQuality = { Poor = 0 },
     TooltipDataType = { Item = 0 },
+    CraftingReagentType = { Optional = 0, Basic = 1, Finishing = 2 },
 }
 NUM_TOTAL_EQUIPPED_BAG_SLOTS = 0
 
@@ -635,6 +642,16 @@ C_Item = {
     -- Bag type flags of the item (world.itemFamilies[itemID]), 0 for any bag.
     GetItemFamily = function(itemID)
         return world.itemFamilies[itemID] or 0
+    end,
+    -- Without its include flags: the bags only.
+    GetItemCount = function(itemID)
+        local count = 0
+        for _, guid in pairs(world.bags[0]) do
+            if ItemID(guid) == itemID then
+                count = count + StackCount(guid)
+            end
+        end
+        return count
     end,
     -- world.itemTypes[guid] = { itemType, itemSubType, equipLoc }; items are their own IDs.
     GetItemInfoInstant = function(itemIDOrLink)
@@ -1218,12 +1235,88 @@ function world:Slots(bagID)
     return table.concat(slots, " ")
 end
 
+-- Professions: the player opens the professions window for the first time,
+-- which loads Blizzard_ProfessionsTemplates and its reagent slot mixin.
+function world:LoadProfessions()
+    ProfessionsReagentSlotMixin = {
+        -- The real Update fills the slot unless items are loading: the name
+        -- ("0/1 Linen") is rewritten every time.
+        Update = function(slot)
+            if not slot.loading then
+                local schematic = slot.reagentSlotSchematic
+                slot.Name:SetText(("0/%d %s"):format(schematic.quantityRequired, schematic.reagents[1].itemID))
+            end
+        end,
+        IsLoading = function(slot)
+            return slot.loading == true
+        end,
+        GetReagentSlotSchematic = function(slot)
+            return slot.reagentSlotSchematic
+        end,
+    }
+    self.loadedAddOns.Blizzard_ProfessionsTemplates = true
+    self:Fire("ADDON_LOADED", "Blizzard_ProfessionsTemplates")
+end
+
+-- A basic reagent: { reagents = { { itemID } }, quantityRequired, reagentType }.
+function world:Reagent(itemID, quantityRequired)
+    return {
+        reagents = { { itemID = itemID } },
+        quantityRequired = quantityRequired,
+        reagentType = Enum.CraftingReagentType.Basic,
+    }
+end
+
+-- A recipe shows a reagent slot: a pooled slot (reused when given), filled the
+-- client's way. The mixin is copied into the slot when it is created.
+function world:ShowReagentSlot(schematic, slot, loading)
+    if not slot then
+        slot = Mixin(CreateFrame("Frame"), ProfessionsReagentSlotMixin)
+        slot.Name = slot:CreateFontString()
+        slot.Button = CreateFrame("ItemButton", nil, slot)
+    end
+    slot.reagentSlotSchematic = schematic
+    slot.loading = loading
+    slot:Update()
+    return slot
+end
+
+-- Text without its color codes.
+local function StripColors(text)
+    return (text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""))
+end
+
+-- The bank mark a reagent slot shows: "none", "icon", "count <n>" or
+-- "line <text>" (the line under the name, without its color codes).
+function world:ReagentMark(slot)
+    local name = slot.Name:GetText()
+    local line = name:match("\n(.*)$")
+    if line then
+        return "line " .. StripColors(line)
+    end
+    for _, frame in ipairs(self.frames) do
+        if frame.parent == slot.Button and frame.shown then
+            for _, texture in ipairs(self.textures) do
+                if texture.owner == frame and texture.shown then
+                    return "icon"
+                end
+            end
+            for _, fontString in ipairs(self.fontStrings) do
+                if fontString.owner == frame and fontString.shown then
+                    return "count " .. fontString.text
+                end
+            end
+        end
+    end
+    return "none"
+end
+
 -- Shows an item tooltip ({ guid, id }): the lines the post-calls added.
 function world:ItemTooltip(data)
     local lines = {}
     local tooltip = {
         AddLine = function(_, text)
-            table.insert(lines, text)
+            table.insert(lines, StripColors(text))
         end,
     }
     for _, callback in ipairs(self.tooltipPostCalls) do

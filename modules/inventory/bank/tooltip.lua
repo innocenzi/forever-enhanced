@@ -3,7 +3,6 @@
 
 local _, ns = ...
 
-local L = ns.L
 local Bank = ns:GetFeature("inventory", "bank")
 
 ns:AddItemTooltipHandler(Bank, function(tooltip, data)
@@ -13,6 +12,6 @@ ns:AddItemTooltipHandler(Bank, function(tooltip, data)
 
     local count = Bank.Store:CountItem(Bank.Store:GetPlayerKey(), data.id)
     if count > 0 then
-        tooltip:AddLine(L["inventory.bank.tooltipLine"]:format(count), NORMAL_FONT_COLOR:GetRGB())
+        tooltip:AddLine(Bank:FormatCount(count))
     end
 end)

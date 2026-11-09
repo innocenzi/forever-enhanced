@@ -10,9 +10,9 @@ test("builds the settings panel from the registered schemas", function(world)
     equal(#world.categories, 3, "categories")
     equal(inventory.name, world.L["inventory.title"], "module subcategory name")
 
-    local dropdown
+    local dropdown -- the first one: Item Locking's indicator
     for _, initializer in ipairs(inventory.items) do
-        if initializer.options then
+        if initializer.options and not dropdown then
             dropdown = initializer
         end
     end
