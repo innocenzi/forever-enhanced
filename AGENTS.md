@@ -39,7 +39,7 @@ Forever Enhanced: a World of Warcraft Forever addon of small, independent qualit
 - Functions on the namespace and on feature or component tables are always called with a colon (`ns:Print`, `Locking:IsLocked`), whether or not they use `self`. Dot calls are for plain data records (e.g. the `sources` entries in `buttons.lua`) and Blizzard APIs.
 - Never implement slash commands (one global namespace shared by all addons); settings live only in the Options > AddOns panel.
 - Never stamp fields onto Blizzard frames: keep per-frame state in a weak-keyed local table.
-- Never wrap, replace or replay Blizzard's item-use paths (`ContainerFrameItemButton_*`, their click handlers): it taints item use. Intercept with our own frames laid over theirs, and undo actions after the fact (e.g. `ClearCursor()`). `C_Container.UseContainerItem` is allowed only for an explicit, user-confirmed action with no protected effect, like selling at an open merchant (`junk.lua`), never to stand in for a player's click.
+- Never wrap, replace or replay Blizzard's item-use paths (`ContainerFrameItemButton_*`, their click handlers): it taints item use. Intercept with our own frames laid over theirs, and undo actions after the fact (e.g. `ClearCursor()`). `C_Container.UseContainerItem` is allowed only for an explicit, user-confirmed action with no protected effect, like selling at an open merchant (`locking/junk.lua`, and `merchant/junk.lua` once the player turned on auto selling), never to stand in for a player's click.
 - Don't guard APIs that exist on this client; only nil-check load-on-demand frames (e.g. `AuctionHouseFrame`).
 
 ## Tooling

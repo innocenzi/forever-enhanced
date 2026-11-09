@@ -26,23 +26,29 @@ local function IsBagExcluded(bagID)
     return C_Container.GetBagSlotFlag(bagID, Enum.BagSlotFlags.ExcludeJunkSell)
 end
 
--- Mirrors Blizzard's junk definition (ContainerFrameItemButtonMixin:UpdateJunkItem).
-local function IsJunk(bagID, slot)
+-- The slot's item info if it holds junk, mirroring Blizzard's definition
+-- (ContainerFrameItemButtonMixin:UpdateJunkItem).
+local function GetJunkInfo(bagID, slot)
     local info = C_Container.GetContainerItemInfo(bagID, slot)
-    return info ~= nil and info.quality == Enum.ItemQuality.Poor and not info.hasNoValue
+    if info and info.quality == Enum.ItemQuality.Poor and not info.hasNoValue then
+        return info
+    end
 end
 
--- Junk Sell All Junk would sell: { unlocked = { { bagID, slot } ... }, lockedCount }.
-local function CollectJunk()
+-- Public API: the junk Sell All Junk would sell, minus locked items (none while
+-- the feature is inactive). Returns { { bagID, slot, info } ... }, lockedCount,
+-- where info is the slot's C_Container.GetContainerItemInfo.
+function Locking:CollectUnlockedJunk()
     local unlocked, lockedCount = {}, 0
     for _, bagID in ipairs(ns.Containers.BAG_IDS) do
         if not IsBagExcluded(bagID) then
             for slot = 1, C_Container.GetContainerNumSlots(bagID) do
-                if IsJunk(bagID, slot) then
-                    if Locking:IsLocked(ItemLocation:CreateFromBagAndSlot(bagID, slot)) then
+                local info = GetJunkInfo(bagID, slot)
+                if info then
+                    if self:IsLocked(ItemLocation:CreateFromBagAndSlot(bagID, slot)) then
                         lockedCount = lockedCount + 1
                     else
-                        table.insert(unlocked, { bagID = bagID, slot = slot })
+                        table.insert(unlocked, { bagID = bagID, slot = slot, info = info })
                     end
                 end
             end
@@ -56,13 +62,13 @@ local function SellUnlockedJunk()
     if not Locking:IsActive() or not MerchantFrame:IsShown() then
         return
     end
-    for _, location in ipairs((CollectJunk())) do
-        C_Container.UseContainerItem(location.bagID, location.slot)
+    for _, junk in ipairs((Locking:CollectUnlockedJunk())) do
+        C_Container.UseContainerItem(junk.bagID, junk.slot)
     end
 end
 
 local function OnSellAllJunkClicked()
-    local unlocked, lockedCount = CollectJunk()
+    local unlocked, lockedCount = Locking:CollectUnlockedJunk()
     if lockedCount == 0 then
         return
     end

@@ -119,11 +119,16 @@ test("module toggle runs the lifecycle of its features", function(world)
 end)
 
 test("feature settings grey out with their module", function(world)
-    local items = world.categories[2].items
-    local lastSetting = items[#items]
-    expect(lastSetting.predicate(), "editable by default")
+    local announce = world:Setting("inventory.locking.announce")
+    local row
+    for _, item in ipairs(world.categories[2].items) do
+        if item.setting == announce then
+            row = item
+        end
+    end
+    expect(row.predicate(), "editable by default")
     world.env.ForeverEnhancedDB.modules.inventory.enabled = false
-    expect(not lastSetting.predicate(), "greyed out with the module off")
+    expect(not row.predicate(), "greyed out with the module off")
 end)
 
 test("client locale wins over the fallback", function(world)

@@ -13,6 +13,7 @@ local TEST_FILES = {
     "tests/announce_test.lua",
     "tests/bank_test.lua",
     "tests/transfers_test.lua",
+    "tests/merchant_test.lua",
     "tests/windows_test.lua",
     "tests/waypoint_test.lua",
 }

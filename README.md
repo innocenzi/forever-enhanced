@@ -18,3 +18,4 @@ A lightweight utility addon for Forever. It keeps the default UI familiar while 
 - Quest objective announcements to your group (off by default)
 - Bank viewable from anywhere, including in profession UI tooltips
 - Quick bank deposit and withdraw
+- Automatic junk selling and repairs at merchants, optionally with guild funds (off by default)

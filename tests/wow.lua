@@ -10,6 +10,8 @@
 -- (world.waypoint). The player can be in a party and/or an instance group
 -- (world.party, world.instanceGroup); group chat goes to world.sentChat and
 -- incoming chat runs through the registered chat filters (world:ReceiveChat).
+-- At a merchant, the player has world.money and gear to repair for
+-- world.repairCost; sold items are credited after SERVER_CONFIRM_SECONDS.
 --
 -- The character bank is two purchased tabs (containers 6 and 7, of
 -- world.bagSizes slots) out of world.maxBankTabs, with a bag in tab 2's bank bag
@@ -35,6 +37,14 @@ local world = {
     popups = {},
     sold = {},
     excludedFromJunkSell = {},
+    sellPrices = {},
+    sellAllJunkEnabled = true,
+    sellAllJunkCalls = 0,
+    money = 0,
+    repairCost = 0,
+    merchantCanRepair = true,
+    guildRepair = { allowed = false, withdrawLimit = 0 },
+    repairs = {},
     swapTimes = {},
     pickups = 0,
     alt = false,
@@ -832,7 +842,85 @@ C_Item = {
         local itemType = world.itemTypes[guid] or { "Miscellaneous", "Other", "" }
         return guid, itemType[1], itemType[2], itemType[3]
     end,
+    -- Only the sell price (11th return) is modelled: world.sellPrices[itemID], default 0.
+    GetItemInfo = function(itemID)
+        return itemID, nil, nil, nil, nil, nil, nil, nil, nil, nil, world.sellPrices[itemID] or 0
+    end,
 }
+
+-- Merchant ------------------------------------------------------------------------------------
+-- The player has world.money copper. Selling an item removes it from the bag at once
+-- (world.sold); the server credits its price later and fires PLAYER_MONEY.
+
+local function SellItem(bagID, slot)
+    local guid = world.bags[bagID][slot]
+    table.insert(world.sold, guid)
+    world.bags[bagID][slot] = nil
+    local price = (world.sellPrices[ItemID(guid)] or 0) * StackCount(guid)
+    C_Timer.NewTimer(SERVER_CONFIRM_SECONDS, function()
+        world.money = world.money + price
+        world:Fire("PLAYER_MONEY")
+    end)
+end
+
+C_MerchantFrame = {
+    IsSellAllJunkEnabled = function()
+        return world.sellAllJunkEnabled
+    end,
+    -- Sells every poor-quality item of the bags not excluded from Sell All Junk.
+    SellAllJunkItems = function()
+        assert(MerchantFrame.shown, "SellAllJunkItems outside a merchant")
+        world.sellAllJunkCalls = world.sellAllJunkCalls + 1
+        if world.excludedFromJunkSell[0] then
+            return
+        end
+        for slot = 1, BAG_SIZE do
+            local guid = world.bags[0][slot]
+            if guid and ItemQuality(guid) == Enum.ItemQuality.Poor then
+                SellItem(0, slot)
+            end
+        end
+    end,
+}
+
+function GetMoney()
+    return world.money
+end
+
+-- Plain copper amounts are enough to compare messages.
+function GetMoneyString(money)
+    return tostring(money) .. "c"
+end
+
+function CanMerchantRepair()
+    return MerchantFrame.shown and world.merchantCanRepair
+end
+
+function GetRepairAllCost()
+    return world.repairCost, world.repairCost > 0
+end
+
+function CanGuildBankRepair()
+    return world.guildRepair.allowed
+end
+
+function GetGuildBankWithdrawMoney()
+    return world.guildRepair.withdrawLimit
+end
+
+-- world.repairs logs "guild <cost>" or "player <cost>". The player must afford it.
+function RepairAllItems(guildBank)
+    assert(CanMerchantRepair(), "RepairAllItems without a repair merchant")
+    local cost = world.repairCost
+    if guildBank then
+        table.insert(world.repairs, "guild " .. cost)
+    else
+        assert(world.money >= cost, "RepairAllItems without enough money")
+        world.money = world.money - cost
+        table.insert(world.repairs, "player " .. cost)
+    end
+    world.repairCost = 0
+end
 
 C_Texture = {
     GetAtlasInfo = function(atlas)
@@ -954,8 +1042,7 @@ C_Container = {
     -- Only selling (merchant open) is modelled: the item leaves the bag.
     UseContainerItem = function(bagID, slot)
         assert(MerchantFrame.shown, "UseContainerItem outside a merchant")
-        table.insert(world.sold, world.bags[bagID][slot])
-        world.bags[bagID][slot] = nil
+        SellItem(bagID, slot)
     end,
     -- The bag menu's "exclude from Sell All Junk" option.
     GetBackpackSellJunkDisabled = function()
@@ -1501,6 +1588,11 @@ end
 function world:OpenMerchant()
     MerchantFrame.shown = true
     self:Fire("MERCHANT_SHOW")
+end
+
+function world:CloseMerchant()
+    MerchantFrame.shown = false
+    self:Fire("MERCHANT_CLOSED")
 end
 
 -- Clicks the merchant's Sell All Junk button: Blizzard shows its confirmation, then notifies.
