@@ -1,3 +1,0 @@
-local addonName, ForeverEnhanced = ...
-
-ForeverEnhanced.addonName = addonName

@@ -1,7 +1,9 @@
 package-as: ForeverEnhanced
 
 ignore:
+  - .luarc.json
   - .release
+  - .stylua.toml
   - AGENTS.md
   - bump.config.ts
   - bun.lock
