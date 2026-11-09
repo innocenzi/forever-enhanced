@@ -42,12 +42,12 @@ local function CreateButton(direction)
     return button
 end
 
--- [Deposit][Withdraw] at the bottom right.
+-- [Deposit][Withdraw] at the bottom left: the bank's money frame takes the right.
 local function CreateButtons()
-    local withdraw = CreateButton("withdraw")
-    withdraw:SetPoint("BOTTOMRIGHT", BankFrame, "BOTTOMRIGHT", -6, 4)
     local deposit = CreateButton("deposit")
-    deposit:SetPoint("RIGHT", withdraw, "LEFT", -1, 0)
+    deposit:SetPoint("BOTTOMLEFT", BankFrame, "BOTTOMLEFT", 6, 4)
+    local withdraw = CreateButton("withdraw")
+    withdraw:SetPoint("LEFT", deposit, "RIGHT", 1, 0)
     buttons = { deposit, withdraw }
 end
 
