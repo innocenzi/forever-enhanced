@@ -5,7 +5,8 @@
 -- The world has one bag (ID 0) of BAG_SIZE slots holding item GUID strings, a
 -- cursor, a fake clock, and a server that applies sorts on demand and confirms
 -- item swaps after SERVER_CONFIRM_SECONDS. It also has a quest log (entries
--- with a distance to the player), a quest watch list and a combat flag.
+-- with a distance to the player), a quest watch list and a combat flag, plus a
+-- player position (world.position) and the map pin (world.waypoint).
 --
 -- The character bank is two purchased tabs (containers 6 and 7, of
 -- world.bagSizes slots) out of world.maxBankTabs, with a bag in tab 2's bank bag
@@ -25,6 +26,7 @@ local world = {
     categories = {},
     eventRegistry = {},
     errors = {},
+    warnings = {},
     prints = {},
     hiddenPopups = {},
     popups = {},
@@ -56,6 +58,8 @@ local world = {
     superTracked = 0,
     inCombat = false,
     questSorts = 0,
+    position = { x = 0, y = 0, continentID = 0 },
+    onTaxi = false,
     SERVER_CONFIRM_SECONDS = SERVER_CONFIRM_SECONDS,
 }
 
@@ -1066,11 +1070,51 @@ C_SuperTrack = {
     end,
 }
 
+-- Maps are MAP_SIZE yards squares whose top left corner is the world origin of
+-- their continent: map 1 is on continent 0, map 2 on continent 1.
+local MAP_SIZE = 1000
+local MAP_CONTINENTS = { [1] = 0, [2] = 1 }
+
 C_Map = {
     GetBestMapForUnit = function()
         return 1
     end,
+    SetUserWaypoint = function(point)
+        world.waypoint = point
+        world:Fire("USER_WAYPOINT_UPDATED")
+        return true
+    end,
+    ClearUserWaypoint = function()
+        world.waypoint = nil
+        world:Fire("USER_WAYPOINT_UPDATED")
+    end,
+    HasUserWaypoint = function()
+        return world.waypoint ~= nil
+    end,
+    GetUserWaypoint = function()
+        return world.waypoint
+    end,
+    GetWorldPosFromMapPos = function(uiMapID, position)
+        local continentID = MAP_CONTINENTS[uiMapID]
+        if continentID then
+            return continentID, { x = position.x * MAP_SIZE, y = position.y * MAP_SIZE }
+        end
+    end,
 }
+
+-- World coordinates in yards, in the order of the matching world position
+-- fields (x, y); nothing in an instance, like the client.
+function UnitPosition(unit)
+    assert(unit == "player", "only the player is modelled")
+    local position = world.position
+    if not position.instanceID then
+        return position.x, position.y, 0, position.continentID
+    end
+end
+
+function UnitOnTaxi()
+    return world.onTaxi
+end
 
 function InCombatLockdown()
     return world.inCombat
@@ -1098,7 +1142,12 @@ UIErrorsFrame = {
     AddExternalErrorMessage = function(_, message)
         table.insert(world.errors, message)
     end,
+    AddExternalWarningMessage = function(_, message)
+        table.insert(world.warnings, message)
+    end,
 }
+
+NAVIGATION_DESTINATION_REACHED_MESSAGE = "You have reached your destination."
 
 DEFAULT_CHAT_FRAME = {
     AddMessage = function(_, message)
@@ -1370,6 +1419,16 @@ end
 -- Replaces the quest log: { { questID = 1, distance = 100, ... }, ... } (see Quests above).
 function world:SetQuests(quests)
     self.questLog = quests
+end
+
+-- Places the map pin at (x, y) yards on map 1 (or uiMapID), like a Ctrl Click on the map.
+function world:SetWaypoint(x, y, uiMapID)
+    C_Map.SetUserWaypoint({ uiMapID = uiMapID or 1, position = { x = x / MAP_SIZE, y = y / MAP_SIZE } })
+end
+
+-- Moves the player to (x, y) yards on continent 0 (or continentID), or into an instance.
+function world:StandAt(x, y, continentID, instanceID)
+    self.position = { x = x, y = y, continentID = continentID or 0, instanceID = instanceID }
 end
 
 -- The player moved: { [questID] = new distance }.

@@ -63,3 +63,6 @@ modules\interface\windows\store.lua
 modules\interface\windows\placement.lua
 modules\interface\windows\handles.lua
 modules\interface\windows\tracking.lua
+modules\interface\waypoint\feature.lua
+modules\interface\waypoint\locales.lua
+modules\interface\waypoint\arrival.lua
