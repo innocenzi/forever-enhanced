@@ -1,15 +1,16 @@
 -- Item Locking: Alt+Left-click a bag or bank item to lock that exact item
--- (by GUID). A locked item can't be picked up, and right-click is blocked
--- wherever it would sell, mail, trade or auction the item.
+-- (by GUID). A locked item can't be picked up, right-click is blocked wherever
+-- it would sell, mail, trade or auction the item, and sorting leaves it in place.
 --
 -- Files of this slice:
---   feature.lua  registration, schema and lifecycle (this file)
---   locales.lua  strings
---   store.lua    lock set and public API
+--   feature.lua     registration, schema and lifecycle (this file)
+--   locales.lua     strings
+--   store.lua       lock set and public API
 --   indicators.lua  lock indicator styles drawn on item buttons
---   buttons.lua  item buttons: indicators and click shield
---   guards.lua   cursor guard and Sell All Junk guard
---   tooltip.lua  "Locked" tooltip line
+--   buttons.lua     item buttons: indicators and click shield
+--   guards.lua      cursor guard and Sell All Junk guard
+--   sorting.lua     puts locked items back after a sort
+--   tooltip.lua     "Locked" tooltip line
 
 local _, ns = ...
 
@@ -22,6 +23,7 @@ local Locking = ns:RegisterFeature("inventory", "locking", {
             default = "padlock",
             options = { "padlock", "center", "corner", "none" },
         },
+        { key = "keepInPlace", type = "toggle", default = true },
         { key = "showTooltip", type = "toggle", default = true },
         { key = "announce", type = "toggle", default = true },
     },
@@ -30,16 +32,20 @@ local Locking = ns:RegisterFeature("inventory", "locking", {
 function Locking:OnEnable()
     self.Buttons:Enable()
     self.Guards:Enable()
+    self.Sorting:Enable()
     self.Tooltip:Enable()
 end
 
 function Locking:OnDisable()
+    self.Sorting:Disable()
     self.Guards:Disable()
     self.Buttons:Disable()
 end
 
-function Locking:OnSettingChanged(key)
+function Locking:OnSettingChanged(key, value)
     if key == "indicator" then
         self.Buttons:Refresh()
+    elseif key == "keepInPlace" and not value then
+        self.Sorting:Disable()
     end
 end

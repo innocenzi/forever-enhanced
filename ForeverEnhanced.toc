@@ -27,4 +27,5 @@ modules\inventory\locking\store.lua
 modules\inventory\locking\indicators.lua
 modules\inventory\locking\buttons.lua
 modules\inventory\locking\guards.lua
+modules\inventory\locking\sorting.lua
 modules\inventory\locking\tooltip.lua
