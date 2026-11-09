@@ -34,7 +34,7 @@ Forever Enhanced: a World of Warcraft Forever addon of small, independent qualit
 
 ## Tooling
 
-Bun scripts: `bun run format` / `bun run lint` (StyLua, Lua 5.1 syntax), `bun run changelog` (git-cliff → `CHANGELOG.md`), `bun run release` (bumpp: bumps `package.json` and the TOC `## Version`, regenerates the changelog, commits, tags, pushes).
+Bun scripts: `bun run format` / `bun run lint` (StyLua, Lua 5.1 syntax), `bun run changelog` (git-cliff → `CHANGELOG.md`), `bun run release` (bumpp: bumps `package.json` and the TOC `## Version`, regenerates the changelog, commits, tags, pushes), `bun run icon` (resvg: renders `tools/icon/icon.svg` to `media/icon.tga`, the TOC `## IconTexture`, and `tools/icon/logo.svg` to `tools/icon/logo.png` for the project page). Edit the SVGs, then rerun it and commit the outputs.
 
 ## Packaging
 

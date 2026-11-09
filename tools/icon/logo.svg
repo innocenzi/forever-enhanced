@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- Full mark (48 px and up): stitched edge. -->
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="#3A2A1F"/>
+  <rect x="30" y="30" width="452" height="452" rx="86" fill="none" stroke="#EAD9BC" stroke-opacity="0.55" stroke-width="7" stroke-dasharray="20 14" stroke-linecap="round"/>
+  <g fill="#EAD9BC">
+    <rect x="116" y="116" width="124" height="124" rx="28"/>
+    <rect x="272" y="116" width="124" height="124" rx="28"/>
+    <rect x="116" y="272" width="124" height="124" rx="28"/>
+  </g>
+  <circle cx="334" cy="334" r="134" fill="#3A2A1F"/>
+  <g fill="#E59A5C" transform="rotate(22.5 334 334)">
+    <rect x="312" y="230" width="44" height="40" rx="10"/>
+    <rect x="312" y="230" width="44" height="40" rx="10" transform="rotate(45 334 334)"/>
+    <rect x="312" y="230" width="44" height="40" rx="10" transform="rotate(90 334 334)"/>
+    <rect x="312" y="230" width="44" height="40" rx="10" transform="rotate(135 334 334)"/>
+    <rect x="312" y="230" width="44" height="40" rx="10" transform="rotate(180 334 334)"/>
+    <rect x="312" y="230" width="44" height="40" rx="10" transform="rotate(225 334 334)"/>
+    <rect x="312" y="230" width="44" height="40" rx="10" transform="rotate(270 334 334)"/>
+    <rect x="312" y="230" width="44" height="40" rx="10" transform="rotate(315 334 334)"/>
+    <circle cx="334" cy="334" r="76"/>
+  </g>
+  <circle cx="334" cy="334" r="26" fill="#3A2A1F"/>
+</svg>

@@ -6,6 +6,7 @@
 ## Version: 0.0.0
 ## Category: User Interface
 ## Category-frFR: Interface utilisateur
+## IconTexture: Interface\AddOns\ForeverEnhanced\media\icon
 ## SavedVariables: ForeverEnhancedDB
 ## SavedVariablesPerCharacter: ForeverEnhancedCharacterDB
 
