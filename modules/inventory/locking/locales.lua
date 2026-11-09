@@ -1,0 +1,43 @@
+local _, ns = ...
+
+ns:RegisterLocale("enUS", {
+    ["inventory.locking.title"] = "Item Locking",
+    ["inventory.locking.description"] = "Alt+Left-click an item in your bags or bank to lock it. A locked item can't be picked up, dragged, destroyed, sold, mailed, traded or auctioned. You can still use or equip it with a right-click.",
+    ["inventory.locking.indicator"] = "Lock indicator",
+    ["inventory.locking.indicator.tooltip"] = "How locked items are marked in your bags and bank.",
+    ["inventory.locking.indicator.padlock"] = "Small padlock",
+    ["inventory.locking.indicator.center"] = "Large padlock",
+    ["inventory.locking.indicator.corner"] = "Corner padlock",
+    ["inventory.locking.indicator.none"] = "None",
+    ["inventory.locking.showTooltip"] = "Add to item tooltips",
+    ["inventory.locking.showTooltip.tooltip"] = 'Add a "Locked" line to the tooltip of locked items.',
+    ["inventory.locking.announce"] = "Announce in chat",
+    ["inventory.locking.announce.tooltip"] = "Print a chat message when you lock or unlock an item.",
+    ["inventory.locking.locked"] = "Locked: %s",
+    ["inventory.locking.unlocked"] = "Unlocked: %s",
+    ["inventory.locking.tooltipLine"] = "Locked",
+    ["inventory.locking.isLocked"] = "This item is locked. Alt+Left-click it to unlock it.",
+    ["inventory.locking.cannotSell"] = "Locked items can't be sold.",
+    ["inventory.locking.sellJunkBlocked"] = "Some of your junk is locked. Unlock it before selling all junk.",
+})
+
+ns:RegisterLocale("frFR", {
+    ["inventory.locking.title"] = "Verrouillage d'objets",
+    ["inventory.locking.description"] = "Alt+clic gauche sur un objet de vos sacs ou de votre banque pour le verrouiller. Un objet verrouillé ne peut pas être pris, déplacé, détruit, vendu, envoyé par courrier, échangé ni mis aux enchères. Vous pouvez toujours l'utiliser ou l'équiper avec un clic droit.",
+    ["inventory.locking.indicator"] = "Indicateur",
+    ["inventory.locking.indicator.tooltip"] = "Comment les objets verrouillés sont signalés dans vos sacs et votre banque.",
+    ["inventory.locking.indicator.padlock"] = "Petit cadenas",
+    ["inventory.locking.indicator.center"] = "Grand cadenas",
+    ["inventory.locking.indicator.corner"] = "Cadenas dans le coin",
+    ["inventory.locking.indicator.none"] = "Aucun",
+    ["inventory.locking.showTooltip"] = "Ajouter aux infobulles",
+    ["inventory.locking.showTooltip.tooltip"] = "Ajoute une ligne « Verrouillé » à l'infobulle des objets verrouillés.",
+    ["inventory.locking.announce"] = "Annoncer dans la discussion",
+    ["inventory.locking.announce.tooltip"] = "Affiche un message dans la discussion quand vous verrouillez ou déverrouillez un objet.",
+    ["inventory.locking.locked"] = "Objet verrouillé : %s",
+    ["inventory.locking.unlocked"] = "Objet déverrouillé : %s",
+    ["inventory.locking.tooltipLine"] = "Verrouillé",
+    ["inventory.locking.isLocked"] = "Cet objet est verrouillé. Alt+clic gauche pour le déverrouiller.",
+    ["inventory.locking.cannotSell"] = "Les objets verrouillés ne peuvent pas être vendus.",
+    ["inventory.locking.sellJunkBlocked"] = "Une partie de votre camelote est verrouillée. Déverrouillez-la avant de tout vendre.",
+})

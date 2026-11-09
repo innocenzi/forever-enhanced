@@ -17,3 +17,13 @@ core\messages.lua
 core\database.lua
 core\settings.lua
 core\locales.lua
+
+# Inventory
+modules\inventory\module.lua
+modules\inventory\locking\feature.lua
+modules\inventory\locking\locales.lua
+modules\inventory\locking\store.lua
+modules\inventory\locking\indicators.lua
+modules\inventory\locking\buttons.lua
+modules\inventory\locking\guards.lua
+modules\inventory\locking\tooltip.lua
