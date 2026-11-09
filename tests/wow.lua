@@ -295,6 +295,16 @@ function Region:ClearAllPoints()
     self.anchors = {}
 end
 
+-- The client keeps anchor offsets as 32-bit floats: GetPoint doesn't always
+-- return the number given to SetPoint (e.g. one read back from saved variables).
+local function ToFloat32(value)
+    if not string.pack then
+        return value
+    end
+    local stored = string.unpack("f", string.pack("f", value))
+    return math.tointeger(stored) or stored
+end
+
 -- SetPoint(point [, relativeTo [, relativePoint]] [, x, y]), one anchor per point.
 function Region:SetPoint(point, relativeTo, relativePoint, x, y)
     if type(relativeTo) == "number" then
@@ -302,7 +312,7 @@ function Region:SetPoint(point, relativeTo, relativePoint, x, y)
     end
     self.point = self.point or point
     self.anchors = self.anchors or {}
-    local anchor = { point, relativeTo or self.parent, relativePoint or point, x or 0, y or 0 }
+    local anchor = { point, relativeTo or self.parent, relativePoint or point, ToFloat32(x or 0), ToFloat32(y or 0) }
     for index, existing in ipairs(self.anchors) do
         if existing[1] == point then
             self.anchors[index] = anchor

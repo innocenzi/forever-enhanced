@@ -96,6 +96,17 @@ test("a bag stacked on a moved one keeps Blizzard's place when reopened", functi
     equal(world:Position(ContainerFrame2), bagPlace, "not carried by the backpack")
 end)
 
+test("resetting a bag puts it at Blizzard's place, even when the bag below it moved", function(world)
+    world:OpenSeparateBags()
+    local bagPlace = world:Position(ContainerFrame2)
+    world:DragTitle(ContainerFrame1, 300, 400)
+    world:DragTitle(ContainerFrame2, 600, 700)
+
+    world:ShiftRightClickTitle(ContainerFrame2)
+    equal(world:Position(ContainerFrame2), bagPlace, "bag back at once")
+    equal(world:Anchor(ContainerFrame1), DROPPED, "backpack stays")
+end)
+
 test("disabling stacks separate bags again", function(world)
     world:OpenSeparateBags()
     world:DragTitle(ContainerFrame1, 300, 400)
@@ -156,6 +167,21 @@ test("Shift Right Click on the title bar puts the window back", function(world)
     HideUIPanel(CharacterFrame)
     ShowUIPanel(CharacterFrame)
     equal(world:Anchor(CharacterFrame), PANEL_DEFAULT, "stays there")
+end)
+
+test("Shift Right Click resets a position saved in an earlier session", function(world)
+    -- Read back from saved variables: not a number the client stores exactly.
+    Windows(world):GetAccountStore().positions = {
+        CharacterFrame = { point = "TOPLEFT", relativePoint = "BOTTOMLEFT", x = 512.37, y = 400.1 },
+        ContainerFrameCombinedBags = { point = "TOPLEFT", relativePoint = "BOTTOMLEFT", x = 812.37, y = 600.1 },
+    }
+    ShowUIPanel(CharacterFrame)
+    UpdateContainerFrameAnchors()
+
+    world:ShiftRightClickTitle(CharacterFrame)
+    world:ShiftRightClickTitle(ContainerFrameCombinedBags)
+    equal(world:Anchor(CharacterFrame), PANEL_DEFAULT, "panel back at once")
+    equal(world:Anchor(ContainerFrameCombinedBags), BAG_DEFAULT, "bags back at once")
 end)
 
 test("disabling puts windows back and hides the handles; enabling moves them again", function(world)

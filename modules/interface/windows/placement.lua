@@ -21,7 +21,12 @@ Windows.Placement = Placement
 
 -- Per frame: Blizzard's anchors, { { point, relativeTo, relativePoint, x, y }, ... }.
 local defaults = setmetatable({}, { __mode = "k" })
--- Per frame: the position we anchored it to, while it is there.
+-- Per pinned frame: where Blizzard's anchors put it on screen, as a position.
+-- Its anchors are relative to a frame that may have moved since.
+local pins = setmetatable({}, { __mode = "k" })
+-- Per frame we anchored: its anchor as the client reports it ({ GetPoint(1) }).
+-- The client stores offsets as 32-bit floats, so it may differ from the saved
+-- numbers (read back from saved variables).
 local applied = setmetatable({}, { __mode = "k" })
 -- Per frame: "apply" or "restore", waiting for the end of combat.
 local pending = setmetatable({}, { __mode = "k" })
@@ -37,16 +42,16 @@ end
 
 -- Whether the frame is anchored exactly where we put it.
 local function IsAtApplied(frame)
-    local position = applied[frame]
-    if not position or frame:GetNumPoints() ~= 1 then
+    local anchor = applied[frame]
+    if not anchor or frame:GetNumPoints() ~= 1 then
         return false
     end
     local point, relativeTo, relativePoint, x, y = frame:GetPoint(1)
-    return point == position.point
-        and relativeTo == UIParent
-        and relativePoint == position.relativePoint
-        and x == position.x
-        and y == position.y
+    return point == anchor[1]
+        and relativeTo == anchor[2]
+        and relativePoint == anchor[3]
+        and x == anchor[4]
+        and y == anchor[5]
 end
 
 -- Remembers the frame's anchors as Blizzard's, unless they are ours.
@@ -59,6 +64,7 @@ local function Capture(frame)
         anchors[index] = { frame:GetPoint(index) }
     end
     defaults[frame] = anchors
+    pins[frame] = nil
     applied[frame] = nil
 end
 
@@ -66,7 +72,7 @@ end
 local function Anchor(frame, position)
     frame:ClearAllPoints()
     frame:SetPoint(position.point, UIParent, position.relativePoint, position.x, position.y)
-    applied[frame] = position
+    applied[frame] = { frame:GetPoint(1) }
 end
 
 -- Puts the frame back on Blizzard's anchors, if we moved it.
@@ -110,11 +116,13 @@ end
 
 -- Anchors the frame to the screen at its bottom right corner (nil when the
 -- client can't place it yet), so that moving the frame it was anchored to
--- leaves it in place. Undone like a move.
+-- leaves it in place. Undone like a move; a reset puts it back on its pin.
 function Placement:Pin(frame, right, bottom)
     if right and bottom and self:CanMove(frame) then
         Capture(frame)
-        Anchor(frame, { point = "BOTTOMRIGHT", relativePoint = "BOTTOMLEFT", x = right, y = bottom })
+        local pin = { point = "BOTTOMRIGHT", relativePoint = "BOTTOMLEFT", x = right, y = bottom }
+        Anchor(frame, pin)
+        pins[frame] = pin
     end
 end
 
@@ -149,7 +157,11 @@ end
 -- Forgets the frame's saved position and puts it back where Blizzard placed it.
 function Placement:Reset(frame)
     Windows.Store:Forget(frame:GetName())
-    Restore(frame)
+    if pins[frame] and IsAtApplied(frame) and self:CanMove(frame) then
+        Anchor(frame, pins[frame])
+    else
+        Restore(frame)
+    end
 end
 
 function Placement:RestoreAll()
