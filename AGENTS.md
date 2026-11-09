@@ -16,14 +16,14 @@ Forever Enhanced: a World of Warcraft Forever addon of small, independent qualit
 - A feature is active only when the player has logged in, its module is enabled and the feature is enabled. Core calls `OnEnable` / `OnDisable` on every transition and `OnSettingChanged(key, value)` while active. `OnDisable` must fully undo the feature (events, visible UI).
 - `hooksecurefunc` and tooltip post-calls can't be removed: install them once on first enable, and check `feature:IsActive()` first thing in the body.
 - Features never reach into each other; cross-feature calls go through a small public API on the feature object (e.g. `Locking:IsLocked(itemLocation)`).
-- Settings are data: each `settings` entry is `{ key, type = "toggle", default }` or `{ key, type = "dropdown", default, options = { ... } }`. `core/settings.lua` builds the Options > AddOns panel from them; features never call the Settings API. A new widget type is a new entry in its `controls` table.
+- Settings are data: each `settings` entry is `{ key, type = "toggle", default }`, `{ key, type = "dropdown", default, options = { ... } }` or `{ key, type = "slider", default, min, max, step }` (out-of-range saved values reset to the default). Add `requires = { otherKey = value }` (one setting) to nest an entry under an earlier one and grey it out unless that setting has that value. `core/settings.lua` builds the Options > AddOns panel from them; features never call the Settings API. A new widget type is a new entry in its `controls` table.
 - Saved variables: `feature.db` (account, derived from the schema; unknown keys are dropped) and `feature:GetCharacterStore()` (per character, feature-owned).
 - Events: `ns:CreateEventListener({ EVENT = function(listener, ...) end })`, then `:Start()` / `:Stop()` with the feature lifecycle.
 
 ## Localization
 
 - Every player-facing string exists in `enUS` and `frFR` (correct French accents). Each slice registers its own strings with `ns:RegisterLocale`.
-- Keys: `<module>.title`, `<module>.description`, `<module>.<feature>.title|description|<key>|<key>.tooltip|<key>.<option>`, plus any feature strings under `<module>.<feature>.`.
+- Keys: `<module>.title`, `<module>.description`, `<module>.<feature>.title|description|<key>|<key>.tooltip|<key>.<option>|<key>.format` (a slider's value label, e.g. `"%d yd"`; the plain number otherwise), plus any feature strings under `<module>.<feature>.`.
 - The settings list truncates labels past about 30 characters: keep labels short and put details in the `.tooltip`.
 - Plurals: WoW's `|4singular:plural;` markup right after the number (`"%d |4item:items;"`); the client picks the form per language. It reads the number immediately before the token (no color code in between), so put every word that agrees with the count inside the token, after the number (`"%d |4objet sera conservé:objets seront conservés;"`).
 

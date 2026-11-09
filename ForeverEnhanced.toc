@@ -30,3 +30,11 @@ modules\inventory\locking\guards.lua
 modules\inventory\locking\junk.lua
 modules\inventory\locking\sorting.lua
 modules\inventory\locking\tooltip.lua
+
+# Quests
+modules\quests\module.lua
+modules\quests\nearby\feature.lua
+modules\quests\nearby\locales.lua
+modules\quests\nearby\ranking.lua
+modules\quests\nearby\watches.lua
+modules\quests\nearby\refresh.lua

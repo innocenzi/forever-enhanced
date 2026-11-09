@@ -7,7 +7,7 @@ end
 test("builds the settings panel from the registered schemas", function(world)
     local root, inventory = world.categories[1], world.categories[2]
     expect(root.registered, "root category registered as an AddOn category")
-    equal(#world.categories, 2, "categories")
+    equal(#world.categories, 3, "categories")
     equal(inventory.name, world.L["inventory.title"], "module subcategory name")
 
     local dropdown
@@ -36,6 +36,41 @@ test("drops unknown keys and resets unknown options", function(world)
     world.ns.Database:Initialize()
     equal(db.stale, nil, "unknown key")
     equal(db.indicator, "padlock", "unknown option")
+end)
+
+-- The quests page initializer bound to quests.nearby.<key>.
+local function QuestsInitializer(world, key)
+    local setting = world:Setting("quests.nearby." .. key)
+    for _, initializer in ipairs(world.categories[3].items) do
+        if initializer.setting == setting then
+            return initializer
+        end
+    end
+end
+
+test("resets slider values outside their bounds", function(world)
+    local db = world.env.ForeverEnhancedDB.modules.quests.features.nearby
+    equal(db.count, 5, "slider default")
+    db.count = 99
+    world.ns.Database:Initialize()
+    equal(db.count, 5, "out of range")
+end)
+
+test("labels slider values with the locale's format", function(world)
+    local slider = QuestsInitializer(world, "range").slider
+    equal(slider.minValue, 100, "min")
+    equal(slider.formatter(500), world.L["quests.nearby.range.format"]:format(500), "value label")
+    equal(QuestsInitializer(world, "count").slider.formatter(5), "5", "plain number without a format")
+end)
+
+test("a setting that requires another sits under it and greys out", function(world)
+    local range = QuestsInitializer(world, "range")
+    equal(range.parent, QuestsInitializer(world, "scope"), "parent")
+    expect(not range.predicate(), "greyed out unless the scope is 'range'")
+    world:Setting("quests.nearby.scope"):SetValue("range")
+    expect(range.predicate(), "editable with the scope set to 'range'")
+    world:Setting("quests.nearby.enabled"):SetValue(false)
+    expect(not range.predicate(), "greyed out with the feature off")
 end)
 
 test("activates features at login", function(world)

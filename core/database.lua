@@ -24,9 +24,20 @@ local function GetOrCreateTable(parent, key)
     return value
 end
 
-local function ApplyDefault(tbl, key, default, allowedValues)
+-- Whether a value of the right type is allowed by the entry (dropdown options, slider bounds).
+local function IsAllowed(entry, value)
+    if entry.options then
+        return tContains(entry.options, value)
+    end
+    if entry.min then
+        return value >= entry.min and value <= entry.max
+    end
+    return true
+end
+
+local function ApplyDefault(tbl, key, default, entry)
     local value = tbl[key]
-    if type(value) ~= type(default) or (allowedValues and not tContains(allowedValues, value)) then
+    if type(value) ~= type(default) or (entry and not IsAllowed(entry, value)) then
         tbl[key] = default
     end
 end
@@ -46,7 +57,7 @@ local function InitializeFeature(savedFeatures, feature)
     ApplyDefault(featureDb, "enabled", Database.ENABLED_DEFAULT)
     for _, entry in ipairs(feature.settings) do
         knownKeys[entry.key] = true
-        ApplyDefault(featureDb, entry.key, entry.default, entry.options)
+        ApplyDefault(featureDb, entry.key, entry.default, entry)
     end
 
     KeepOnly(featureDb, knownKeys)

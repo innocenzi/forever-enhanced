@@ -4,7 +4,8 @@
 --
 -- The world has one bag (ID 0) of BAG_SIZE slots holding item GUID strings, a
 -- cursor, a fake clock, and a server that applies sorts on demand and confirms
--- item swaps after SERVER_CONFIRM_SECONDS.
+-- item swaps after SERVER_CONFIRM_SECONDS. It also has a quest log (entries
+-- with a distance to the player), a quest watch list and a combat flag.
 
 local BAG_SIZE = 4
 local SERVER_CONFIRM_SECONDS = 0.05
@@ -31,6 +32,11 @@ local world = {
     bags = { [0] = { "G1", "G2", nil, "GJUNK" } },
     quality = { GJUNK = 0 },
     sortRequested = false,
+    questLog = {},
+    watches = {},
+    superTracked = 0,
+    inCombat = false,
+    questSorts = 0,
     SERVER_CONFIRM_SECONDS = SERVER_CONFIRM_SECONDS,
 }
 
@@ -54,6 +60,13 @@ function tContains(tbl, value)
         end
     end
     return false
+end
+
+function wipe(tbl)
+    for key in pairs(tbl) do
+        tbl[key] = nil
+    end
+    return tbl
 end
 
 function hooksecurefunc(tbl, name, hook)
@@ -193,6 +206,11 @@ C_Timer = {
         table.insert(world.timers, timer)
         return timer
     end,
+    NewTicker = function(seconds, callback)
+        local ticker = C_Timer.NewTimer(seconds, callback)
+        ticker.interval = seconds
+        return ticker
+    end,
 }
 
 -- Settings panel -----------------------------------------------------------------
@@ -246,8 +264,10 @@ local function AddInitializer(category, initializer)
     return initializer
 end
 
+MinimalSliderWithSteppersMixin = { Label = { Right = 3 } }
+
 Settings = {
-    VarType = { Boolean = "boolean", String = "string" },
+    VarType = { Boolean = "boolean", String = "string", Number = "number" },
     RegisterVerticalLayoutCategory = NewCategory,
     RegisterVerticalLayoutSubcategory = function(_, name)
         return NewCategory(name)
@@ -270,6 +290,19 @@ Settings = {
     end,
     CreateDropdown = function(category, setting, getOptions, tooltip)
         return AddInitializer(category, { setting = setting, tooltip = tooltip, options = getOptions() })
+    end,
+    CreateSliderOptions = function(minValue, maxValue, step)
+        return {
+            minValue = minValue,
+            maxValue = maxValue,
+            step = step,
+            SetLabelFormatter = function(self, _, formatter)
+                self.formatter = formatter
+            end,
+        }
+    end,
+    CreateSlider = function(category, setting, sliderOptions, tooltip)
+        return AddInitializer(category, { setting = setting, tooltip = tooltip, slider = sliderOptions })
     end,
     CreateControlTextContainer = function()
         local data = {}
@@ -406,6 +439,96 @@ C_Container = {
     SortAccountBankBags = NoOp,
 }
 
+-- Quests ----------------------------------------------------------------------------------
+-- world.questLog entries: { questID, distance (yards, nil = no location),
+-- offContinent, onMap, isHeader, isHidden, isTask, isBounty, isWorldQuest }.
+
+local function FindQuest(questID)
+    for _, quest in ipairs(world.questLog) do
+        if quest.questID == questID then
+            return quest
+        end
+    end
+end
+
+local function WatchIndex(questID)
+    for index, watched in ipairs(world.watches) do
+        if watched == questID then
+            return index
+        end
+    end
+end
+
+Constants = { QuestWatchConsts = { MAX_QUEST_WATCHES = 25 } }
+
+C_QuestLog = {
+    GetNumQuestLogEntries = function()
+        return #world.questLog, #world.questLog
+    end,
+    GetInfo = function(index)
+        return world.questLog[index]
+    end,
+    IsWorldQuest = function(questID)
+        return FindQuest(questID).isWorldQuest == true
+    end,
+    GetDistanceSqToQuest = function(questID)
+        local quest = FindQuest(questID)
+        if quest and quest.distance then
+            return quest.distance * quest.distance, not quest.offContinent
+        end
+    end,
+    GetQuestsOnMap = function()
+        local pois = {}
+        for _, quest in ipairs(world.questLog) do
+            if quest.onMap then
+                table.insert(pois, { questID = quest.questID })
+            end
+        end
+        return pois
+    end,
+    GetQuestWatchType = function(questID)
+        return WatchIndex(questID) and 0 or nil
+    end,
+    GetNumQuestWatches = function()
+        return #world.watches
+    end,
+    GetQuestIDForQuestWatchIndex = function(index)
+        return world.watches[index]
+    end,
+    -- Like the client, watch changes fire QUEST_WATCH_LIST_CHANGED synchronously.
+    AddQuestWatch = function(questID)
+        assert(not WatchIndex(questID), "quest already watched")
+        assert(#world.watches < Constants.QuestWatchConsts.MAX_QUEST_WATCHES, "too many watches")
+        table.insert(world.watches, questID)
+        world:Fire("QUEST_WATCH_LIST_CHANGED", questID, true)
+        return true
+    end,
+    RemoveQuestWatch = function(questID)
+        table.remove(world.watches, assert(WatchIndex(questID), "quest not watched"))
+        world:Fire("QUEST_WATCH_LIST_CHANGED", questID, false)
+        return true
+    end,
+    SortQuestWatches = function()
+        world.questSorts = world.questSorts + 1
+    end,
+}
+
+C_SuperTrack = {
+    GetSuperTrackedQuestID = function()
+        return world.superTracked
+    end,
+}
+
+C_Map = {
+    GetBestMapForUnit = function()
+        return 1
+    end,
+}
+
+function InCombatLockdown()
+    return world.inCombat
+end
+
 -- UI globals ---------------------------------------------------------------------------
 
 GameTooltip = {
@@ -522,7 +645,11 @@ function world:Elapse(seconds)
             return
         end
         self.now = nextTimer.at
-        nextTimer.ran = true
+        if nextTimer.interval then
+            nextTimer.at = nextTimer.at + nextTimer.interval
+        else
+            nextTimer.ran = true
+        end
         nextTimer.callback()
         self:NextFrame()
     end
@@ -620,6 +747,45 @@ function world:ClickSellAllJunk()
     if onClicked then
         onClicked()
     end
+end
+
+-- Replaces the quest log: { { questID = 1, distance = 100, ... }, ... } (see Quests above).
+function world:SetQuests(quests)
+    self.questLog = quests
+end
+
+-- The player moved: { [questID] = new distance }.
+function world:MoveTo(distances)
+    for questID, distance in pairs(distances) do
+        FindQuest(questID).distance = distance
+    end
+end
+
+-- The player tracks or untracks a quest from the quest log or the tracker.
+function world:TrackQuest(questID)
+    C_QuestLog.AddQuestWatch(questID)
+end
+
+function world:UntrackQuest(questID)
+    C_QuestLog.RemoveQuestWatch(questID)
+end
+
+-- The player accepts a quest: Blizzard's autoQuestWatch watches it from its
+-- own QUEST_ACCEPTED handler, which runs before ours.
+function world:AcceptQuest(quest)
+    table.insert(self.questLog, quest)
+    C_QuestLog.AddQuestWatch(quest.questID)
+    self:Fire("QUEST_ACCEPTED", quest.questID)
+end
+
+-- Watched quest IDs, sorted: "1 3 4".
+function world:Watched()
+    local watched = {}
+    for index, questID in ipairs(self.watches) do
+        watched[index] = questID
+    end
+    table.sort(watched)
+    return table.concat(watched, " ")
 end
 
 function world:Bag()
