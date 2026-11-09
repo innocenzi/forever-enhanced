@@ -19,6 +19,8 @@ Forever Enhanced: a World of Warcraft Forever addon of small, independent qualit
 - Settings are data: each `settings` entry is `{ key, type = "toggle", default }`, `{ key, type = "dropdown", default, options = { ... } }` or `{ key, type = "slider", default, min, max, step }` (out-of-range saved values reset to the default). Add `requires = { otherKey = value }` (one setting) to nest an entry under an earlier one and grey it out unless that setting has that value. `core/settings.lua` builds the Options > AddOns panel from them; features never call the Settings API. A new widget type is a new entry in its `controls` table.
 - Saved variables: `feature.db` (account, derived from the schema; unknown keys are dropped), `feature:GetCharacterStore()` (per character, feature-owned) and `feature:GetAccountStore()` (account-wide, feature-owned: data one character saves for the others to read).
 - Events: `ns:CreateEventListener({ EVENT = function(listener, ...) end })`, then `:Start()` / `:Stop()` with the feature lifecycle.
+- Containers: `ns.Containers` (`BAG_IDS`, `ALL_CONTAINER_IDS`, `GetBankContainerIDs()`, `ForEachSlot`).
+- Moving items: only through `ns:CreateMover({ Plan, maxMovesPerKey })` (`core/moves.lua`), never ad-hoc pickup sequences. `Plan()` returns the moves still needed from live positions; the mover sends non-conflicting moves in rounds and waits for the server between them.
 
 ## Localization
 

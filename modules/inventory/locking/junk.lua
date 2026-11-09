@@ -35,7 +35,7 @@ end
 -- Junk Sell All Junk would sell: { unlocked = { { bagID, slot } ... }, lockedCount }.
 local function CollectJunk()
     local unlocked, lockedCount = {}, 0
-    for _, bagID in ipairs(Locking.BAG_IDS) do
+    for _, bagID in ipairs(ns.Containers.BAG_IDS) do
         if not IsBagExcluded(bagID) then
             for slot = 1, C_Container.GetContainerNumSlots(bagID) do
                 if IsJunk(bagID, slot) then
