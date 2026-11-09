@@ -1,9 +1,9 @@
 package-as: ForeverEnhanced
 
 ignore:
-  - .agents
   - .release
   - AGENTS.md
+  - bump.config.ts
   - bun.lock
   - cliff.toml
   - node_modules

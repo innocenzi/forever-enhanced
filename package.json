@@ -3,7 +3,6 @@
   "scripts": {
     "changelog": "bun run tools/changelog.ts",
     "release": "bumpp",
-    "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
   "type": "module",

@@ -4,11 +4,7 @@
 ## Notes-frFR: Améliorations légères de l'interface pour une meilleure expérience de jeu, tout en gardant l'interface par défaut.
 ## Author: Hylmew
 ## Version: 0.0.0
-## SavedVariables: ForeverEnhancedSettings
-## SavedVariablesPerCharacter: ForeverEnhancedCharacterSettings
 ## Category: User Interface
 ## Category-frFR: Interface utilisateur
 
 core.lua
-src\localization.lua
-src\init.lua

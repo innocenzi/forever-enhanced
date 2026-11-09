@@ -1,78 +1,27 @@
 # AGENTS.md
 
-This file is for Codex and other coding agents working on Forever Enhanced.
+Forever Enhanced: a World of Warcraft Forever addon of small, independent quality-of-life modules that keep the default UI recognizable.
 
-## Project Overview
+## Runtime
 
-Forever Enhanced is a standalone World of Warcraft Forever addon (successor to Vanilla Enhanced). It keeps the Blizzard UI recognizable while adding small, independent utility modules.
+- Target: WoW Forever client, `## Interface: 16001`, Lua 5.1 (WoW's embedded runtime). Check API availability for this client; do not assume retail or Classic APIs exist.
+- Addon folder name must be `ForeverEnhanced`. The repo is junctioned into `D:\Games\Blizzard\World of Warcraft\_forever_\Interface\AddOns\ForeverEnhanced`, so edits are live after `/reload`.
+- `ForeverEnhanced.toc` defines load order. Add every new runtime file there, after its dependencies.
+- `core.lua` creates the shared namespace (`_G.ForeverEnhanced`, also the second vararg `...` in every file).
+- Player-facing strings must support `enUS` and `frFR` (correct French accents).
 
-No modules exist yet; this is the base scaffolding.
+## Tooling
 
-## Runtime Layout
+Bun scripts: `bun run changelog` (git-cliff → `CHANGELOG.md`), `bun run release` (bumpp: bumps `package.json` and the TOC `## Version`, regenerates the changelog, commits, tags, pushes).
 
-The addon folder must be named `ForeverEnhanced`. During development, `D:\Games\Blizzard\World of Warcraft\_forever_\Interface\AddOns\ForeverEnhanced` is a directory symlink to this repository.
+## Packaging
 
-Important files:
+CurseForge packages via `.pkgmeta` (no Bun step). When adding runtime assets or dev-only files, update the `.pkgmeta` ignore list so the zip contains only `ForeverEnhanced/` runtime files.
 
-- `ForeverEnhanced.toc`: TOC and load order (`## Interface: 16001`).
-- `core.lua`: global addon table, module registration, saved-variable helpers, chat output.
-- `src/localization.lua`: addon UI strings, `ForeverEnhanced:T` and `ForeverEnhanced:RegisterStrings`.
-- `src/init.lua`: `ADDON_LOADED` bootstrap, module initialization, `/fe` slash command. Must stay last in the TOC.
-- `media/*`: runtime textures and sounds.
+## Commits
 
-Keep the TOC load order in sync with dependencies. `core.lua` and `src/localization.lua` must load before modules; `src/init.lua` loads after all modules.
+Conventional commits. Types: `feat`, `perf`, `fix`, `refactor`, `chore` only. Scope: the module name, or `core`. Subject describes the behavior change, not the implementation.
 
-## Modules
+## Docs
 
-Create a module with `ForeverEnhanced:CreateModule(key, displayName)` in `src/<module-key>/module.lua`. The bootstrap calls, in order:
-
-- `module:Initialize()` once, after saved variables are available.
-- `module:SetEnabled(enabled)` with the stored enabled state.
-
-Optional hooks: `module:IsEnabled()`, `module:ResetSettings()`. Store settings via `ForeverEnhanced:GetModuleSettings(key, defaults)` (account-wide) or `ForeverEnhanced:GetCharacterModuleSettings(key, defaults)` (per character).
-
-## Development Commands
-
-Requires Bun and Git.
-
-```powershell
-bun install
-bun test
-bun run changelog
-bun run release
-```
-
-`bun run changelog` regenerates `CHANGELOG.md` with the npm `git-cliff` package.
-
-`bun run release` runs `bumpp`. It bumps `package.json`, updates the TOC version, regenerates `CHANGELOG.md`, creates a release commit, tags it, and pushes by default.
-
-CurseForge automatic packaging uses `.pkgmeta` and does not run Bun scripts.
-
-## Commit Guidelines
-
-Use conventional commits with one of these types only: `feat`, `perf`, `fix`, `refactor`, or `chore`. The commit scope must be the module being worked on, or `core` if none apply. The commit subject should describe the feature or behavior being changed, not the technical implementation details.
-
-## Packaging Rules
-
-CurseForge expects a WoW addon zip with exactly one root folder and no version number in that folder name:
-
-```text
-ForeverEnhanced/
-  ForeverEnhanced.toc
-  core.lua
-  src/
-  media/
-  README.md
-  CHANGELOG.md
-```
-
-Do not package development-only files such as `.git`, `.agents`, `.release`, `node_modules`, or `tools`. `.pkgmeta` mirrors those rules; update it and the TOC when runtime assets are added.
-
-## Coding Guidelines
-
-- Target the WoW Forever client (`## Interface: 16001`) and its embedded Lua 5.1 runtime.
-- Prefer existing helpers on `_G.ForeverEnhanced` for settings, modules, printing, and localization.
-- Keep modules independent where practical. Shared behavior belongs in `core.lua` only when it is genuinely common.
-- Localize player-facing strings (`enUS` and `frFR`). Use proper French spelling with accents.
-- When changing runtime behavior, check the TOC load order and SavedVariables defaults.
-- The GitHub README is meant for humans. Keep implementation notes here rather than in `README.md`.
+`README.md` is for players. Keep implementation notes here.
