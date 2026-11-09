@@ -1,0 +1,12 @@
+package-as: ForeverEnhanced
+
+ignore:
+  - .agents
+  - .release
+  - AGENTS.md
+  - bun.lock
+  - cliff.toml
+  - node_modules
+  - package.json
+  - tools
+  - tsconfig.json
