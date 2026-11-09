@@ -4,52 +4,57 @@ Forever Enhanced: a World of Warcraft Forever addon of small, independent qualit
 
 ## Runtime
 
-- Target: WoW Forever client, `## Interface: 16001`, Lua 5.1 (WoW's embedded runtime). Check API availability for this client; do not assume retail or Classic APIs exist.
-- Addon folder name must be `ForeverEnhanced`. The repo is junctioned into `D:\Games\Blizzard\World of Warcraft\_forever_\Interface\AddOns\ForeverEnhanced`, so edits are live after `/reload`.
-- `ForeverEnhanced.toc` defines load order. Add every new runtime file there, after its dependencies.
-- `core/addon.lua` creates the shared namespace (`_G.ForeverEnhanced`, also the second vararg `...` in every file).
-- Player-facing strings must support `enUS` and `frFR` (correct French accents).
-- Forever loads the retail UI (game type `camelot`, mainline family). Blizzard's source for this client is the `forever` branch of `Gethe/wow-ui-source`: check APIs and frame internals there.
+- Client: WoW Forever, `## Interface: 16001`, Lua 5.1. It loads the retail (mainline) UI, but not every retail API exists: check APIs and frame internals on the `forever` branch of `Gethe/wow-ui-source`.
+- The repo is junctioned into the game's `Interface\AddOns\ForeverEnhanced` (folder name must stay `ForeverEnhanced`); edits are live after `/reload`.
+- `ForeverEnhanced.toc` defines load order: add every new runtime file there, after its dependencies.
+- Every file starts with `local _, ns = ...` (the shared namespace); `core/addon.lua` also exposes it as `_G.ForeverEnhanced`.
 
 ## Architecture
 
 - **Module**: a group of features, one settings subcategory. `ns:RegisterModule(id, { order })`.
 - **Feature**: a vertical slice in `modules/<module>/<feature>/`. `ns:RegisterFeature(module, id, { order, settings })` in the slice's `feature.lua`, loaded first; the other slice files get it with `ns:GetFeature(module, id)` and attach their component tables to it.
-- A feature is active only when the player has logged in, its module is enabled and the feature is enabled. Core calls `OnEnable` / `OnDisable` on every transition and `OnSettingChanged(key, value)` while active. Features must fully undo themselves in `OnDisable` (events, visible UI).
+- A feature is active only when the player has logged in, its module is enabled and the feature is enabled. Core calls `OnEnable` / `OnDisable` on every transition and `OnSettingChanged(key, value)` while active. `OnDisable` must fully undo the feature (events, visible UI).
 - `hooksecurefunc` and tooltip post-calls can't be removed: install them once on first enable, and check `feature:IsActive()` first thing in the body.
 - Features never reach into each other; cross-feature calls go through a small public API on the feature object (e.g. `Locking:IsLocked(itemLocation)`).
-- Settings are data: each `settings` entry is `{ key, type = "toggle", default }` or `{ key, type = "dropdown", default, options = { ... } }`. `core/settings.lua` generates the Options > AddOns panel with the Blizzard vertical layout API; features never call the Settings API. Add a widget type by adding an entry to its `controls` table.
+- Settings are data: each `settings` entry is `{ key, type = "toggle", default }` or `{ key, type = "dropdown", default, options = { ... } }`. `core/settings.lua` builds the Options > AddOns panel from them; features never call the Settings API. A new widget type is a new entry in its `controls` table.
 - Saved variables: `feature.db` (account, derived from the schema; unknown keys are dropped) and `feature:GetCharacterStore()` (per character, feature-owned).
-- Locale keys: `<module>.title`, `<module>.description`, `<module>.<feature>.title|description|<key>|<key>.tooltip|<key>.<option>`, plus any feature strings under `<module>.<feature>.`. Each slice registers its own strings with `ns:RegisterLocale`. The settings list truncates labels past about 30 characters (in every locale): keep labels short and put details in the `.tooltip`.
-- Plurals: use WoW's `|4singular:plural;` markup right after the number (`"%d |4item:items;"`); the client picks the form with its own language rules, wherever the text is displayed. It reads the number immediately before the token (no color code in between), and everything that agrees with the count goes inside the token, so phrase translations with the agreeing words after the number (`"%d |4objet sera conservé:objets seront conservés;"`).
 - Events: `ns:CreateEventListener({ EVENT = function(listener, ...) end })`, then `:Start()` / `:Stop()` with the feature lifecycle.
+
+## Localization
+
+- Every player-facing string exists in `enUS` and `frFR` (correct French accents). Each slice registers its own strings with `ns:RegisterLocale`.
+- Keys: `<module>.title`, `<module>.description`, `<module>.<feature>.title|description|<key>|<key>.tooltip|<key>.<option>`, plus any feature strings under `<module>.<feature>.`.
+- The settings list truncates labels past about 30 characters: keep labels short and put details in the `.tooltip`.
+- Plurals: WoW's `|4singular:plural;` markup right after the number (`"%d |4item:items;"`); the client picks the form per language. It reads the number immediately before the token (no color code in between), so put every word that agrees with the count inside the token, after the number (`"%d |4objet sera conservé:objets seront conservés;"`).
 
 ## Lua style
 
 - File-local state; nothing global besides the namespace and saved variables.
-- Functions on the namespace and on feature or component tables are always called with a colon (`ns:Print`, `Locking:IsLocked`), whether or not they use `self`. Dot calls are for plain data records (e.g. the button `sources` entries) and Blizzard APIs.
-- Never implement slash commands: they share one global namespace and conflict between addons. Settings live only in the Options > AddOns panel.
+- Functions on the namespace and on feature or component tables are always called with a colon (`ns:Print`, `Locking:IsLocked`), whether or not they use `self`. Dot calls are for plain data records (e.g. the `sources` entries in `buttons.lua`) and Blizzard APIs.
+- Never implement slash commands (one global namespace shared by all addons); settings live only in the Options > AddOns panel.
 - Never stamp fields onto Blizzard frames: keep per-frame state in a weak-keyed local table.
-- Never wrap, replace or replay Blizzard's item-use paths (`ContainerFrameItemButton_*`, their click handlers): it taints item use. Intercept with our own frames laid over theirs, and undo actions after the fact (e.g. `ClearCursor()`). Calling `C_Container.UseContainerItem` from our own code is fine only for an explicit, user-confirmed action with no protected effect, like selling at an open merchant (`junk.lua`); never use it to stand in for a player's click.
+- Never wrap, replace or replay Blizzard's item-use paths (`ContainerFrameItemButton_*`, their click handlers): it taints item use. Intercept with our own frames laid over theirs, and undo actions after the fact (e.g. `ClearCursor()`). `C_Container.UseContainerItem` is allowed only for an explicit, user-confirmed action with no protected effect, like selling at an open merchant (`junk.lua`), never to stand in for a player's click.
 - Don't guard APIs that exist on this client; only nil-check load-on-demand frames (e.g. `AuctionHouseFrame`).
-- Format with StyLua (`bun run format`); `bun run lint` checks formatting and Lua 5.1 syntax.
 
 ## Tooling
 
-Bun scripts: `bun run format` / `bun run lint` (StyLua, Lua 5.1 syntax), `bun run test` (see Tests), `bun run changelog` (git-cliff → `CHANGELOG.md`), `bun run release` (bumpp: bumps `package.json` and the TOC `## Version`, regenerates the changelog, commits, tags, pushes), `bun run icon` (resvg: renders `tools/icon/icon.svg` to `media/icon.tga`, the TOC `## IconTexture`, and `tools/icon/logo.svg` to `tools/icon/logo.png` for the project page). Edit the SVGs, then rerun it and commit the outputs.
+- `bun run format` / `bun run lint`: StyLua (Lua 5.1 syntax). Run both before committing.
+- `bun run test`: see Tests. `bun run typecheck`: the TypeScript in `tools/`.
+- `bun run icon`: renders `tools/icon/icon.svg` → `media/icon.tga` (TOC `## IconTexture`) and `tools/icon/logo.svg` → `tools/icon/logo.png`. Edit the SVGs, rerun, commit the outputs.
+- `bun run release` (bumps versions, regenerates `CHANGELOG.md` with git-cliff, commits, tags, pushes) is the maintainer's: don't run it unasked.
 
 ## Tests
 
-`bun run test` runs `tests/run.lua` with the `lua` CLI (5.2+ for per-test environments; the addon code itself stays 5.1). Every test boots a fresh fake client (`tests/wow.lua`: frames, settings panel, one bag, cursor, timers on a fake clock, a server that applies sorts and confirms swaps), loads the addon in TOC order, logs in, and runs once per locale (`enUS`, `frFR`).
+`bun run test` runs `tests/run.lua` with a Lua 5.2+ CLI (for per-test environments; addon code stays 5.1). Every test boots a fresh fake client (`tests/wow.lua`), loads the addon in TOC order, logs in, and runs once per locale.
 
-- Add tests to the matching `tests/<area>_test.lua` (or a new file listed in `run.lua`) with `test(name, function(world) ... end)`, `expect` and `equal`. Test files see the fake client's globals directly (`C_Container`, `MerchantFrame`, ...).
+- Add tests to the matching `tests/<area>_test.lua` (or a new file listed in `TEST_FILES` in `run.lua`) with `test(name, function(world) ... end)`, `expect` and `equal`. Test files see the fake client's globals directly (`C_Container`, `MerchantFrame`, ...).
 - Drive and inspect the client through `world` (`world:AltClick(slot)`, `world:Fire(event)`, `world:Elapse(seconds)`, `world:Bag()`, `world:Indicator(slot)`, ...). Extend `tests/wow.lua` when a feature uses an API it lacks.
-- Compare player-facing text through `world.L[...]`, never literal strings, so tests pass in every locale.
-- The fake client models behaviors measured in game (e.g. a sort lands in one `BAG_UPDATE_DELAYED`, slots unlock before positions update). Keep those in sync with what the real client does; it's still worth checking changes in game.
+- Compare player-facing text through `world.L[...]`, never literal strings.
+- The fake client models behaviors measured in game (e.g. a sort lands in one `BAG_UPDATE_DELAYED`, slots unlock before positions update). Keep it faithful to the real client, and tell the user what to check in game when a change depends on client behavior.
 
 ## Packaging
 
-CurseForge packages via `.pkgmeta` (no Bun step). When adding runtime assets or dev-only files, update the `.pkgmeta` ignore list so the zip contains only `ForeverEnhanced/` runtime files.
+CurseForge packages from `.pkgmeta`. When adding dev-only files or folders, add them to its ignore list so the zip contains only runtime files.
 
 ## Commits
 
@@ -57,4 +62,4 @@ Conventional commits. Types: `feat`, `perf`, `fix`, `refactor`, `chore` only. Sc
 
 ## Docs
 
-`README.md` is for players. Keep implementation notes here.
+`README.md` is for players: update it when player-visible behavior changes. Implementation notes go here.
