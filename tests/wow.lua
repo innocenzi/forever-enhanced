@@ -38,6 +38,10 @@ local world = {
     bagSizes = { [6] = 4, [7] = 2 },
     quality = { GJUNK = 0 },
     counts = { B2 = 20 },
+    itemIDs = {},
+    maxStacks = {},
+    itemFamilies = {},
+    bagFamilies = {},
     itemTypes = {},
     bankOpen = false,
     bankTabs = { 6, 7 },
@@ -76,6 +80,20 @@ function tContains(tbl, value)
     end
     return false
 end
+
+-- The client's bit library (Lua 5.1 has no bitwise operators).
+bit = {
+    band = function(a, b)
+        local result, value = 0, 1
+        while a > 0 and b > 0 do
+            if a % 2 == 1 and b % 2 == 1 then
+                result = result + value
+            end
+            a, b, value = math.floor(a / 2), math.floor(b / 2), value * 2
+        end
+        return result
+    end,
+}
 
 function wipe(tbl)
     for key in pairs(tbl) do
@@ -314,11 +332,19 @@ function HandleModifiedItemClick(link)
 end
 
 TextureKitConstants = { UseAtlasSize = true, IgnoreAtlasSize = false }
+
+-- Records the last context menu opened: world.contextMenu = { owner, generator }.
+MenuUtil = {
+    CreateContextMenu = function(owner, generator)
+        world.contextMenu = { owner = owner, generator = generator }
+    end,
+}
 NineSliceUtil = { ApplyLayoutByName = NoOp }
 
 -- The Blizzard templates the addon uses: the parts it touches.
 local templates = {
     NineSlicePanelTemplate = NoOp,
+    UIPanelButtonTemplate = NoOp,
     BankPanelEdgeShadowTemplate = NoOp,
     SearchBoxTemplate = NoOp,
     PortraitFrameTemplate = function(frame)
@@ -575,6 +601,20 @@ local function ItemQuality(guid)
     return world.quality[guid] or 2
 end
 
+-- Stacks: world.itemIDs[guid] (default: the GUID), world.counts[guid] (default
+-- 1) and world.maxStacks[itemID] (default 1: not stackable).
+local function ItemID(guid)
+    return world.itemIDs[guid] or guid
+end
+
+local function StackCount(guid)
+    return world.counts[guid] or 1
+end
+
+local function MaxStack(guid)
+    return world.maxStacks[ItemID(guid)] or 1
+end
+
 C_Item = {
     DoesItemExist = function(location)
         return ItemAt(location) ~= nil
@@ -588,6 +628,13 @@ C_Item = {
     end,
     GetItemQuality = function(location)
         return ItemQuality(ItemAt(location))
+    end,
+    GetItemMaxStackSize = function(location)
+        return MaxStack(ItemAt(location))
+    end,
+    -- Bag type flags of the item (world.itemFamilies[itemID]), 0 for any bag.
+    GetItemFamily = function(itemID)
+        return world.itemFamilies[itemID] or 0
     end,
     -- world.itemTypes[guid] = { itemType, itemSubType, equipLoc }; items are their own IDs.
     GetItemInfoInstant = function(itemIDOrLink)
@@ -650,27 +697,56 @@ C_Container = {
                 isBound = false,
                 hyperlink = ItemLink(guid),
                 itemName = guid,
-                itemID = guid,
+                itemID = ItemID(guid),
                 iconFileID = ItemIcon(guid),
-                stackCount = world.counts[guid] or 1,
+                stackCount = StackCount(guid),
             }
+    end,
+    -- Free slots and the bag type flags of the bag (world.bagFamilies), 0 for a normal bag.
+    GetContainerNumFreeSlots = function(bagID)
+        local free = 0
+        for slot = 1, C_Container.GetContainerNumSlots(bagID) do
+            if not world.bags[bagID][slot] then
+                free = free + 1
+            end
+        end
+        return free, world.bagFamilies[bagID] or 0
     end,
     -- Blizzard's bag search box calls this on every change.
     SetItemSearch = function(text)
         world.itemSearch = text
         world:Fire("INVENTORY_SEARCH_UPDATE")
     end,
-    -- Empty cursor: pick up. Holding an item: swap it with the slot, confirmed by the server later.
+    -- Empty cursor: pick up. Holding an item, onto its own slot: put it back.
+    -- Onto the same item with room: merge up to the max stack, the rest stays in
+    -- the source slot. Otherwise swap. Moves are confirmed by the server later.
     PickupContainerItem = function(bagID, slot)
         world.pickups = world.pickups + 1
-        if not world.cursor then
+        local from = world.cursor
+        if not from then
             world.cursor = ItemLocation:CreateFromBagAndSlot(bagID, slot)
-        else
-            local from = world.cursor
+            world:Fire("CURSOR_CHANGED")
+            return
+        end
+
+        world.cursor = nil
+        if from.bagID ~= bagID or from.slot ~= slot then
             local bags = world.bags
-            bags[from.bagID][from.slot], bags[bagID][slot] = bags[bagID][slot], bags[from.bagID][from.slot]
-            world.cursor = nil
-            table.insert(world.swapTimes, world.now)
+            local moving, target = bags[from.bagID][from.slot], bags[bagID][slot]
+            local room = target and ItemID(target) == ItemID(moving) and MaxStack(target) - StackCount(target) or 0
+            if room > 0 then
+                local moved = math.min(room, StackCount(moving))
+                world.counts[target] = StackCount(target) + moved
+                if moved == StackCount(moving) then
+                    bags[from.bagID][from.slot] = nil
+                    world.counts[moving] = nil
+                else
+                    world.counts[moving] = StackCount(moving) - moved
+                end
+            else
+                bags[from.bagID][from.slot], bags[bagID][slot] = target, moving
+                table.insert(world.swapTimes, world.now)
+            end
             C_Timer.NewTimer(SERVER_CONFIRM_SECONDS, function()
                 world:Fire("BAG_UPDATE_DELAYED")
             end)
@@ -1125,6 +1201,18 @@ function world:Bag()
     return table.concat(slots, " ")
 end
 
+-- A container's slots with stack counts, open or not: "L1(15) - L3".
+function world:Slots(bagID)
+    local bag = self.bags[bagID]
+    local slots = {}
+    for slot = 1, self.bagSizes[bagID] or BAG_SIZE do
+        local guid = bag[slot]
+        local count = guid and StackCount(guid) or 1
+        slots[slot] = guid and (count > 1 and ("%s(%d)"):format(guid, count) or guid) or "-"
+    end
+    return table.concat(slots, " ")
+end
+
 -- Bags: the combined bags frame fires Blizzard's OpenBag / CloseBag callbacks.
 function world:OpenBags()
     if not ContainerFrameCombinedBags:IsShown() then
@@ -1245,32 +1333,57 @@ end
 
 -- Runs the character dropdown's menu generator: a list of
 -- { kind = "radio" | "button" | "divider", text, isSelected(), select(), callback(), children }.
-function world:SavedBankMenu()
-    local function NewDescription()
-        local description = { children = {} }
-        function description:CreateRadio(text, isSelected, setSelected)
-            local entry = { kind = "radio", text = text, isSelected = isSelected, select = setSelected }
-            table.insert(self.children, entry)
-            return entry
-        end
-        function description:CreateButton(text, callback)
-            local entry = NewDescription()
-            entry.kind, entry.text, entry.callback = "button", text, callback
-            table.insert(self.children, entry)
-            return entry
-        end
-        function description:CreateDivider()
-            table.insert(self.children, { kind = "divider" })
-        end
-        return description
+-- Menu descriptions record their entries: { kind = "radio" | "button" | "divider",
+-- text, isSelected(), select(), callback(), enabled, children }.
+local function NewMenuDescription()
+    local description = { children = {}, enabled = true }
+    function description:CreateRadio(text, isSelected, setSelected)
+        local entry = { kind = "radio", text = text, isSelected = isSelected, select = setSelected }
+        table.insert(self.children, entry)
+        return entry
     end
+    function description:CreateButton(text, callback)
+        local entry = NewMenuDescription()
+        entry.kind, entry.text, entry.callback = "button", text, callback
+        table.insert(self.children, entry)
+        return entry
+    end
+    function description:CreateDivider()
+        table.insert(self.children, { kind = "divider" })
+    end
+    function description:SetEnabled(enabled)
+        self.enabled = enabled
+    end
+    return description
+end
 
+-- Runs a menu generator: the list of its top-level entries.
+local function RunMenuGenerator(owner, generator)
+    local root = NewMenuDescription()
+    generator(owner, root)
+    return root.children
+end
+
+-- The saved bank's character dropdown menu.
+function world:SavedBankMenu()
     local dropdown = FindFrame(function(frame)
         return frame.template == "WowStyle1DropdownTemplate"
     end)
-    local root = NewDescription()
-    dropdown.menuGenerator(dropdown, root)
-    return root.children
+    return RunMenuGenerator(dropdown, dropdown.menuGenerator)
+end
+
+-- Bank Transfers: the Deposit or Withdraw button on the bank frame.
+function world:TransferButton(direction)
+    return FindFrame(function(frame)
+        return frame.template == "UIPanelButtonTemplate" and frame.text == self.L["inventory.transfers." .. direction]
+    end)
+end
+
+-- Clicks the Deposit or Withdraw button: the entries of the menu it opens.
+function world:TransferMenu(direction)
+    local button = self:TransferButton(direction)
+    button.scripts.OnClick(button, "LeftButton")
+    return RunMenuGenerator(self.contextMenu.owner, self.contextMenu.generator)
 end
 
 -- Whether the saved bank shows this text.
