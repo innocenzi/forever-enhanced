@@ -4,10 +4,10 @@ ns:RegisterModule("interface", { order = 3 })
 
 ns:RegisterLocale("enUS", {
     ["interface.title"] = "Interface",
-    ["interface.description"] = "Improvements to the game's windows and map.",
+    ["interface.description"] = "Improves windows and the map.",
 })
 
 ns:RegisterLocale("frFR", {
     ["interface.title"] = "Interface",
-    ["interface.description"] = "Améliorations des fenêtres et de la carte du jeu.",
+    ["interface.description"] = "Améliore les fenêtres et la carte.",
 })
