@@ -28,6 +28,9 @@ Forever Enhanced: a World of Warcraft Forever addon of small, independent qualit
 - Every player-facing string exists in `enUS` and `frFR` (correct French accents). Each slice registers its own strings with `ns:RegisterLocale`.
 - Keys: `<module>.title`, `<module>.description`, `<module>.<feature>.title|description|<key>|<key>.tooltip|<key>.<option>|<key>.format` (a slider's value label, e.g. `"%d yd"`; the plain number otherwise), plus any feature strings under `<module>.<feature>.`.
 - The settings list truncates labels past about 30 characters: keep labels short and put details in the `.tooltip`.
+- Write like Blizzard's own GlobalStrings (reuse their wording when a game string exists: "Sell All Junk Items", "Clean Up Bags", "Dépôt", "Ranger les sacs"):
+  - enUS: Title Case for setting labels, dropdown options and menu entries ("Lock Indicator", "Fill Existing Stacks"); tooltips are sentences starting with a third-person verb ("Shows…", "Controls…"); "When disabled, …" for the off state; confirmations open with "Are you sure you want to…?"; clicks are written "Alt Left Click", "Right Click"; tooltip value lines are `Label: %d`.
+  - frFR: sentence case, infinitive labels ("Ouvrir avec les sacs"); tooltips start with a third-person verb ("Affiche…", "Contrôle…"); "Si cette option est désactivée, …"; confirmations "Voulez-vous vraiment… ?"; clicks "Alt-clic gauche", "clic droit"; typographic apostrophe `’`, and a no-break space (U+00A0) before `: ? ! ;` and inside `« »`.
 - Plurals: WoW's `|4singular:plural;` markup right after the number (`"%d |4item:items;"`); the client picks the form per language. It reads the number immediately before the token (no color code in between), so put every word that agrees with the count inside the token, after the number (`"%d |4objet sera conservé:objets seront conservés;"`).
 
 ## Lua style
