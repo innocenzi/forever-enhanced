@@ -137,16 +137,10 @@ end)
 
 test("adds a tooltip line to locked items only", function(world)
     world:AltClick(1)
-    local lines = {}
-    local tooltip = {
-        AddLine = function(_, text)
-            table.insert(lines, text)
-        end,
-    }
-    world.tooltipPostCall(tooltip, { guid = "G1" })
-    world.tooltipPostCall(tooltip, { guid = "G2" })
-    equal(#lines, 1, "tooltip lines")
+    local lines = world:ItemTooltip({ guid = "G1", id = "G1" })
+    equal(#lines, 1, "locked item lines")
     expect(lines[1]:find(world.L["inventory.locking.tooltipLine"], 1, true), "line text")
+    equal(#world:ItemTooltip({ guid = "G2", id = "G2" }), 0, "unlocked item lines")
 end)
 
 test("draws the chosen indicator style", function(world)

@@ -965,11 +965,16 @@ function StaticPopup_ShowCustomGenericConfirmation(data)
     table.insert(world.popups, data)
 end
 
+-- Item tooltip post-calls, in registration order.
+world.tooltipPostCalls = {}
 TooltipDataProcessor = {
-    AddTooltipPostCall = function(_, callback)
-        world.tooltipPostCall = callback
+    AddTooltipPostCall = function(dataType, callback)
+        assert(dataType == Enum.TooltipDataType.Item, "only item tooltips are modelled")
+        table.insert(world.tooltipPostCalls, callback)
     end,
 }
+
+NORMAL_FONT_COLOR = CreateColor(1, 0.82, 0)
 
 -- Blizzard frames ------------------------------------------------------------------------
 
@@ -1211,6 +1216,20 @@ function world:Slots(bagID)
         slots[slot] = guid and (count > 1 and ("%s(%d)"):format(guid, count) or guid) or "-"
     end
     return table.concat(slots, " ")
+end
+
+-- Shows an item tooltip ({ guid, id }): the lines the post-calls added.
+function world:ItemTooltip(data)
+    local lines = {}
+    local tooltip = {
+        AddLine = function(_, text)
+            table.insert(lines, text)
+        end,
+    }
+    for _, callback in ipairs(self.tooltipPostCalls) do
+        callback(tooltip, data)
+    end
+    return lines
 end
 
 -- Bags: the combined bags frame fires Blizzard's OpenBag / CloseBag callbacks.

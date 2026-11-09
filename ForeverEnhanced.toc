@@ -14,6 +14,7 @@
 core\events.lua
 core\containers.lua
 core\moves.lua
+core\tooltips.lua
 core\locale.lua
 core\addon.lua
 core\messages.lua

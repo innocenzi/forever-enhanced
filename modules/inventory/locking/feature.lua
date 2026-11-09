@@ -37,7 +37,6 @@ function Locking:OnEnable()
     self.Guards:Enable()
     self.Junk:Enable()
     self.Sorting:Enable()
-    self.Tooltip:Enable()
 end
 
 function Locking:OnDisable()
