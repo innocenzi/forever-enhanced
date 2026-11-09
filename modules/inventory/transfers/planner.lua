@@ -6,7 +6,8 @@
 --             stacks of the same item. Empty slots are never used.
 --   "all":    the same, then the remaining source stacks of items the
 --             destination holds go to empty slots that accept them.
--- Locked items (Item Locking) neither move nor receive items.
+-- Locked items (Item Locking) never move, but their stacks are filled like any
+-- other: a merge keeps the receiving stack (and its lock) in place.
 
 local _, ns = ...
 
@@ -25,15 +26,27 @@ local function GetSides(direction)
     return bank, bags
 end
 
+-- Bag type flags of each container (special bags), 0 for a normal bag.
+local function GetBagFamilies(containerIDs)
+    local families = {}
+    for _, bagID in ipairs(containerIDs) do
+        local _, family = C_Container.GetContainerNumFreeSlots(bagID)
+        families[bagID] = family
+    end
+    return families
+end
+
 -- Stacks by item ID, in container order: { itemIDs = { ... }, [itemID] = { stack, ... } },
--- a stack being { order, location, guid, count, maxCount, locked }; and the empty slots.
+-- a stack being { order, location, guid, count, maxCount, locked }; and the empty
+-- slots, with their bag family.
 local function Scan(containerIDs)
     local stacks, emptySlots = { itemIDs = {} }, {}
+    local families = GetBagFamilies(containerIDs)
     ns.Containers:ForEachSlot(containerIDs, function(bagID, slot)
         local location = { bagID = bagID, slot = slot }
         local info = C_Container.GetContainerItemInfo(bagID, slot)
         if not info then
-            table.insert(emptySlots, location)
+            table.insert(emptySlots, { location = location, family = families[bagID] })
             return
         end
         local itemLocation = ItemLocation:CreateFromBagAndSlot(bagID, slot)
@@ -70,17 +83,13 @@ local function GetMovableStacks(stacks)
     return movable
 end
 
--- Special bags (bag family flags) only take items of a matching family.
-local function Accepts(bagID, itemID)
-    local _, bagFamily = C_Container.GetContainerNumFreeSlots(bagID)
-    return bagFamily == 0 or bit.band(C_Item.GetItemFamily(itemID), bagFamily) ~= 0
-end
-
--- Takes the first empty slot that accepts the item.
+-- Takes the first empty slot that accepts the item: special bags only take
+-- items of a matching family.
 local function TakeEmptySlot(emptySlots, itemID)
-    for index, location in ipairs(emptySlots) do
-        if Accepts(location.bagID, itemID) then
-            return table.remove(emptySlots, index)
+    local itemFamily = C_Item.GetItemFamily(itemID)
+    for index, emptySlot in ipairs(emptySlots) do
+        if emptySlot.family == 0 or bit.band(itemFamily, emptySlot.family) ~= 0 then
+            return table.remove(emptySlots, index).location
         end
     end
 end
@@ -100,7 +109,7 @@ function Planner:Plan(direction, mode)
         local nextCandidate = 1
         for _, stack in ipairs(destinations[itemID]) do
             local candidate = candidates[nextCandidate]
-            if candidate and not stack.locked and stack.count < stack.maxCount then
+            if candidate and stack.count < stack.maxCount then
                 table.insert(moves, Move(candidate, stack.location))
                 nextCandidate = nextCandidate + 1
             end

@@ -1,5 +1,5 @@
 -- Bank Transfers: Deposit / Withdraw, onto partial stacks or all matching items.
--- Linen and wool stack to 20. Each test sets its own bags (container 0) and
+-- Every stackable item here stacks to 20. Each test sets its own bags (container 0) and
 -- bank (tabs 6 and 7, of 4 and 2 slots), opens the bank, then uses the menus.
 
 local function Transfers(world)
@@ -8,7 +8,7 @@ end
 
 -- items: { guid = { itemID, count } }
 local function Setup(world, bags, bank, tab2, items)
-    world.maxStacks = { linen = 20, wool = 20, peacebloom = 20 }
+    world.maxStacks = { linen = 20, wool = 20, peacebloom = 20, potion = 20 }
     world.counts = {}
     for guid, item in pairs(items) do
         world.itemIDs[guid] = item[1]
@@ -83,6 +83,19 @@ test("locked items never move", function(world)
     Transfer(world, "deposit", "all")
     equal(world:Slots(0), "L1(15) - - -", "locked stack stays")
     equal(world:Slots(6), "L3(12) - - -", "bank unchanged")
+end)
+
+test("locked stacks get filled and stay locked", function(world)
+    Setup(world, { "P1" }, { "P2", "P3" }, {}, {
+        P1 = { "potion", 1 },
+        P2 = { "potion", 5 },
+        P3 = { "potion", 20 },
+    })
+    world:AltClick(1)
+    Transfer(world, "withdraw", "stacks")
+    equal(world:Slots(0), "P1(20) - - -", "locked stack filled")
+    equal(world:Slots(6), "- P3(6) - -", "bank")
+    expect(world.ns:GetFeature("inventory", "locking"):IsGUIDLocked("P1"), "still locked")
 end)
 
 test("special bags only receive the items they hold", function(world)
