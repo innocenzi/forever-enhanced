@@ -12,6 +12,7 @@ local TEST_FILES = {
     "tests/quests_test.lua",
     "tests/bank_test.lua",
     "tests/transfers_test.lua",
+    "tests/windows_test.lua",
 }
 
 local function ReadAddonFiles()

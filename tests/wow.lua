@@ -102,7 +102,11 @@ function wipe(tbl)
     return tbl
 end
 
+-- hooksecurefunc([tbl,] name, hook): a global function when no table is given.
 function hooksecurefunc(tbl, name, hook)
+    if type(tbl) == "string" then
+        tbl, name, hook = _G, tbl, name
+    end
     local original = tbl[name]
     tbl[name] = function(...)
         local result = original(...)
@@ -285,12 +289,127 @@ function Region:GetID()
     return self.id
 end
 
+-- self.point: the first anchor's point; self.anchors: every anchor, like GetPoint.
 function Region:ClearAllPoints()
     self.point = nil
+    self.anchors = {}
 end
 
-function Region:SetPoint(point)
+-- SetPoint(point [, relativeTo [, relativePoint]] [, x, y]), one anchor per point.
+function Region:SetPoint(point, relativeTo, relativePoint, x, y)
+    if type(relativeTo) == "number" then
+        relativeTo, relativePoint, x, y = nil, nil, relativeTo, relativePoint
+    end
     self.point = self.point or point
+    self.anchors = self.anchors or {}
+    local anchor = { point, relativeTo or self.parent, relativePoint or point, x or 0, y or 0 }
+    for index, existing in ipairs(self.anchors) do
+        if existing[1] == point then
+            self.anchors[index] = anchor
+            return
+        end
+    end
+    table.insert(self.anchors, anchor)
+end
+
+function Region:GetNumPoints()
+    return #(self.anchors or {})
+end
+
+function Region:GetPoint(index)
+    local anchor = (self.anchors or {})[index or 1]
+    if anchor then
+        return unpack(anchor, 1, 5)
+    end
+end
+
+function Region:GetWidth()
+    return self.width or 0
+end
+
+function Region:GetHeight()
+    return self.height or 0
+end
+
+-- A point's offset from the bottom left corner of a width x height rect.
+local function PointOffset(point, width, height)
+    local x = point:find("LEFT") and 0 or point:find("RIGHT") and width or width / 2
+    local y = point:find("BOTTOM") and 0 or point:find("TOP") and height or height / 2
+    return x, y
+end
+
+-- The frame's bottom left corner on screen, from its first anchor (UIParent is the screen).
+function Region:GetBottomLeftCorner()
+    if self == UIParent then
+        return 0, 0
+    end
+    local point, relativeTo, relativePoint, x, y = self:GetPoint(1)
+    if not point then
+        return nil
+    end
+    local relativeLeft, relativeBottom = relativeTo:GetBottomLeftCorner()
+    local relativeX, relativeY = PointOffset(relativePoint, relativeTo:GetWidth(), relativeTo:GetHeight())
+    local ownX, ownY = PointOffset(point, self:GetWidth(), self:GetHeight())
+    return relativeLeft + relativeX + x - ownX, relativeBottom + relativeY + y - ownY
+end
+
+function Region:GetLeft()
+    return (self:GetBottomLeftCorner())
+end
+
+function Region:GetBottom()
+    return select(2, self:GetBottomLeftCorner())
+end
+
+function Region:GetRight()
+    local left = self:GetLeft()
+    return left and left + self:GetWidth()
+end
+
+function Region:GetName()
+    return self.name
+end
+
+function Region:GetAttribute(name)
+    return (self.attributes or {})[name]
+end
+
+-- Tests mark frames protected (protected children make a frame protected).
+function Region:IsProtected()
+    return self.protected == true
+end
+
+function Region:SetMovable(movable)
+    self.movable = movable
+end
+
+function Region:IsMovable()
+    return self.movable == true
+end
+
+function Region:SetUserPlaced(userPlaced)
+    self.userPlaced = userPlaced
+end
+
+function Region:IsUserPlaced()
+    return self.userPlaced == true
+end
+
+-- Like the client: only movable frames move, and they become user-placed.
+function Region:StartMoving()
+    assert(self.movable, "StartMoving on a frame that isn't movable")
+    assert(not (world.inCombat and self.protected), "ADDON_ACTION_BLOCKED: StartMoving")
+    self.moving = true
+    self.userPlaced = true
+end
+
+-- Drops the frame at world.dropAt, re-anchored to UIParent like the client does.
+function Region:StopMovingOrSizing()
+    if self.moving then
+        self.moving = false
+        self:ClearAllPoints()
+        self:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", world.dropAt.x, world.dropAt.y)
+    end
 end
 
 function Region:SetSize(width, height)
@@ -354,6 +473,7 @@ local templates = {
     BankPanelEdgeShadowTemplate = NoOp,
     SearchBoxTemplate = NoOp,
     PortraitFrameTemplate = function(frame)
+        frame.TitleContainer = CreateFrame("Frame", nil, frame)
         function frame:SetTitle(title)
             self.title = title
         end
@@ -402,17 +522,33 @@ function CreateFrame(frameType, name, parent, template)
 end
 
 UIParent = CreateFrame("Frame")
+UIParent:SetSize(1920, 1080)
 
 -- UI panels. The panel manager does nothing in combat (CheckProtectedFunctionsAllowed).
+-- Every re-layout re-anchors each open panel (ignoring where the player put it),
+-- the one being shown included, before it is shown.
 UIPanelWindows = {}
 UISpecialFrames = {}
+world.PANEL_ANCHOR = { "TOPLEFT", "TOPLEFT", 16, -116 }
 
 function RegisterUIPanel(frame, attributes)
     UIPanelWindows[assert(frame.name, "UI panels need a name")] = attributes
 end
 
+function UpdateUIPanelPositions(shownFrame)
+    local point, relativePoint, x, y = unpack(world.PANEL_ANCHOR)
+    for name, attributes in pairs(UIPanelWindows) do
+        local frame = _G[name]
+        if frame and attributes.area ~= "full" and (frame:IsShown() or frame == shownFrame) then
+            frame:ClearAllPoints()
+            frame:SetPoint(point, UIParent, relativePoint, x, y)
+        end
+    end
+end
+
 function ShowUIPanel(frame)
     if not world.inCombat then
+        UpdateUIPanelPositions(frame)
         frame:Show()
     end
 end
@@ -420,6 +556,7 @@ end
 function HideUIPanel(frame)
     if not world.inCombat then
         frame:Hide()
+        UpdateUIPanelPositions()
     end
 end
 
@@ -688,6 +825,14 @@ end
 
 function IsAltKeyDown()
     return world.alt
+end
+
+function IsShiftKeyDown()
+    return world.shift == true
+end
+
+function IsControlKeyDown()
+    return world.ctrl == true
 end
 
 local function IsBankTab(bagID)
@@ -1005,17 +1150,54 @@ for slot = 1, BAG_SIZE do
     world.buttons[slot] = button
 end
 
-ContainerFrameCombinedBags = CreateFrame("Frame")
+ContainerFrameCombinedBags = CreateFrame("Frame", "ContainerFrameCombinedBags")
+ContainerFrameCombinedBags:SetSize(400, 300)
 function ContainerFrameCombinedBags:EnumerateValidItems()
     return ipairs(world.buttons)
 end
 ContainerFrameCombinedBags.UpdateItems = NoOp
 
-ContainerFrameContainer = { ContainerFrames = {} }
+-- Separate bag frames, used when bags aren't combined: the backpack, then a bag.
+for index = 1, 2 do
+    local frame = CreateFrame("Frame", "ContainerFrame" .. index)
+    frame.shown = false
+    frame:SetSize(200, 150)
+    function frame:EnumerateValidItems()
+        return pairs({})
+    end
+    frame.UpdateItems = NoOp
+end
 
--- The backpack frame, used when bags aren't combined.
-ContainerFrame1 = CreateFrame("Frame")
-ContainerFrame1.shown = false
+ContainerFrameContainer = { ContainerFrames = { ContainerFrame1, ContainerFrame2 } }
+
+-- Re-anchors every open bag frame, wherever the player put it: the first one to
+-- the screen at BAG_ANCHOR, each other one on top of the one before it.
+world.BAG_ANCHOR = { "BOTTOMRIGHT", "BOTTOMRIGHT", -4, 100 }
+world.BAG_SPACING = 5
+function UpdateContainerFrameAnchors()
+    local point, relativePoint, x, y = unpack(world.BAG_ANCHOR)
+    local previousBag
+    for _, frame in ipairs({ ContainerFrameCombinedBags, unpack(ContainerFrameContainer.ContainerFrames) }) do
+        if frame:IsShown() then
+            frame:ClearAllPoints()
+            if previousBag then
+                frame:SetPoint("BOTTOMRIGHT", previousBag, "TOPRIGHT", 0, world.BAG_SPACING)
+            else
+                frame:SetPoint(point, UIParent, relativePoint, x, y)
+            end
+            previousBag = frame
+        end
+    end
+end
+
+ERR_NOT_IN_COMBAT = "You can't do that while in combat"
+
+-- A few UI panels: CharacterFrame (left), CinematicFrame (full screen), LootFrame (Edit Mode).
+for name, area in pairs({ CharacterFrame = "left", CinematicFrame = "full", LootFrame = "left" }) do
+    local frame = CreateFrame("Frame", name, UIParent, "PortraitFrameTemplate")
+    frame.shown = false
+    RegisterUIPanel(frame, { area = area })
+end
 
 -- BagSearch_OnTextChanged
 BagItemSearchBox = CreateFrame("EditBox")
@@ -1329,6 +1511,7 @@ end
 function world:OpenBags()
     if not ContainerFrameCombinedBags:IsShown() then
         ContainerFrameCombinedBags:Show()
+        UpdateContainerFrameAnchors()
         EventRegistry:TriggerEvent("ContainerFrame.OpenBag", ContainerFrameCombinedBags)
     end
 end
@@ -1512,6 +1695,70 @@ function world:SavedBankSearchBox()
     return FindFrame(function(frame)
         return frame.template == "SearchBoxTemplate"
     end)
+end
+
+-- Windows ------------------------------------------------------------------------------
+
+-- Holds or releases "shift", "ctrl" or "alt".
+function world:SetModifier(key, down)
+    self[key] = down
+end
+
+-- Our drag handle on the frame's title bar, if one was ever created.
+function world:TitleHandle(frame)
+    return FindFrame(function(candidate)
+        return candidate.parent == frame and candidate.scripts.OnDragStart ~= nil
+    end)
+end
+
+-- Whether the player sees a drag handle on the frame's title bar.
+function world:HasTitleHandle(frame)
+    local handle = self:TitleHandle(frame)
+    return handle ~= nil and handle.shown and frame:IsShown()
+end
+
+-- The player drags the frame's title bar and drops the frame at (x, y) from
+-- UIParent's bottom left. Nothing happens without a visible handle.
+function world:DragTitle(frame, x, y)
+    if not self:HasTitleHandle(frame) then
+        return
+    end
+    local handle = self:TitleHandle(frame)
+    self.dropAt = { x = x, y = y }
+    handle:RunScript("OnDragStart", "LeftButton")
+    handle:RunScript("OnDragStop")
+end
+
+function world:ShiftRightClickTitle(frame)
+    local handle = assert(self:TitleHandle(frame), "no title handle")
+    self.shift = true
+    handle:RunScript("OnClick", "RightButton")
+    self.shift = false
+end
+
+-- Where the frame stands on screen: "left,bottom".
+function world:Position(frame)
+    local left, bottom = frame:GetBottomLeftCorner()
+    return ("%s,%s"):format(left, bottom)
+end
+
+-- Opens the separate bags (bags not combined), the way the client lays them out.
+function world:OpenSeparateBags()
+    ContainerFrameCombinedBags:Hide()
+    ContainerFrame1:Show()
+    ContainerFrame2:Show()
+    UpdateContainerFrameAnchors()
+end
+
+-- The frame's anchors: "TOPLEFT UIParent BOTTOMLEFT 300 400", joined with "; ".
+function world:Anchor(frame)
+    local parts = {}
+    for index = 1, frame:GetNumPoints() do
+        local point, relativeTo, relativePoint, x, y = frame:GetPoint(index)
+        local relativeName = relativeTo == UIParent and "UIParent" or tostring(relativeTo and relativeTo.name)
+        table.insert(parts, ("%s %s %s %s %s"):format(point, relativeName, relativePoint, x, y))
+    end
+    return table.concat(parts, "; ")
 end
 
 return world

@@ -54,3 +54,12 @@ modules\quests\nearby\locales.lua
 modules\quests\nearby\ranking.lua
 modules\quests\nearby\watches.lua
 modules\quests\nearby\refresh.lua
+
+# Interface
+modules\interface\module.lua
+modules\interface\windows\feature.lua
+modules\interface\windows\locales.lua
+modules\interface\windows\store.lua
+modules\interface\windows\placement.lua
+modules\interface\windows\handles.lua
+modules\interface\windows\tracking.lua
