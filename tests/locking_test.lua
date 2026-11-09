@@ -60,15 +60,79 @@ test("blocks selling a locked item at a merchant", function(world)
     equal(world.errors[#world.errors], world.L["inventory.locking.cannotSell"], "error")
 end)
 
-test("cancels Sell All Junk only when junk is locked", function(world)
-    local onClicked = world.eventRegistry["MerchantFrame.SellAllJunkButtonClicked"]
-    onClicked()
-    equal(#world.hiddenPopups, 0, "popups hidden without locked junk")
+-- Sell All Junk. Junk = poor quality with a sell price; the bag becomes G1 JUNK - GJUNK.
+local function WithTwoJunkItems(world)
+    world.bags[0][2] = "JUNK"
+    world.quality.JUNK = 0
+    world:OpenMerchant()
+end
 
+test("leaves Sell All Junk to Blizzard when no junk is locked", function(world)
+    WithTwoJunkItems(world)
+    world:AltClick(1) -- a locked item that isn't junk doesn't matter
+    world:ClickSellAllJunk()
+    equal(#world.hiddenPopups, 0, "Blizzard's confirmation hidden")
+    equal(#world.popups, 0, "our confirmations shown")
+end)
+
+test("sells unlocked junk and keeps locked junk", function(world)
+    WithTwoJunkItems(world)
     world:AltClick(4)
-    onClicked()
-    equal(world.hiddenPopups[1], "GENERIC_CONFIRMATION", "confirmation hidden")
+    world:ClickSellAllJunk()
+    equal(world.hiddenPopups[1], "GENERIC_CONFIRMATION", "Blizzard's confirmation replaced")
+
+    local popup = assert(world.popups[1], "our confirmation shown")
+    equal(popup.text, world.L["inventory.locking.sellJunkConfirm"], "text")
+    equal(popup.text_arg1, 1, "junk items to sell")
+    equal(popup.text_arg2, 1, "locked junk kept")
+    equal(#world.sold, 0, "nothing sold before accepting")
+
+    popup.callback()
+    equal(table.concat(world.sold, " "), "JUNK", "sold")
+    equal(world:Bag(), "G1 - - GJUNK", "bag")
+end)
+
+test("rechecks junk when the sale is accepted", function(world)
+    WithTwoJunkItems(world)
+    world:AltClick(4)
+    world:ClickSellAllJunk()
+    world:AltClick(2) -- locked while the confirmation was up
+    world.popups[1].callback()
+    equal(#world.sold, 0, "sold")
+
+    world:AltClick(2) -- unlocked again: one junk item to sell
+    world:ClickSellAllJunk()
+    MerchantFrame.shown = false -- merchant closed before accepting
+    assert(world.popups[2], "second confirmation shown").callback()
+    equal(#world.sold, 0, "sold after the merchant closed")
+end)
+
+test("says so when all junk is locked", function(world)
+    world:OpenMerchant()
+    world:AltClick(4)
+    world:ClickSellAllJunk()
+    equal(world.hiddenPopups[1], "GENERIC_CONFIRMATION", "Blizzard's confirmation hidden")
+    equal(#world.popups, 0, "our confirmations shown")
+    equal(world.errors[#world.errors], world.L["inventory.locking.allJunkLocked"], "error")
+end)
+
+test("cancels Sell All Junk instead when selling unlocked junk is off", function(world)
+    WithTwoJunkItems(world)
+    world:AltClick(4)
+    world:Setting("inventory.locking.sellUnlockedJunk"):SetValue(false)
+    world:ClickSellAllJunk()
+    equal(world.hiddenPopups[1], "GENERIC_CONFIRMATION", "Blizzard's confirmation hidden")
+    equal(#world.popups, 0, "our confirmations shown")
     equal(world.errors[#world.errors], world.L["inventory.locking.sellJunkBlocked"], "error")
+end)
+
+test("ignores junk in bags excluded from Sell All Junk", function(world)
+    WithTwoJunkItems(world)
+    world:AltClick(4)
+    world.excludedFromJunkSell[0] = true -- Blizzard wouldn't sell any of it
+    world:ClickSellAllJunk()
+    equal(#world.hiddenPopups, 0, "Blizzard's confirmation hidden")
+    equal(#world.popups, 0, "our confirmations shown")
 end)
 
 test("adds a tooltip line to locked items only", function(world)

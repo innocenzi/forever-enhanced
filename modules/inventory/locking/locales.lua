@@ -11,6 +11,8 @@ ns:RegisterLocale("enUS", {
     ["inventory.locking.indicator.none"] = "None",
     ["inventory.locking.keepInPlace"] = "Keep in place when sorting",
     ["inventory.locking.keepInPlace.tooltip"] = "Locked items go back to their slot right after you sort your bags or bank. Each one can leave one other item slightly out of order.",
+    ["inventory.locking.sellUnlockedJunk"] = "Sell unlocked junk",
+    ["inventory.locking.sellUnlockedJunk.tooltip"] = "When some of your junk is locked, Sell All Junk sells the rest and keeps the locked items. Turn this off to cancel the sale instead.",
     ["inventory.locking.showTooltip"] = "Add to item tooltips",
     ["inventory.locking.showTooltip.tooltip"] = 'Add a "Locked" line to the tooltip of locked items.',
     ["inventory.locking.announce"] = "Announce in chat",
@@ -21,6 +23,8 @@ ns:RegisterLocale("enUS", {
     ["inventory.locking.isLocked"] = "This item is locked. Alt+Left-click it to unlock it.",
     ["inventory.locking.cannotSell"] = "Locked items can't be sold.",
     ["inventory.locking.sellJunkBlocked"] = "Some of your junk is locked. Unlock it before selling all junk.",
+    ["inventory.locking.sellJunkConfirm"] = "Sell %d junk |4item:items;? %d locked |4item:items; will be kept.",
+    ["inventory.locking.allJunkLocked"] = "All your junk is locked: there is nothing to sell.",
 })
 
 ns:RegisterLocale("frFR", {
@@ -34,6 +38,8 @@ ns:RegisterLocale("frFR", {
     ["inventory.locking.indicator.none"] = "Aucun",
     ["inventory.locking.keepInPlace"] = "Garder en place au tri",
     ["inventory.locking.keepInPlace.tooltip"] = "Les objets verrouillés reprennent leur place juste après le tri de vos sacs ou de votre banque. Chacun peut laisser un autre objet légèrement hors de l'ordre.",
+    ["inventory.locking.sellUnlockedJunk"] = "Vendre la camelote restante",
+    ["inventory.locking.sellUnlockedJunk.tooltip"] = "Quand une partie de votre camelote est verrouillée, « Vendre toute la camelote » vend le reste et garde les objets verrouillés. Désactivez cette option pour annuler la vente à la place.",
     ["inventory.locking.showTooltip"] = "Ajouter aux infobulles",
     ["inventory.locking.showTooltip.tooltip"] = "Ajoute une ligne « Verrouillé » à l'infobulle des objets verrouillés.",
     ["inventory.locking.announce"] = "Annoncer dans la discussion",
@@ -44,4 +50,6 @@ ns:RegisterLocale("frFR", {
     ["inventory.locking.isLocked"] = "Cet objet est verrouillé. Alt+clic gauche pour le déverrouiller.",
     ["inventory.locking.cannotSell"] = "Les objets verrouillés ne peuvent pas être vendus.",
     ["inventory.locking.sellJunkBlocked"] = "Une partie de votre camelote est verrouillée. Déverrouillez-la avant de tout vendre.",
+    ["inventory.locking.sellJunkConfirm"] = "Vendre %d |4objet:objets; de camelote ? %d |4objet verrouillé sera conservé:objets verrouillés seront conservés;.",
+    ["inventory.locking.allJunkLocked"] = "Toute votre camelote est verrouillée : il n'y a rien à vendre.",
 })

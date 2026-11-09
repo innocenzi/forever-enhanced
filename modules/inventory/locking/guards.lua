@@ -1,11 +1,6 @@
--- Guards that don't depend on item buttons.
---
--- Cursor guard: whatever picked up a locked item (click, drag, keybind,
--- another bag addon, the character frame), put it back on the next frame. Destroying
--- an item needs it on the cursor, so this also prevents deletion.
---
--- Sell All Junk guard: the merchant's Sell All Junk sells every poor-quality
--- item in one server call, so cancel its confirmation while locked junk exists.
+-- Cursor guard: whatever picked up a locked item (click, drag, keybind, another
+-- bag addon, the character frame), put it back on the next frame. Destroying an
+-- item needs it on the cursor, so this also prevents deletion.
 
 local _, ns = ...
 
@@ -14,27 +9,6 @@ local Locking = ns:GetFeature("inventory", "locking")
 
 local Guards = {}
 Locking.Guards = Guards
-
-local SELL_ALL_JUNK_CLICKED = "MerchantFrame.SellAllJunkButtonClicked"
-
-local function IsLockedJunk(bagID, slot)
-    local info = C_Container.GetContainerItemInfo(bagID, slot)
-    return info ~= nil
-        and info.quality == Enum.ItemQuality.Poor
-        and not info.hasNoValue
-        and Locking:IsLocked(ItemLocation:CreateFromBagAndSlot(bagID, slot))
-end
-
-local function HasLockedJunk()
-    return Locking:ForEachSlot(Locking.BAG_IDS, IsLockedJunk)
-end
-
-local function OnSellAllJunkClicked()
-    if HasLockedJunk() then
-        StaticPopup_Hide("GENERIC_CONFIRMATION")
-        ns:Error(L["inventory.locking.sellJunkBlocked"])
-    end
-end
 
 local returnScheduled = false
 
@@ -62,10 +36,8 @@ local listener = ns:CreateEventListener({
 
 function Guards:Enable()
     listener:Start()
-    EventRegistry:RegisterCallback(SELL_ALL_JUNK_CLICKED, OnSellAllJunkClicked, self)
 end
 
 function Guards:Disable()
     listener:Stop()
-    EventRegistry:UnregisterCallback(SELL_ALL_JUNK_CLICKED, self)
 end

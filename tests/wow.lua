@@ -21,6 +21,9 @@ local world = {
     errors = {},
     prints = {},
     hiddenPopups = {},
+    popups = {},
+    sold = {},
+    excludedFromJunkSell = {},
     swapTimes = {},
     pickups = 0,
     alt = false,
@@ -289,6 +292,7 @@ end
 
 Enum = {
     BagIndex = { Backpack = 0 },
+    BagSlotFlags = { ExcludeJunkSell = 64 },
     ItemQuality = { Poor = 0 },
     TooltipDataType = { Item = 0 },
 }
@@ -380,6 +384,20 @@ C_Container = {
         end
         world:Fire("CURSOR_CHANGED")
     end,
+    -- Only selling (merchant open) is modelled: the item leaves the bag.
+    UseContainerItem = function(bagID, slot)
+        assert(MerchantFrame.shown, "UseContainerItem outside a merchant")
+        table.insert(world.sold, world.bags[bagID][slot])
+        world.bags[bagID][slot] = nil
+    end,
+    -- The bag menu's "exclude from Sell All Junk" option.
+    GetBackpackSellJunkDisabled = function()
+        return world.excludedFromJunkSell[0] == true
+    end,
+    GetBagSlotFlag = function(bagID, flag)
+        assert(flag == Enum.BagSlotFlags.ExcludeJunkSell, "unexpected bag flag")
+        return world.excludedFromJunkSell[bagID] == true
+    end,
     SortBags = function()
         world.sortRequested = true
     end,
@@ -423,6 +441,11 @@ EventRegistry = {
 
 function StaticPopup_Hide(which)
     table.insert(world.hiddenPopups, which)
+end
+
+-- Records the popup data ({ text, text_arg1, text_arg2, callback }); tests accept it by calling callback.
+function StaticPopup_ShowCustomGenericConfirmation(data)
+    table.insert(world.popups, data)
 end
 
 TooltipDataProcessor = {
@@ -584,6 +607,19 @@ function world:ApplySort(permutation)
         sorted[slot] = old[permutation[slot]]
     end
     self.bags[0] = sorted
+end
+
+function world:OpenMerchant()
+    MerchantFrame.shown = true
+    self:Fire("MERCHANT_SHOW")
+end
+
+-- Clicks the merchant's Sell All Junk button: Blizzard shows its confirmation, then notifies.
+function world:ClickSellAllJunk()
+    local onClicked = self.eventRegistry["MerchantFrame.SellAllJunkButtonClicked"]
+    if onClicked then
+        onClicked()
+    end
 end
 
 function world:Bag()

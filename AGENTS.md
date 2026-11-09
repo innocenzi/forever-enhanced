@@ -21,6 +21,7 @@ Forever Enhanced: a World of Warcraft Forever addon of small, independent qualit
 - Settings are data: each `settings` entry is `{ key, type = "toggle", default }` or `{ key, type = "dropdown", default, options = { ... } }`. `core/settings.lua` generates the Options > AddOns panel with the Blizzard vertical layout API; features never call the Settings API. Add a widget type by adding an entry to its `controls` table.
 - Saved variables: `feature.db` (account, derived from the schema; unknown keys are dropped) and `feature:GetCharacterStore()` (per character, feature-owned).
 - Locale keys: `<module>.title`, `<module>.description`, `<module>.<feature>.title|description|<key>|<key>.tooltip|<key>.<option>`, plus any feature strings under `<module>.<feature>.`. Each slice registers its own strings with `ns:RegisterLocale`. The settings list truncates labels past about 30 characters (in every locale): keep labels short and put details in the `.tooltip`.
+- Plurals: use WoW's `|4singular:plural;` markup right after the number (`"%d |4item:items;"`); the client picks the form with its own language rules, wherever the text is displayed. It reads the number immediately before the token (no color code in between), and everything that agrees with the count goes inside the token, so phrase translations with the agreeing words after the number (`"%d |4objet sera conservé:objets seront conservés;"`).
 - Events: `ns:CreateEventListener({ EVENT = function(listener, ...) end })`, then `:Start()` / `:Stop()` with the feature lifecycle.
 
 ## Lua style
@@ -29,7 +30,7 @@ Forever Enhanced: a World of Warcraft Forever addon of small, independent qualit
 - Functions on the namespace and on feature or component tables are always called with a colon (`ns:Print`, `Locking:IsLocked`), whether or not they use `self`. Dot calls are for plain data records (e.g. the button `sources` entries) and Blizzard APIs.
 - Never implement slash commands: they share one global namespace and conflict between addons. Settings live only in the Options > AddOns panel.
 - Never stamp fields onto Blizzard frames: keep per-frame state in a weak-keyed local table.
-- Never wrap, replace or call Blizzard's item-use paths (`ContainerFrameItemButton_*`, `C_Container.UseContainerItem`) from addon code: it taints. Intercept with our own frames laid over theirs, and undo actions after the fact (e.g. `ClearCursor()`).
+- Never wrap, replace or replay Blizzard's item-use paths (`ContainerFrameItemButton_*`, their click handlers): it taints item use. Intercept with our own frames laid over theirs, and undo actions after the fact (e.g. `ClearCursor()`). Calling `C_Container.UseContainerItem` from our own code is fine only for an explicit, user-confirmed action with no protected effect, like selling at an open merchant (`junk.lua`); never use it to stand in for a player's click.
 - Don't guard APIs that exist on this client; only nil-check load-on-demand frames (e.g. `AuctionHouseFrame`).
 - Format with StyLua (`bun run format`); `bun run lint` checks formatting and Lua 5.1 syntax.
 
