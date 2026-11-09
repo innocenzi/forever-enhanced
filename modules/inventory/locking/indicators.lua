@@ -9,6 +9,9 @@ local Locking = ns:GetFeature("inventory", "locking")
 local Indicators = {}
 Locking.Indicators = Indicators
 
+-- The slice's padlock, also used by the tooltip line.
+Indicators.PADLOCK_ATLAS = "QuestSharing-Padlock"
+
 local SHADOW_OFFSET_X, SHADOW_OFFSET_Y = 1, -1
 local SHADOW_COLOR = CreateColor(0, 0, 0, 0.9)
 
@@ -18,7 +21,7 @@ local STYLES = {
     -- Small padlock with a drop shadow in the free bottom-left corner (top-left
     -- holds the junk coin and upgrade arrow, bottom-right the stack count).
     padlock = {
-        atlas = "QuestSharing-Padlock",
+        atlas = Indicators.PADLOCK_ATLAS,
         height = 16,
         anchor = "BOTTOMLEFT",
         offsetX = 2,

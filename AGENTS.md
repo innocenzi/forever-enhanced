@@ -21,11 +21,12 @@ Forever Enhanced: a World of Warcraft Forever addon of small, independent qualit
 - Settings are data: each `settings` entry is `{ key, type = "toggle", default }` or `{ key, type = "dropdown", default, options = { ... } }`. `core/settings.lua` generates the Options > AddOns panel with the Blizzard vertical layout API; features never call the Settings API. Add a widget type by adding an entry to its `controls` table.
 - Saved variables: `feature.db` (account, derived from the schema; unknown keys are dropped) and `feature:GetCharacterStore()` (per character, feature-owned).
 - Locale keys: `<module>.title`, `<module>.description`, `<module>.<feature>.title|description|<key>|<key>.tooltip|<key>.<option>`, plus any feature strings under `<module>.<feature>.`. Each slice registers its own strings with `ns:RegisterLocale`. The settings list truncates labels past about 30 characters (in every locale): keep labels short and put details in the `.tooltip`.
-- Events: `ns.CreateEventListener({ EVENT = function(listener, ...) end })`, then `:Start()` / `:Stop()` with the feature lifecycle.
+- Events: `ns:CreateEventListener({ EVENT = function(listener, ...) end })`, then `:Start()` / `:Stop()` with the feature lifecycle.
 
 ## Lua style
 
 - File-local state; nothing global besides the namespace and saved variables.
+- Functions on the namespace and on feature or component tables are always called with a colon (`ns:Print`, `Locking:IsLocked`), whether or not they use `self`. Dot calls are for plain data records (e.g. the button `sources` entries) and Blizzard APIs.
 - Never implement slash commands: they share one global namespace and conflict between addons. Settings live only in the Options > AddOns panel.
 - Never stamp fields onto Blizzard frames: keep per-frame state in a weak-keyed local table.
 - Never wrap, replace or call Blizzard's item-use paths (`ContainerFrameItemButton_*`, `C_Container.UseContainerItem`) from addon code: it taints. Intercept with our own frames laid over theirs, and undo actions after the fact (e.g. `ClearCursor()`).
@@ -34,7 +35,16 @@ Forever Enhanced: a World of Warcraft Forever addon of small, independent qualit
 
 ## Tooling
 
-Bun scripts: `bun run format` / `bun run lint` (StyLua, Lua 5.1 syntax), `bun run changelog` (git-cliff → `CHANGELOG.md`), `bun run release` (bumpp: bumps `package.json` and the TOC `## Version`, regenerates the changelog, commits, tags, pushes), `bun run icon` (resvg: renders `tools/icon/icon.svg` to `media/icon.tga`, the TOC `## IconTexture`, and `tools/icon/logo.svg` to `tools/icon/logo.png` for the project page). Edit the SVGs, then rerun it and commit the outputs.
+Bun scripts: `bun run format` / `bun run lint` (StyLua, Lua 5.1 syntax), `bun run test` (see Tests), `bun run changelog` (git-cliff → `CHANGELOG.md`), `bun run release` (bumpp: bumps `package.json` and the TOC `## Version`, regenerates the changelog, commits, tags, pushes), `bun run icon` (resvg: renders `tools/icon/icon.svg` to `media/icon.tga`, the TOC `## IconTexture`, and `tools/icon/logo.svg` to `tools/icon/logo.png` for the project page). Edit the SVGs, then rerun it and commit the outputs.
+
+## Tests
+
+`bun run test` runs `tests/run.lua` with the `lua` CLI (5.2+ for per-test environments; the addon code itself stays 5.1). Every test boots a fresh fake client (`tests/wow.lua`: frames, settings panel, one bag, cursor, timers on a fake clock, a server that applies sorts and confirms swaps), loads the addon in TOC order, logs in, and runs once per locale (`enUS`, `frFR`).
+
+- Add tests to the matching `tests/<area>_test.lua` (or a new file listed in `run.lua`) with `test(name, function(world) ... end)`, `expect` and `equal`. Test files see the fake client's globals directly (`C_Container`, `MerchantFrame`, ...).
+- Drive and inspect the client through `world` (`world:AltClick(slot)`, `world:Fire(event)`, `world:Elapse(seconds)`, `world:Bag()`, `world:Indicator(slot)`, ...). Extend `tests/wow.lua` when a feature uses an API it lacks.
+- Compare player-facing text through `world.L[...]`, never literal strings, so tests pass in every locale.
+- The fake client models behaviors measured in game (e.g. a sort lands in one `BAG_UPDATE_DELAYED`, slots unlock before positions update). Keep those in sync with what the real client does; it's still worth checking changes in game.
 
 ## Packaging
 

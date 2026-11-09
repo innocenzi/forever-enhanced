@@ -17,21 +17,16 @@ Locking.Guards = Guards
 
 local SELL_ALL_JUNK_CLICKED = "MerchantFrame.SellAllJunkButtonClicked"
 
+local function IsLockedJunk(bagID, slot)
+    local info = C_Container.GetContainerItemInfo(bagID, slot)
+    return info ~= nil
+        and info.quality == Enum.ItemQuality.Poor
+        and not info.hasNoValue
+        and Locking:IsLocked(ItemLocation:CreateFromBagAndSlot(bagID, slot))
+end
+
 local function HasLockedJunk()
-    for bagID = Enum.BagIndex.Backpack, NUM_TOTAL_EQUIPPED_BAG_SLOTS do
-        for slot = 1, C_Container.GetContainerNumSlots(bagID) do
-            local info = C_Container.GetContainerItemInfo(bagID, slot)
-            if
-                info
-                and info.quality == Enum.ItemQuality.Poor
-                and not info.hasNoValue
-                and Locking:IsLocked(ItemLocation:CreateFromBagAndSlot(bagID, slot))
-            then
-                return true
-            end
-        end
-    end
-    return false
+    return Locking:ForEachSlot(Locking.BAG_IDS, IsLockedJunk)
 end
 
 local function OnSellAllJunkClicked()
@@ -53,7 +48,7 @@ local function ReturnLockedCursorItem()
     end
 end
 
-local listener = ns.CreateEventListener({
+local listener = ns:CreateEventListener({
     -- CURSOR_CHANGED fires synchronously from inside the pickup call. Clearing
     -- the cursor there interrupts the client mid-pickup and can leave the slot
     -- stuck, so put the item back on the next frame instead.

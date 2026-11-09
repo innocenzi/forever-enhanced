@@ -20,7 +20,7 @@ function EventListenerMixin:Unregister(event)
 end
 
 -- handlers: { EVENT_NAME = function(listener, ...) end }
-function ns.CreateEventListener(handlers)
+function ns:CreateEventListener(handlers)
     local listener = Mixin({ handlers = handlers, frame = CreateFrame("Frame") }, EventListenerMixin)
     listener.frame:SetScript("OnEvent", function(_, event, ...)
         handlers[event](listener, ...)

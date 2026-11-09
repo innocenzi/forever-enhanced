@@ -10,5 +10,6 @@ ignore:
   - cliff.toml
   - node_modules
   - package.json
+  - tests
   - tools
   - tsconfig.json

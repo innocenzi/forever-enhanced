@@ -40,32 +40,15 @@ local MAX_MOVES_PER_ITEM = 3
 --   pending: slots touched by the last round, timer, giveUpTimer
 local session
 local hooksInstalled = false
-local containerIDs
-
-local function GetContainerIDs()
-    if not containerIDs then
-        local seen = {}
-        containerIDs = {}
-        for _, bagID in pairs(Enum.BagIndex) do
-            if not seen[bagID] then
-                seen[bagID] = true
-                table.insert(containerIDs, bagID)
-            end
-        end
-    end
-    return containerIDs
-end
 
 local function FindLockedItems()
     local found = {}
-    for _, bagID in ipairs(GetContainerIDs()) do
-        for slot = 1, C_Container.GetContainerNumSlots(bagID) do
-            local guid = Locking.GetItemGUID(ItemLocation:CreateFromBagAndSlot(bagID, slot))
-            if Locking:IsGUIDLocked(guid) then
-                found[guid] = { bagID = bagID, slot = slot }
-            end
+    Locking:ForEachSlot(Locking.ALL_CONTAINER_IDS, function(bagID, slot)
+        local guid = Locking:GetItemGUID(ItemLocation:CreateFromBagAndSlot(bagID, slot))
+        if Locking:IsGUIDLocked(guid) then
+            found[guid] = { bagID = bagID, slot = slot }
         end
-    end
+    end)
     return found
 end
 
@@ -174,7 +157,7 @@ local function OnLocksChanged()
     end
 end
 
-listener = ns.CreateEventListener({
+listener = ns:CreateEventListener({
     BAG_UPDATE_DELAYED = OnBagsUpdated,
     ITEM_LOCK_CHANGED = OnLocksChanged,
 })
@@ -214,6 +197,11 @@ function Sorting:Enable()
     end
 end
 
-function Sorting:Disable()
+-- Stops a restore in progress, if any.
+function Sorting:Cancel()
     EndSession()
+end
+
+function Sorting:Disable()
+    self:Cancel()
 end

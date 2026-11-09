@@ -25,8 +25,7 @@ local SINK_FRAMES = { "MerchantFrame", "MailFrame", "TradeFrame", "AuctionHouseF
 
 -- Item grids we decorate. Supporting another grid is one more entry.
 local sources = {
-    {
-        name = "bags",
+    { -- bags: combined bags and individual bag frames
         GetFrames = function()
             local frames = { ContainerFrameCombinedBags }
             for _, frame in ipairs(ContainerFrameContainer.ContainerFrames) do
@@ -46,8 +45,7 @@ local sources = {
             return ItemLocation:CreateFromBagAndSlot(button:GetBagID(), button:GetID())
         end,
     },
-    {
-        name = "bank",
+    { -- bank tabs
         GetFrames = function()
             return { BankPanel }
         end,
@@ -162,7 +160,7 @@ local function UpdateButton(button, source, context)
     end
     decoration.source = source
 
-    local guid = Locking.GetItemGUID(source.GetItemLocation(button))
+    local guid = Locking:GetItemGUID(source.GetItemLocation(button))
     local locked = Locking:IsGUIDLocked(guid)
 
     Locking.Indicators:Update(button, locked and Locking:GetSetting("indicator") or "none")
@@ -225,7 +223,7 @@ local function Refresh()
     Buttons:Refresh()
 end
 
-local listener = ns.CreateEventListener({
+local listener = ns:CreateEventListener({
     MODIFIER_STATE_CHANGED = function(_, key)
         if key == "LALT" or key == "RALT" then
             Buttons:Refresh()

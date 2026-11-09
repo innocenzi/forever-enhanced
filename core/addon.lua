@@ -9,7 +9,6 @@ local addonName, ns = ...
 
 _G.ForeverEnhanced = ns
 
-ns.name = addonName
 ns.title = C_AddOns.GetAddOnMetadata(addonName, "Title")
 
 local modules = {}
@@ -76,10 +75,6 @@ function ns:RegisterFeature(moduleId, id, definition)
     return feature
 end
 
-function ns:GetModule(id)
-    return modules[id]
-end
-
 function ns:GetFeature(moduleId, id)
     return modules[moduleId].features[id]
 end
@@ -118,7 +113,7 @@ function ns:RefreshAll()
     end
 end
 
-local bootListener = ns.CreateEventListener({
+local bootListener = ns:CreateEventListener({
     ADDON_LOADED = function(listener, loadedName)
         if loadedName ~= addonName then
             return

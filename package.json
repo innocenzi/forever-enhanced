@@ -2,10 +2,11 @@
   "version": "0.0.0",
   "scripts": {
     "changelog": "bun run tools/changelog.ts",
-    "format": "stylua core modules",
+    "format": "stylua core modules tests",
     "icon": "bun run tools/icon.ts",
-    "lint": "stylua --check core modules",
+    "lint": "stylua --check core modules tests",
     "release": "bumpp",
+    "test": "lua tests/run.lua",
     "typecheck": "tsc --noEmit"
   },
   "type": "module",

@@ -46,6 +46,6 @@ function Locking:OnSettingChanged(key, value)
     if key == "indicator" then
         self.Buttons:Refresh()
     elseif key == "keepInPlace" and not value then
-        self.Sorting:Disable()
+        self.Sorting:Cancel()
     end
 end

@@ -8,7 +8,7 @@ local Locking = ns:GetFeature("inventory", "locking")
 local Tooltip = {}
 Locking.Tooltip = Tooltip
 
-local LOCK_ICON = CreateAtlasMarkup("QuestSharing-Padlock", 12, 12)
+local LOCK_ICON = CreateAtlasMarkup(Locking.Indicators.PADLOCK_ATLAS, 12, 12)
 local LINE_COLOR = CreateColor(0.31, 0.76, 0.97)
 
 local installed = false
