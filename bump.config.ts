@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { defineConfig } from "bumpp";
@@ -30,6 +31,8 @@ export default defineConfig({
     execute: async ({ options, state }) => {
         await updateTocVersion(options.cwd, state.newVersion);
         await generateChangelog(options.cwd, state.newVersion);
+        // `all` commits with `git commit --all`, which skips untracked files.
+        execFileSync("git", ["add", "CHANGELOG.md"], { cwd: options.cwd });
     },
     files: ["package.json"],
     noGitCheck: false,
