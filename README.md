@@ -19,3 +19,4 @@ A lightweight utility addon for Forever. It keeps the default UI familiar while 
 - Bank viewable from anywhere, including in profession UI tooltips
 - Quick bank deposit and withdraw
 - Automatic junk selling and repairs at merchants, optionally with guild funds (off by default)
+- Combo points on enemy nameplates

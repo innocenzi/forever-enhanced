@@ -16,6 +16,11 @@
 -- The character bank is two purchased tabs (containers 6 and 7, of
 -- world.bagSizes slots) out of world.maxBankTabs, with a bag in tab 2's bank bag
 -- slot. Like the client, bank contents only exist while the bank is open.
+--
+-- The player can target a unit (world.target, a GUID) that may have a
+-- nameplate (world.namePlates). Like Forever, combo points are held per unit
+-- (world.comboPoints, by GUID): a unit keeps its points when the player
+-- targets another or builds points on another.
 
 local BAG_SIZE = 4
 local SERVER_CONFIRM_SECONDS = 0.05
@@ -78,6 +83,9 @@ local world = {
     instanceGroup = false,
     sentChat = {},
     chatFilters = {},
+    target = nil,
+    comboPoints = {},
+    namePlates = {},
     SERVER_CONFIRM_SECONDS = SERVER_CONFIRM_SECONDS,
 }
 
@@ -198,7 +206,6 @@ for _, name in ipairs({
     "SetVertTile",
     "SetRotation",
     "SetJustifyH",
-    "SetScale",
     "SetTextColor",
 }) do
     Region[name] = NoOp
@@ -229,6 +236,10 @@ end
 
 function Region:SetParent(parent)
     self.parent = parent
+end
+
+function Region:GetParent()
+    return self.parent
 end
 
 function Region:SetWidth(width)
@@ -297,6 +308,20 @@ function Region:SetShown(shown)
     else
         self:Hide()
     end
+end
+
+-- Shown along with all its parents.
+function Region:IsVisible()
+    return self.shown and (self.parent == nil or self.parent:IsVisible())
+end
+
+function Region:SetScale(scale)
+    self.scale = scale
+end
+
+function Region:GetEffectiveScale()
+    local scale = self.scale or 1
+    return self.parent and scale * self.parent:GetEffectiveScale() or scale
 end
 
 function Region:IsShown()
@@ -533,6 +558,23 @@ local templates = {
         end
         frame.GetFinalIconAnchorOffsets = frame.GetIconAnchorOffsetsForTabArt
     end,
+    -- RogueComboPointMixin: `animated` tells whether the last change played the fill animation.
+    RogueComboPointTemplate = function(frame)
+        function frame:Setup()
+            self.active = false
+            self:Show()
+        end
+        function frame:SetActive(active)
+            if self.active ~= active then
+                self.active = active
+                self.animated = true
+            end
+        end
+        function frame:SetActiveNoAnimation(active)
+            self.active = active
+            self.animated = false
+        end
+    end,
     WowStyle1DropdownTemplate = function(frame)
         function frame:SetupMenu(generator)
             self.menuGenerator = generator
@@ -750,6 +792,7 @@ Enum = {
     BagSlotFlags = { ExcludeJunkSell = 64 },
     ItemQuality = { Poor = 0 },
     TooltipDataType = { Item = 0 },
+    PowerType = { ComboPoints = 4 },
     CraftingReagentType = { Optional = 0, Basic = 1, Finishing = 2 },
 }
 NUM_TOTAL_EQUIPPED_BAG_SLOTS = 0
@@ -1248,6 +1291,46 @@ function GetNormalizedRealmName()
     return world.player.realm
 end
 
+-- Target, combo points and nameplates ---------------------------------------------------
+
+local COMBO_POINT_CLASSES = { ROGUE = true, DRUID = true }
+
+function UnitPowerMax(unit, powerType)
+    assert(unit == "player" and powerType == Enum.PowerType.ComboPoints, "only combo points are modelled")
+    return COMBO_POINT_CLASSES[world.player.class] and 5 or 0
+end
+
+local function NamePlateToken(guid)
+    for token, namePlate in pairs(world.namePlates) do
+        if namePlate.guid == guid then
+            return token
+        end
+    end
+end
+
+-- The shown nameplate of a nameplate token ("nameplate1"), the only units modelled.
+local function NamePlateOf(unit)
+    return assert(unit:match("^nameplate%d+$") and world.namePlates[unit], "unknown unit " .. unit)
+end
+
+function GetComboPoints(unit, target)
+    assert(unit == "player", "only the player's points are modelled")
+    return world.comboPoints[NamePlateOf(target).guid] or 0
+end
+
+C_NamePlate = {
+    GetNamePlateForUnit = function(unit)
+        return NamePlateOf(unit).frame
+    end,
+    GetNamePlates = function()
+        local frames = {}
+        for _, namePlate in pairs(world.namePlates) do
+            table.insert(frames, namePlate.frame)
+        end
+        return frames
+    end,
+}
+
 C_SuperTrack = {
     GetSuperTrackedQuestID = function()
         return world.superTracked
@@ -1474,11 +1557,17 @@ function world:Fire(event, ...)
     end
 end
 
+-- Runs the callbacks queued for the next frame, then the OnUpdate scripts of visible frames.
 function world:NextFrame()
     local callbacks = self.nextFrameCallbacks
     self.nextFrameCallbacks = {}
     for _, callback in ipairs(callbacks) do
         callback()
+    end
+    for _, frame in ipairs(self.frames) do
+        if frame.scripts.OnUpdate and frame:IsVisible() then
+            frame.scripts.OnUpdate(frame, 0)
+        end
     end
 end
 
@@ -2053,6 +2142,132 @@ function world:Anchor(frame)
         table.insert(parts, ("%s %s %s %s %s"):format(point, relativeName, relativePoint, x, y))
     end
     return table.concat(parts, "; ")
+end
+
+function world:Target(guid)
+    self.target = guid
+    self:Fire("PLAYER_TARGET_CHANGED")
+end
+
+-- Builds or spends points on the target; other units keep theirs.
+function world:SetComboPoints(count)
+    assert(self.target, "no target")
+    self.comboPoints[self.target] = count > 0 and count or nil
+    self:Fire("UNIT_POWER_FREQUENT", "player", "COMBO_POINTS")
+end
+
+-- Plate frames are recycled, like the client's: a removed plate's frame is the
+-- next one shown.
+local freeNamePlates = {}
+local namePlateCount = 0
+
+world.CAST_BARS_HEIGHT = 10
+world.CAST_BAR_SPACING = 2
+world.HIGHLIGHT_OVERFLOW = 4
+
+-- The unit frame stacks, from the bottom: the cast bar area (its cast bar
+-- hidden until the unit casts), then the health bar, narrower to leave room
+-- for the level badge on its right.
+local function NewNamePlate()
+    local frame = CreateFrame("Frame", nil, UIParent)
+    frame:SetSize(120, 40)
+    frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+    local unitFrame = CreateFrame("Button", nil, frame)
+    unitFrame:SetSize(120, 40)
+    unitFrame:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
+    local castBars = CreateFrame("Frame", nil, unitFrame)
+    castBars:SetSize(120, world.CAST_BARS_HEIGHT)
+    castBars:SetPoint("BOTTOMLEFT", unitFrame, "BOTTOMLEFT", 0, 0)
+    castBars.castBar = CreateFrame("StatusBar", nil, castBars)
+    castBars.castBar:Hide()
+    local healthBars = CreateFrame("Frame", nil, unitFrame)
+    healthBars:SetSize(96, 12)
+    healthBars:SetPoint("BOTTOMLEFT", castBars, "TOPLEFT", 0, world.CAST_BAR_SPACING)
+    -- The target highlight around the health bar's border, past its frame.
+    healthBars.healthBar = CreateFrame("StatusBar", nil, healthBars)
+    local highlight = healthBars.healthBar:CreateTexture()
+    highlight:SetSize(96 + 2 * world.HIGHLIGHT_OVERFLOW, 12 + 2 * world.HIGHLIGHT_OVERFLOW)
+    highlight:SetPoint("CENTER", healthBars, "CENTER", 0, 0)
+    healthBars.healthBar.selectedBorder = highlight
+    unitFrame.CastBarsContainer = castBars
+    unitFrame.HealthBarsContainer = healthBars
+    frame.UnitFrame = unitFrame
+    -- NamePlateBaseMixin
+    function frame:GetUnit()
+        return self.unitToken
+    end
+    return frame
+end
+
+function world:ShowNamePlate(guid)
+    namePlateCount = namePlateCount + 1
+    local frame = table.remove(freeNamePlates) or NewNamePlate()
+    local token = "nameplate" .. namePlateCount
+    frame.unitToken = token
+    self.namePlates[token] = { guid = guid, frame = frame }
+    self:Fire("NAME_PLATE_UNIT_ADDED", token)
+    return frame
+end
+
+function world:HideNamePlate(guid)
+    local token = assert(NamePlateToken(guid), "no nameplate for " .. guid)
+    self:Fire("NAME_PLATE_UNIT_REMOVED", token)
+    local frame = self.namePlates[token].frame
+    frame.unitToken = nil
+    table.insert(freeNamePlates, frame)
+    self.namePlates[token] = nil
+end
+
+-- Shows or hides the cast bar on the unit's plate, picked up on the next frame.
+function world:SetCasting(guid, casting)
+    local frame = assert(self.namePlates[NamePlateToken(guid)], "no nameplate for " .. guid).frame
+    frame.UnitFrame.CastBarsContainer.castBar:SetShown(casting)
+    self:NextFrame()
+end
+
+-- The shown combo point bars: frames holding RogueComboPointTemplate points.
+local function ComboPointBars()
+    local bars, seen = {}, {}
+    for _, frame in ipairs(world.frames) do
+        local bar = frame.template == "RogueComboPointTemplate" and frame.parent
+        if bar and bar.shown and not seen[bar] then
+            seen[bar] = true
+            table.insert(bars, bar)
+        end
+    end
+    return bars
+end
+
+-- How many combo point bars are shown, on any plate.
+function world:ComboPointBarCount()
+    return #ComboPointBars()
+end
+
+-- The combo point bar on the plate, or nil when it has none:
+-- { slots (points shown), active (points filled), animated (the last change
+-- played the fill animation) }, and the bar's frame.
+function world:ComboPoints(plate)
+    local bar
+    for _, candidate in ipairs(ComboPointBars()) do
+        if candidate.parent == plate then
+            assert(not bar, "two combo point bars on one plate")
+            bar = candidate
+        end
+    end
+    if not bar then
+        return nil
+    end
+    local state = { slots = 0, active = 0, animated = false }
+    for _, frame in ipairs(self.frames) do
+        if frame.template == "RogueComboPointTemplate" and frame.parent == bar and frame.shown then
+            state.slots = state.slots + 1
+            if frame.active then
+                state.active = state.active + 1
+            end
+            state.animated = state.animated or frame.animated
+        end
+    end
+    return state, bar
 end
 
 return world
