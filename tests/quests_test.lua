@@ -1,15 +1,15 @@
--- Nearby Quests: ranking, scopes, manual tracks, dismissals, combat, lifecycle.
+-- Quest helpers, nearby quests: ranking, scopes, manual tracks, dismissals, combat, lifecycle.
 -- Distances are in yards. An evaluation runs on the frame after a request, and
 -- the ticker requests one every 2 seconds.
 
 local TICK_SECONDS = 2
 
 local function Enable(world)
-    world:Setting("quests.nearby.enabled"):SetValue(true)
+    world:Setting("quests.helpers.nearby"):SetValue(true)
 end
 
 local function Set(world, key, value)
-    world:Setting("quests.nearby." .. key):SetValue(value)
+    world:Setting("quests.helpers." .. key):SetValue(value)
 end
 
 -- Five quests at 100, 300, 200, 50 and 400 yards; quest 5 is watched.
@@ -25,7 +25,7 @@ local function WithQuests(world)
 end
 
 local function Pins(world)
-    return world.env.ForeverEnhancedCharacterDB.quests.nearby.pins
+    return world.env.ForeverEnhancedCharacterDB.quests.helpers.pins
 end
 
 test("leaves the tracker alone until enabled", function(world)
@@ -231,14 +231,29 @@ test("turning the feature off stops updates and leaves the tracker as it is", fu
     WithQuests(world)
     Set(world, "count", 2)
     world:NextFrame()
-    world:Setting("quests.nearby.enabled"):SetValue(false)
+    world:Setting("quests.helpers.nearby"):SetValue(false)
     world:MoveTo({ [2] = 10, [3] = 20 })
     world:Elapse(TICK_SECONDS)
     world:TrackQuest(5)
     world:NextFrame()
     equal(world:Watched(), "1 4 5", "untouched while off")
 
-    world:Setting("quests.nearby.enabled"):SetValue(true)
+    world:Setting("quests.helpers.nearby"):SetValue(true)
+    world:NextFrame()
+    equal(world:Watched(), "2 3", "updated when back on")
+end)
+
+test("turning the quest helpers off stops nearby tracking too", function(world)
+    Enable(world)
+    WithQuests(world)
+    Set(world, "count", 2)
+    world:NextFrame()
+    world:Setting("quests.helpers.enabled"):SetValue(false)
+    world:MoveTo({ [2] = 10, [3] = 20 })
+    world:Elapse(TICK_SECONDS)
+    equal(world:Watched(), "1 4", "untouched while off")
+
+    world:Setting("quests.helpers.enabled"):SetValue(true)
     world:NextFrame()
     equal(world:Watched(), "2 3", "updated when back on")
 end)

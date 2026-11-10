@@ -1,8 +1,10 @@
 local _, ns = ...
 
 ns:RegisterLocale("enUS", {
-    ["inventory.bank.title"] = "Saved bank",
-    ["inventory.bank.description"] = "Saves your bank when you visit a banker so you can browse it, and your other characters' banks, from anywhere. Open it from the tab beside your bags.",
+    ["inventory.bank.title"] = "Bank",
+    ["inventory.bank.description"] = "Saves your bank so you can browse it from anywhere, and adds Deposit and Withdraw buttons to it.",
+    ["inventory.bank.savedBank"] = "Saved bank",
+    ["inventory.bank.savedBank.tooltip"] = "Saves your bank at each visit so you can browse it, and your other characters' banks, from the tab beside your bags.",
     ["inventory.bank.openWithBags"] = "Open with bags",
     ["inventory.bank.openWithBags.tooltip"] = "Opens your saved bank along with your bags.",
     ["inventory.bank.tooltipCount"] = "Bank count in tooltips",
@@ -19,11 +21,21 @@ ns:RegisterLocale("enUS", {
     ["inventory.bank.empty"] = "Visit a banker with this character to save its bank.",
     ["inventory.bank.forget"] = "Forget",
     ["inventory.bank.forgetConfirm"] = "Are you sure you want to forget %s's saved bank?",
+    ["inventory.bank.transfers"] = "Deposit and withdraw buttons",
+    ["inventory.bank.transfers.tooltip"] = "Fills existing stacks or moves all matching items between your bags and your bank, except locked items.",
+    ["inventory.bank.transfers.deposit"] = "Deposit",
+    ["inventory.bank.transfers.withdraw"] = "Withdraw",
+    ["inventory.bank.transfers.deposit.tooltip"] = "Moves items from your bags to your bank.",
+    ["inventory.bank.transfers.withdraw.tooltip"] = "Moves items from your bank to your bags.",
+    ["inventory.bank.transfers.stacks"] = "Fill existing stacks",
+    ["inventory.bank.transfers.all"] = "All matching items",
 })
 
 ns:RegisterLocale("frFR", {
-    ["inventory.bank.title"] = "Banque enregistrée",
-    ["inventory.bank.description"] = "Enregistre votre banque à chaque visite chez un banquier pour la consulter de n’importe où, ainsi que celles de vos autres personnages. Ouvrez-la avec l’onglet à côté de vos sacs.",
+    ["inventory.bank.title"] = "Banque",
+    ["inventory.bank.description"] = "Enregistre votre banque pour la consulter de n’importe où, et lui ajoute les boutons Dépôt et Retrait.",
+    ["inventory.bank.savedBank"] = "Banque enregistrée",
+    ["inventory.bank.savedBank.tooltip"] = "Enregistre votre banque à chaque visite pour la consulter, ainsi que celles de vos autres personnages, depuis l’onglet à côté de vos sacs.",
     ["inventory.bank.openWithBags"] = "Ouvrir avec les sacs",
     ["inventory.bank.openWithBags.tooltip"] = "Ouvre votre banque enregistrée avec vos sacs.",
     ["inventory.bank.tooltipCount"] = "Quantité en banque",
@@ -39,5 +51,13 @@ ns:RegisterLocale("frFR", {
     ["inventory.bank.frameTitle"] = "Banque de %s",
     ["inventory.bank.empty"] = "Rendez-vous chez un banquier avec ce personnage pour enregistrer sa banque.",
     ["inventory.bank.forget"] = "Oublier",
+    ["inventory.bank.transfers"] = "Boutons Dépôt et Retrait",
+    ["inventory.bank.transfers.tooltip"] = "Complète les piles existantes ou déplace tous les objets correspondants entre vos sacs et votre banque, sauf les objets verrouillés.",
+    ["inventory.bank.transfers.deposit"] = "Dépôt",
+    ["inventory.bank.transfers.withdraw"] = "Retrait",
+    ["inventory.bank.transfers.deposit.tooltip"] = "Déplace des objets de vos sacs vers votre banque.",
+    ["inventory.bank.transfers.withdraw.tooltip"] = "Déplace des objets de votre banque vers vos sacs.",
+    ["inventory.bank.transfers.stacks"] = "Compléter les piles existantes",
+    ["inventory.bank.transfers.all"] = "Tous les objets correspondants",
     ["inventory.bank.forgetConfirm"] = "Voulez-vous vraiment oublier la banque enregistrée de %s ?",
 })

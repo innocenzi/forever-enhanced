@@ -45,10 +45,9 @@ modules\inventory\bank\view.lua
 modules\inventory\bank\tab.lua
 modules\inventory\bank\tooltip.lua
 modules\inventory\bank\reagents.lua
-modules\inventory\transfers\feature.lua
-modules\inventory\transfers\locales.lua
-modules\inventory\transfers\planner.lua
-modules\inventory\transfers\buttons.lua
+modules\inventory\bank\transfers.lua
+modules\inventory\bank\planner.lua
+modules\inventory\bank\buttons.lua
 modules\inventory\merchant\feature.lua
 modules\inventory\merchant\locales.lua
 modules\inventory\merchant\junk.lua
@@ -56,23 +55,19 @@ modules\inventory\merchant\repair.lua
 
 # Quests
 modules\quests\module.lua
-modules\quests\nearby\feature.lua
-modules\quests\nearby\locales.lua
-modules\quests\nearby\ranking.lua
-modules\quests\nearby\watches.lua
-modules\quests\nearby\refresh.lua
+modules\quests\helpers\feature.lua
+modules\quests\helpers\locales.lua
+modules\quests\helpers\ranking.lua
+modules\quests\helpers\watches.lua
+modules\quests\helpers\refresh.lua
+modules\quests\helpers\sparkle.lua
+modules\quests\helpers\needs.lua
+modules\quests\helpers\tooltip.lua
 modules\quests\announce\feature.lua
 modules\quests\announce\locales.lua
 modules\quests\announce\message.lua
 modules\quests\announce\objectives.lua
 modules\quests\announce\questie.lua
-modules\quests\sparkles\feature.lua
-modules\quests\sparkles\locales.lua
-modules\quests\sparkles\sparkle.lua
-modules\quests\tooltip\feature.lua
-modules\quests\tooltip\locales.lua
-modules\quests\tooltip\needs.lua
-modules\quests\tooltip\tooltip.lua
 
 # Interface
 modules\interface\module.lua

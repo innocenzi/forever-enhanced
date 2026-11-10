@@ -13,7 +13,7 @@
 --   <module>.<feature>.<key>.default for an entry without a `default`
 --
 -- An entry with `requires = { key = value }` sits under that earlier entry and
--- is greyed out unless it has that value.
+-- is greyed out unless it has that value (and that entry is editable).
 
 local _, ns = ...
 
@@ -177,9 +177,18 @@ local function GetRequirement(entry)
     return key, value
 end
 
-local function RequirementMet(entry, db)
+local function FindEntry(feature, key)
+    for _, entry in ipairs(feature.settings) do
+        if entry.key == key then
+            return entry
+        end
+    end
+end
+
+-- Whether the entry's requirement holds, and its required entry's, up the chain.
+local function RequirementMet(feature, entry)
     local key, value = GetRequirement(entry)
-    return key == nil or db[key] == value
+    return key == nil or (feature.db[key] == value and RequirementMet(feature, FindEntry(feature, key)))
 end
 
 -- The initializer the entry hangs under: the feature toggle, or the entry it
@@ -201,7 +210,7 @@ local function AddSchemaEntry(category, feature, entry, parentInitializer)
     local initializer = control.create(category, setting, OptionalText(labelKey .. ".tooltip"), entry, labelKey)
     -- Predicates aren't inherited from grandparents: check the whole chain here.
     initializer:SetParentInitializer(parentInitializer, function()
-        return feature.module.db.enabled and feature.db.enabled and RequirementMet(entry, feature.db)
+        return feature.module.db.enabled and feature.db.enabled and RequirementMet(feature, entry)
     end)
 
     setting:SetValueChangedCallback(function(_, value)

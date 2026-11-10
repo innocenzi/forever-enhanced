@@ -8,10 +8,10 @@
 
 local _, ns = ...
 
-local Sparkles = ns:GetFeature("quests", "sparkles")
+local Helpers = ns:GetFeature("quests", "helpers")
 
 local Sparkle = {}
-Sparkles.Sparkle = Sparkle
+Helpers.Sparkle = Sparkle
 
 local CVAR = "outlineModeShowLootEffectWhenDisabled"
 local ON = "1"
@@ -25,7 +25,7 @@ local RESETTING_CVARS = {
     [CVAR:lower()] = true,
 }
 
-local override = ns:CreateCVarOverride(Sparkles)
+local override = ns:CreateCVarOverride(Helpers)
 local timer
 
 local function Apply()
@@ -70,6 +70,6 @@ function Sparkle:Disable()
     local hides = C_CVar.GetCVar(CVAR) == ON and override:GetSaved(CVAR) ~= ON
     override:Restore()
     if hides then
-        ns:Print(ns.L["quests.sparkles.restart"])
+        ns:Print(ns.L["quests.helpers.sparkles.restart"])
     end
 end

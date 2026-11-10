@@ -11,7 +11,7 @@
 
 local _, ns = ...
 
-local Transfers = ns:GetFeature("inventory", "transfers")
+local Transfers = ns:GetFeature("inventory", "bank").Transfers
 local Locking = ns:GetFeature("inventory", "locking")
 
 local Planner = {}

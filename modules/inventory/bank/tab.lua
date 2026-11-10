@@ -66,7 +66,7 @@ function Tab:Refresh()
         return
     end
     local host = GetHostFrame()
-    if not Bank:IsActive() or not host or Bank.Snapshot:IsBankOpen() then
+    if not Bank:IsPartActive("savedBank") or not host or Bank.Snapshot:IsBankOpen() then
         tab:Hide()
         return
     end

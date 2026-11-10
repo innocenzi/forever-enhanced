@@ -3,10 +3,10 @@
 
 local _, ns = ...
 
-local Nearby = ns:GetFeature("quests", "nearby")
+local Helpers = ns:GetFeature("quests", "helpers")
 
 local Ranking = {}
-Nearby.Ranking = Ranking
+Helpers.Ranking = Ranking
 
 -- Tracked quests count as this much closer, so two quests at similar
 -- distances don't swap places on every update.
@@ -44,10 +44,10 @@ end
 -- known location (quest data not loaded yet, or no map here): the tracker
 -- should then be left alone rather than emptied.
 function Ranking:GetQuests()
-    local scope = Nearby:GetSetting("scope")
-    local range = Nearby:GetSetting("range")
+    local scope = Helpers:GetSetting("scope")
+    local range = Helpers:GetSetting("range")
     local inZone = scope == "zone" and GetQuestsInCurrentZone()
-    local Watches = Nearby.Watches
+    local Watches = Helpers.Watches
 
     local quests, scores = {}, {}
     local anyLocated = false
@@ -75,7 +75,7 @@ function Ranking:GetQuests()
         end
         return a < b
     end)
-    for index = #quests, Nearby:GetSetting("count") + 1, -1 do
+    for index = #quests, Helpers:GetSetting("count") + 1, -1 do
         quests[index] = nil
     end
     return quests

@@ -5,10 +5,10 @@
 
 local _, ns = ...
 
-local Tooltip = ns:GetFeature("quests", "tooltip")
+local Helpers = ns:GetFeature("quests", "helpers")
 
 local Needs = {}
-Tooltip.Needs = Needs
+Helpers.Needs = Needs
 
 -- byName[itemName] = { { title, numFulfilled, numRequired }, ... }
 local byName = {}

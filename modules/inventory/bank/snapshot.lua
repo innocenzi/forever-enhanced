@@ -47,7 +47,7 @@ end
 
 local function Capture()
     captureScheduled = false
-    if not bankOpen or not Bank:IsActive() or not C_Bank.CanViewBank(Enum.BankType.Character) then
+    if not bankOpen or not Bank:IsPartActive("savedBank") or not C_Bank.CanViewBank(Enum.BankType.Character) then
         return
     end
 

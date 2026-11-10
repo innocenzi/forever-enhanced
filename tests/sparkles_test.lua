@@ -1,4 +1,4 @@
--- Quest Item Sparkles: the sparkle CVar is set on login, set again after
+-- Quest helpers, sparkles: the sparkle CVar is set on login, set again after
 -- graphics presets and entering the world, waits for combat to end, and goes
 -- back to the player's value when disabled.
 
@@ -9,7 +9,7 @@ local function Sparkle()
 end
 
 local function SetEnabled(world, enabled)
-    world:Setting("quests.sparkles.enabled"):SetValue(enabled)
+    world:Setting("quests.helpers.sparkles"):SetValue(enabled)
 end
 
 -- Like a graphics preset: it rewrites the sparkle CVar, then the quality.
@@ -53,7 +53,7 @@ test("disabling puts the player's value back and asks for a restart", function(w
     SetEnabled(world, false)
     equal(Sparkle(), "0", "player's value")
     equal(#world.prints, 1, "messages")
-    expect(world.prints[1]:find(world.L["quests.sparkles.restart"], 1, true), "restart message")
+    expect(world.prints[1]:find(world.L["quests.helpers.sparkles.restart"], 1, true), "restart message")
 
     PickPreset()
     world:Elapse(2)
@@ -68,4 +68,11 @@ test("a player who had the sparkle on keeps it", function(world)
     SetEnabled(world, false)
     equal(Sparkle(), "1", "sparkle")
     equal(#world.prints, 0, "no restart message")
+end)
+
+test("turning the quest helpers off puts the player's value back", function(world)
+    world:Setting("quests.helpers.enabled"):SetValue(false)
+    equal(Sparkle(), "0", "player's value")
+    world:Setting("quests.helpers.enabled"):SetValue(true)
+    equal(Sparkle(), "1", "back on")
 end)

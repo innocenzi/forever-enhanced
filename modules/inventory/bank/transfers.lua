@@ -1,17 +1,12 @@
--- Bank Transfers: at a banker, Deposit and Withdraw buttons move items between
--- the bags and the bank, either onto the other side's partial stacks only, or
--- every item the other side already holds (partial stacks first, then empty
--- slots). Locked items (Item Locking) never move.
---
--- Files of this slice:
---   feature.lua   registration, lifecycle and the transfer runner (this file)
---   locales.lua   strings
---   planner.lua   the moves still needed, from live positions
---   buttons.lua   Deposit / Withdraw buttons and their menus
+-- The transfer runner: the Deposit / Withdraw part of the bank feature (see
+-- feature.lua), driving core/moves.lua with the planner's moves.
 
 local _, ns = ...
 
-local Transfers = ns:RegisterFeature("inventory", "transfers", { order = 3 })
+local Bank = ns:GetFeature("inventory", "bank")
+
+local Transfers = {}
+Bank.Transfers = Transfers
 
 local MAX_MOVES_PER_ITEM = 3
 
@@ -44,12 +39,12 @@ function Transfers:Run(newDirection, newMode)
     mover:Start()
 end
 
-function Transfers:OnEnable()
+function Transfers:Enable()
     listener:Start()
     self.Buttons:Enable()
 end
 
-function Transfers:OnDisable()
+function Transfers:Disable()
     listener:Stop()
     mover:Stop()
     self.Buttons:Disable()

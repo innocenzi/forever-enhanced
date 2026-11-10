@@ -5,10 +5,10 @@
 
 local _, ns = ...
 
-local Nearby = ns:GetFeature("quests", "nearby")
+local Helpers = ns:GetFeature("quests", "helpers")
 
 local Refresh = {}
-Nearby.Refresh = Refresh
+Helpers.Refresh = Refresh
 
 local TICK_SECONDS = 2
 
@@ -18,19 +18,19 @@ local ticker
 
 local function Evaluate()
     queued = false
-    if not Nearby:IsActive() then
+    if not Helpers:IsPartActive("nearby") then
         return
     end
 
-    Nearby.Watches:Classify()
+    Helpers.Watches:Classify()
     if InCombatLockdown() then
         waitingForCombatEnd = true
         return
     end
     waitingForCombatEnd = false
-    local ranked = Nearby.Ranking:GetQuests()
+    local ranked = Helpers.Ranking:GetQuests()
     if ranked then
-        Nearby.Watches:Apply(ranked)
+        Helpers.Watches:Apply(ranked)
     end
 end
 
@@ -46,12 +46,12 @@ local function Request()
 end
 
 local function OnZoneChanged()
-    Nearby.Watches:ClearDismissals()
+    Helpers.Watches:ClearDismissals()
     Refresh:Request()
 end
 
 local function OnQuestProgress(_, questID)
-    Nearby.Watches:OnQuestProgress(questID)
+    Helpers.Watches:OnQuestProgress(questID)
     Refresh:Request()
 end
 
@@ -67,7 +67,7 @@ local listener = ns:CreateEventListener({
     QUEST_ACCEPTED = OnQuestProgress,
     QUEST_WATCH_UPDATE = OnQuestProgress,
     QUEST_WATCH_LIST_CHANGED = function(_, questID)
-        if Nearby.Watches:OnWatchListChanged(questID) then
+        if Helpers.Watches:OnWatchListChanged(questID) then
             Refresh:Request()
         end
     end,

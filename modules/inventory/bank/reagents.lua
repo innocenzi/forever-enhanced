@@ -100,7 +100,7 @@ local function SetNameLine(slot, decoration, line)
 end
 
 local function UpdateSlot(slot)
-    local style = Bank:IsActive() and not slot:IsLoading() and Bank:GetSetting("reagentMark") or "none"
+    local style = Bank:IsPartActive("savedBank") and not slot:IsLoading() and Bank:GetSetting("reagentMark") or "none"
     local inBank = style ~= "none" and GetBankSupply(slot) or nil
     if not inBank then
         style = "none"
@@ -122,7 +122,7 @@ local function UpdateSlot(slot)
     SetNameLine(slot, decoration, style == "line" and Bank:FormatCount(inBank) or nil)
 end
 
--- hooksecurefunc hooks can't be removed: install once, UpdateSlot checks IsActive().
+-- hooksecurefunc hooks can't be removed: install once, UpdateSlot checks IsPartActive().
 local function InstallHook()
     if not hookInstalled then
         hookInstalled = true

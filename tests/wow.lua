@@ -2396,10 +2396,11 @@ function world:SavedBankMenu()
     return RunMenuGenerator(dropdown, dropdown.menuGenerator)
 end
 
--- Bank Transfers: the Deposit or Withdraw button on the bank frame.
+-- Bank transfers: the Deposit or Withdraw button on the bank frame.
 function world:TransferButton(direction)
     return FindFrame(function(frame)
-        return frame.template == "UIPanelButtonTemplate" and frame.text == self.L["inventory.transfers." .. direction]
+        return frame.template == "UIPanelButtonTemplate"
+            and frame.text == self.L["inventory.bank.transfers." .. direction]
     end)
 end
 

@@ -37,6 +37,29 @@ function FeatureMixin:GetSetting(key)
     return self.db[key]
 end
 
+-- A part of the feature behind one of its toggle settings: `part:Enable()`
+-- runs once the feature is active with toggle `key` on, `part:Disable()` once
+-- either goes off. Call it for each part from OnEnable, OnDisable and
+-- OnSettingChanged.
+function FeatureMixin:SyncPart(key, part)
+    local active = self.active and self.db[key] == true
+    if active == self:IsPartActive(key) then
+        return
+    end
+    self.activeParts[key] = active
+    if active then
+        part:Enable()
+    else
+        part:Disable()
+    end
+end
+
+-- Whether the part behind toggle `key` runs: hooks and handlers of a part
+-- check this instead of IsActive().
+function FeatureMixin:IsPartActive(key)
+    return self.activeParts[key] == true
+end
+
 -- "<module>.<feature>", or "<module>.<feature>.<suffix>": the locale keys of
 -- the feature and of its settings.
 function FeatureMixin:GetLocaleKey(suffix)
@@ -82,6 +105,7 @@ function ns:RegisterFeature(moduleId, id, definition)
     feature.enabledByDefault = feature.enabledByDefault ~= false
     feature.settings = feature.settings or {}
     feature.active = false
+    feature.activeParts = {}
 
     module.features[id] = feature
     table.insert(module.sortedFeatures, feature)

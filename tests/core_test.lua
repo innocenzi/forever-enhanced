@@ -40,9 +40,9 @@ test("drops unknown keys and resets unknown options", function(world)
     equal(db.indicator, "padlock", "unknown option")
 end)
 
--- The quests page initializer bound to quests.nearby.<key>.
+-- The quests page initializer bound to quests.helpers.<key>.
 local function QuestsInitializer(world, key)
-    local setting = world:Setting("quests.nearby." .. key)
+    local setting = world:Setting("quests.helpers." .. key)
     for _, initializer in ipairs(world.categories[3].items) do
         if initializer.setting == setting then
             return initializer
@@ -51,7 +51,7 @@ local function QuestsInitializer(world, key)
 end
 
 test("resets slider values outside their bounds", function(world)
-    local db = world.env.ForeverEnhancedDB.modules.quests.features.nearby
+    local db = world.env.ForeverEnhancedDB.modules.quests.features.helpers
     equal(db.count, 5, "slider default")
     db.count = 99
     world.ns.Database:Initialize()
@@ -61,18 +61,21 @@ end)
 test("labels slider values with the locale's format", function(world)
     local slider = QuestsInitializer(world, "range").slider
     equal(slider.minValue, 100, "min")
-    equal(slider.formatter(500), world.L["quests.nearby.range.format"]:format(500), "value label")
+    equal(slider.formatter(500), world.L["quests.helpers.range.format"]:format(500), "value label")
     equal(QuestsInitializer(world, "count").slider.formatter(5), "5", "plain number without a format")
 end)
 
 test("a setting that requires another sits under it and greys out", function(world)
-    world:Setting("quests.nearby.enabled"):SetValue(true)
+    world:Setting("quests.helpers.nearby"):SetValue(true)
     local range = QuestsInitializer(world, "range")
     equal(range.parent, QuestsInitializer(world, "scope"), "parent")
     expect(not range.predicate(), "greyed out unless the scope is 'range'")
-    world:Setting("quests.nearby.scope"):SetValue("range")
+    world:Setting("quests.helpers.scope"):SetValue("range")
     expect(range.predicate(), "editable with the scope set to 'range'")
-    world:Setting("quests.nearby.enabled"):SetValue(false)
+    world:Setting("quests.helpers.nearby"):SetValue(false)
+    expect(not range.predicate(), "greyed out with the setting above its parent off")
+    world:Setting("quests.helpers.nearby"):SetValue(true)
+    world:Setting("quests.helpers.enabled"):SetValue(false)
     expect(not range.predicate(), "greyed out with the feature off")
 end)
 

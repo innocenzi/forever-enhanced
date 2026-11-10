@@ -1,4 +1,4 @@
--- Saved Bank: saving, the view, alts, search, opening with the bags, lifecycle.
+-- Saved bank: saving, the view, alts, search, opening with the bags, lifecycle.
 -- The fake bank: tab 1 (4 slots) holds B1 - B2(20) -, tab 2 (2 slots, in bag
 -- GBAG) holds - B3, tab 3 isn't purchased. Bags start open.
 
@@ -235,6 +235,37 @@ test("turning the feature off hides everything and stops saving", function(world
     world:Setting("inventory.bank.enabled"):SetValue(true)
     world:OpenBags()
     expect(world:BankSideTab().shown, "tab back")
+end)
+
+test("turning the saved bank off hides it and stops saving, but keeps the deposit buttons", function(world)
+    OpenSavedBank(world)
+    world:Setting("inventory.bank.savedBank"):SetValue(false)
+    expect(not world:IsSavedBankShown(), "view hidden")
+    expect(not world:BankSideTab().shown, "tab hidden")
+
+    world:OpenBank()
+    world:NextFrame()
+    expect(world:TransferButton("deposit").shown, "deposit button")
+    world:CloseBank()
+    equal(Saved(world, PLAYER), nil, "nothing saved while off")
+    equal(#world:ItemTooltip({ id = "B2" }), 0, "no bank count")
+
+    world:Setting("inventory.bank.savedBank"):SetValue(true)
+    world:OpenBags()
+    expect(world:BankSideTab().shown, "tab back")
+end)
+
+test("the saved bank options grey out with the saved bank off", function(world)
+    local setting = world:Setting("inventory.bank.openWithBags")
+    local row
+    for _, initializer in ipairs(world.categories[2].items) do
+        if initializer.setting == setting then
+            row = initializer
+        end
+    end
+    expect(row.predicate(), "editable")
+    world:Setting("inventory.bank.savedBank"):SetValue(false)
+    expect(not row.predicate(), "greyed out")
 end)
 
 -- Bank count in tooltips. B1 (5) and B3 (7) are the same item, linen.

@@ -4,20 +4,20 @@
 
 local _, ns = ...
 
-local Tooltip = ns:GetFeature("quests", "tooltip")
+local Helpers = ns:GetFeature("quests", "helpers")
 
-ns:AddItemTooltipHandler(Tooltip, function(tooltip, data)
-    if not data.id then
+ns:AddItemTooltipHandler(Helpers, function(tooltip, data)
+    if not Helpers:IsPartActive("objectives") or not data.id then
         return
     end
     -- Nil until the item is cached; the tooltip refreshes once it is.
     local name = C_Item.GetItemInfo(data.id)
-    local needs = name and Tooltip.Needs:Find(name)
+    local needs = name and Helpers.Needs:Find(name)
     if not needs then
         return
     end
     for _, need in ipairs(needs) do
-        local line = ns.L["quests.tooltip.line"]:format(need.title, need.numFulfilled, need.numRequired)
+        local line = ns.L["quests.helpers.objectives.line"]:format(need.title, need.numFulfilled, need.numRequired)
         tooltip:AddLine(NORMAL_FONT_COLOR:WrapTextInColorCode(line))
     end
 end)

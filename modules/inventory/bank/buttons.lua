@@ -5,7 +5,7 @@
 local _, ns = ...
 
 local L = ns.L
-local Transfers = ns:GetFeature("inventory", "transfers")
+local Transfers = ns:GetFeature("inventory", "bank").Transfers
 
 local Buttons = {}
 Transfers.Buttons = Buttons
@@ -18,7 +18,7 @@ local buttons
 local function GenerateMenu(direction)
     return function(_, rootDescription)
         for _, mode in ipairs(MODES) do
-            local entry = rootDescription:CreateButton(L["inventory.transfers." .. mode], function()
+            local entry = rootDescription:CreateButton(L["inventory.bank.transfers." .. mode], function()
                 Transfers:Run(direction, mode)
             end)
             entry:SetEnabled(not Transfers:IsRunning())
@@ -29,13 +29,13 @@ end
 local function CreateButton(direction)
     local button = CreateFrame("Button", nil, BankFrame, "UIPanelButtonTemplate")
     button:SetSize(BUTTON_WIDTH, BUTTON_HEIGHT)
-    button:SetText(L["inventory.transfers." .. direction])
+    button:SetText(L["inventory.bank.transfers." .. direction])
     button:SetScript("OnClick", function(self)
         MenuUtil.CreateContextMenu(self, GenerateMenu(direction))
     end)
     button:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(L["inventory.transfers." .. direction .. ".tooltip"])
+        GameTooltip:SetText(L["inventory.bank.transfers." .. direction .. ".tooltip"])
         GameTooltip:Show()
     end)
     button:SetScript("OnLeave", GameTooltip_Hide)

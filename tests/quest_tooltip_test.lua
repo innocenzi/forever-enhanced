@@ -1,9 +1,9 @@
--- Quest Objectives in Tooltips: item tooltips name the quests of the log that
+-- Quest helpers, objectives in tooltips: item tooltips name the quests of the log that
 -- need the item, with progress, and follow the log as it changes. Items are
 -- their own IDs and names in the fake client.
 
 local function Line(world, title, numFulfilled, numRequired)
-    return world.L["quests.tooltip.line"]:format(title, numFulfilled, numRequired)
+    return world.L["quests.helpers.objectives.line"]:format(title, numFulfilled, numRequired)
 end
 
 local function Lines(world, itemID)
@@ -66,10 +66,16 @@ test("follows progress and quests leaving the log", function(world)
     equal(#Lines(world, "Crispy Bat Wing"), 0, "quest removed")
 end)
 
-test("no line with the feature off", function(world)
+test("no line with the option off", function(world)
     WithQuests(world, { BatWings(world, 3) })
-    world:Setting("quests.tooltip.enabled"):SetValue(false)
+    world:Setting("quests.helpers.objectives"):SetValue(false)
     equal(#Lines(world, "Crispy Bat Wing"), 0, "feature off")
-    world:Setting("quests.tooltip.enabled"):SetValue(true)
+    world:Setting("quests.helpers.objectives"):SetValue(true)
     equal(#Lines(world, "Crispy Bat Wing"), 1, "back on")
+end)
+
+test("no line with the quest helpers off", function(world)
+    WithQuests(world, { BatWings(world, 3) })
+    world:Setting("quests.helpers.enabled"):SetValue(false)
+    equal(#Lines(world, "Crispy Bat Wing"), 0, "feature off")
 end)

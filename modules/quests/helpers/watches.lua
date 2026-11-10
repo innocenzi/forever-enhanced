@@ -9,10 +9,10 @@
 
 local _, ns = ...
 
-local Nearby = ns:GetFeature("quests", "nearby")
+local Helpers = ns:GetFeature("quests", "helpers")
 
 local Watches = {}
-Nearby.Watches = Watches
+Helpers.Watches = Watches
 
 -- True while we change watches, to ignore the events we cause.
 local applying = false
@@ -25,7 +25,7 @@ local dismissed = {}
 
 -- Pinned quests, per character: [questID] = true.
 local function GetPins()
-    local store = Nearby:GetCharacterStore()
+    local store = Helpers:GetCharacterStore()
     store.pins = store.pins or {}
     return store.pins
 end
@@ -98,7 +98,7 @@ end
 -- "keepManual" is on, the pinned ones.
 local function GetKeptQuests()
     local kept = {}
-    if Nearby:GetSetting("keepManual") then
+    if Helpers:GetSetting("keepManual") then
         for questID in pairs(GetPins()) do
             kept[questID] = true
         end

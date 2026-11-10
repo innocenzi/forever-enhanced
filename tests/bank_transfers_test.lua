@@ -1,9 +1,9 @@
--- Bank Transfers: Deposit / Withdraw, onto partial stacks or all matching items.
+-- Bank transfers: Deposit / Withdraw, onto partial stacks or all matching items.
 -- Every stackable item here stacks to 20. Each test sets its own bags (container 0) and
 -- bank (tabs 6 and 7, of 4 and 2 slots), opens the bank, then uses the menus.
 
 local function Transfers(world)
-    return world.ns:GetFeature("inventory", "transfers")
+    return world.ns:GetFeature("inventory", "bank").Transfers
 end
 
 -- items: { guid = { itemID, count } }
@@ -165,8 +165,8 @@ test("menus offer both modes, disabled while a transfer runs", function(world)
         L3 = { "linen", 12 },
     })
     local menu = world:TransferMenu("withdraw")
-    equal(menu[1].text, world.L["inventory.transfers.stacks"], "first mode")
-    equal(menu[2].text, world.L["inventory.transfers.all"], "second mode")
+    equal(menu[1].text, world.L["inventory.bank.transfers.stacks"], "first mode")
+    equal(menu[2].text, world.L["inventory.bank.transfers.all"], "second mode")
     expect(menu[1].enabled and menu[2].enabled, "enabled")
 
     menu[1].callback()
@@ -181,18 +181,29 @@ test("does nothing away from the bank", function(world)
     expect(not Transfers(world):IsRunning(), "not started")
 end)
 
-test("turning the feature off hides the buttons and stops a transfer", function(world)
+test("turning transfers off hides the buttons and stops a transfer", function(world)
     Setup(world, { "L1" }, { "L3" }, {}, {
         L1 = { "linen", 15 },
         L3 = { "linen", 12 },
     })
     expect(world:TransferButton("deposit").shown, "shown")
     world:TransferMenu("deposit")[1].callback()
-    world:Setting("inventory.transfers.enabled"):SetValue(false)
+    world:Setting("inventory.bank.transfers"):SetValue(false)
     expect(not Transfers(world):IsRunning(), "stopped")
     expect(not world:TransferButton("deposit").shown, "deposit hidden")
     expect(not world:TransferButton("withdraw").shown, "withdraw hidden")
 
-    world:Setting("inventory.transfers.enabled"):SetValue(true)
+    world:Setting("inventory.bank.transfers"):SetValue(true)
     expect(world:TransferButton("withdraw").shown, "back")
+end)
+
+test("turning the bank feature off hides the buttons too", function(world)
+    Setup(world, { "L1" }, { "L3" }, {}, {
+        L1 = { "linen", 15 },
+        L3 = { "linen", 12 },
+    })
+    world:Setting("inventory.bank.enabled"):SetValue(false)
+    expect(not world:TransferButton("deposit").shown, "hidden")
+    world:Setting("inventory.bank.enabled"):SetValue(true)
+    expect(world:TransferButton("deposit").shown, "back")
 end)

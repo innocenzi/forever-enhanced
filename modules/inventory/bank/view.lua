@@ -174,7 +174,7 @@ local function ConfirmForget(entry)
         text = L["inventory.bank.forgetConfirm"],
         text_arg1 = entry.name,
         callback = function()
-            if not Bank:IsActive() then
+            if not Bank:IsPartActive("savedBank") then
                 return
             end
             Bank.Store:Forget(entry.key)
