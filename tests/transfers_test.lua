@@ -126,6 +126,39 @@ test("closing the bank stops a transfer", function(world)
     equal(world.pickups, 0, "nothing moved")
 end)
 
+test("a transfer waits for the end of combat", function(world)
+    Setup(world, { "L1" }, { "L3" }, {}, {
+        L1 = { "linen", 15 },
+        L3 = { "linen", 12 },
+    })
+    world.pickups = 0
+    world.inCombat = true
+    world:TransferMenu("deposit")[1].callback()
+    world:Elapse(30)
+    equal(world.pickups, 0, "nothing moved in combat")
+    expect(Transfers(world):IsRunning(), "still running after a long fight")
+
+    world.inCombat = false
+    world:Fire("PLAYER_REGEN_ENABLED")
+    world:Elapse(5)
+    equal(world:Slots(6), "L3(20) - - -", "bank")
+    equal(world:Slots(0), "L1(7) - - -", "bags")
+end)
+
+test("a blocked move puts the item back and stops the transfer", function(world)
+    Setup(world, { "L1", "L2" }, { "L3" }, {}, {
+        L1 = { "linen", 3 },
+        L2 = { "linen", 4 },
+        L3 = { "linen", 12 },
+    })
+    world.blockDrops = true
+    world:TransferMenu("deposit")[1].callback()
+    world:Elapse(0)
+    expect(not CursorHasItem(), "nothing left on the cursor")
+    expect(not Transfers(world):IsRunning(), "stopped")
+    equal(world:Slots(0), "L1(3) L2(4) - -", "bags unchanged")
+end)
+
 test("menus offer both modes, disabled while a transfer runs", function(world)
     Setup(world, { "L1" }, { "L3" }, {}, {
         L1 = { "linen", 15 },

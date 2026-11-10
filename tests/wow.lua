@@ -49,6 +49,7 @@ local world = {
     pickups = 0,
     alt = false,
     cursor = nil,
+    blockDrops = false,
     bags = { [0] = { "G1", "G2", nil, "GJUNK" }, [6] = { "B1", nil, "B2" }, [7] = { nil, "B3" } },
     bagSizes = { [6] = 4, [7] = 2 },
     quality = { GJUNK = 0 },
@@ -1012,6 +1013,10 @@ C_Container = {
         if not from then
             world.cursor = ItemLocation:CreateFromBagAndSlot(bagID, slot)
             world:Fire("CURSOR_CHANGED")
+            return
+        end
+        -- A drop the client blocks (ADDON_ACTION_BLOCKED): the item stays on the cursor.
+        if world.blockDrops then
             return
         end
 

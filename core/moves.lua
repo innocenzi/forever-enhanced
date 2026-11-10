@@ -15,6 +15,12 @@
 -- runs on the bag update that follows, once the sent slots are free. Rounds
 -- re-plan from live positions, so a late server batch just costs one more round.
 -- A key moved maxMovesPerKey times is dropped (the server refuses the move).
+--
+-- No rounds run in combat: the run pauses until combat ends. Seen on Forever: in
+-- combat the pickup goes through but the drop is blocked (ADDON_ACTION_BLOCKED),
+-- leaving both slots locked. A drop that leaves the item on the cursor (the
+-- client blocked or refused it) puts it back and ends the run, so a failed move
+-- never leaves an item held and its slot greyed.
 
 local _, ns = ...
 
@@ -58,10 +64,18 @@ function MoverMixin:Begin()
     self.running = true
     self.moveCounts = {}
     self.pending = {}
+    self:StartGiveUpTimer()
+    self.listener:Start()
+end
+
+-- (Re)starts the countdown that abandons a run that never finishes.
+function MoverMixin:StartGiveUpTimer()
+    if self.giveUpTimer then
+        self.giveUpTimer:Cancel()
+    end
     self.giveUpTimer = C_Timer.NewTimer(GIVE_UP_SECONDS, function()
         self:Stop()
     end)
-    self.listener:Start()
 end
 
 -- Starts a run (or keeps the current one going) with a round on the next frame.
@@ -90,6 +104,8 @@ function MoverMixin:Stop()
         self.timer = nil
     end
     self.giveUpTimer:Cancel()
+    self.giveUpTimer = nil
+    self.pausedForCombat = false
     self.listener:Stop()
 end
 
@@ -100,6 +116,13 @@ end
 function MoverMixin:RunRound()
     self.timer = nil
     self.waitingForServer = false
+
+    -- Paused until combat ends (OnCombatEnded), without counting toward giving up.
+    if InCombatLockdown() then
+        self.pausedForCombat = true
+        self.giveUpTimer:Cancel()
+        return
+    end
 
     if CursorHasItem() then
         self:Schedule(MOVE_TIMEOUT_SECONDS)
@@ -118,6 +141,12 @@ function MoverMixin:RunRound()
                 self.moveCounts[move.key] = count + 1
                 Pickup(move.from)
                 Pickup(move.to)
+                -- A completed drop empties the cursor at once; anything left was refused.
+                if CursorHasItem() then
+                    ClearCursor()
+                    self:Stop()
+                    return
+                end
                 table.insert(pending, move.from)
                 table.insert(pending, move.to)
             end
@@ -141,7 +170,18 @@ function MoverMixin:ArePendingSlotsFree()
     return not CursorHasItem()
 end
 
+function MoverMixin:OnCombatEnded()
+    if self.pausedForCombat then
+        self.pausedForCombat = false
+        self:StartGiveUpTimer()
+        self:Schedule(0)
+    end
+end
+
 function MoverMixin:OnBagsUpdated()
+    if self.pausedForCombat then
+        return
+    end
     if self.waitingForServer or self:ArePendingSlotsFree() then
         self:Schedule(0)
     end
@@ -153,6 +193,9 @@ function ns:CreateMover(definition)
     mover.listener = ns:CreateEventListener({
         BAG_UPDATE_DELAYED = function()
             mover:OnBagsUpdated()
+        end,
+        PLAYER_REGEN_ENABLED = function()
+            mover:OnCombatEnded()
         end,
     })
     return mover
