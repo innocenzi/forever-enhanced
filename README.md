@@ -12,7 +12,7 @@ A lightweight utility addon for Forever. It keeps the default UI familiar while 
 
 ## Features
 
-- Item locking to protect items from being moved, sold, destroyed, mailed or traded
+- Item locking to protect items from being moved, sold, destroyed, mailed or traded, with an optional note in the tooltip to remember why
 - Movable windows and bags
 - Automatic quest tracking by distance, so you always track what is closest to you
 - Quest objective announcements to your group (off by default)

@@ -4,7 +4,8 @@
 -- The shield is a transparent button laid over an item button. It takes the
 -- mouse only when we must intercept a click, so Blizzard's own click handling
 -- (and item use) is never wrapped or called from addon code, which would taint it:
---   * while Alt is held, over every item: Alt+Left-click toggles the lock;
+--   * while Alt is held, over every item: Alt+Left-click toggles the lock,
+--     Alt+Right-click edits the item's note;
 --   * over locked items, while the cursor holds an item: no swapping it out;
 --   * over locked items, while a merchant, mail, trade or auction window is
 --     open: no right-click selling, attaching or posting.
@@ -103,6 +104,8 @@ function ShieldMixin:OnClick(mouseButton)
         if GameTooltip:IsOwned(self) then
             self:OnEnter()
         end
+    elseif mouseButton == "RightButton" and IsAltKeyDown() then
+        Locking:EditNote(itemLocation)
     elseif Locking:IsLocked(itemLocation) then
         local isSelling = mouseButton == "RightButton" and MerchantFrame:IsShown()
         ns:Error(isSelling and L["inventory.locking.cannotSell"] or L["inventory.locking.isLocked"])

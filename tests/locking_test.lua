@@ -143,6 +143,99 @@ test("adds a tooltip line to locked items only", function(world)
     equal(#world:ItemTooltip({ guid = "G2", id = "G2" }), 0, "unlocked item lines")
 end)
 
+-- Notes: Alt+Right-click opens our note dialog.
+local function WriteNote(world, slot, text)
+    world:AltRightClick(slot)
+    world:TypeInDialog(text)
+    world:ClickDialogButton(1)
+end
+
+test("alt+right-click writes a note shown under the locked line", function(world)
+    world:AltClick(1)
+    world:AltRightClick(1)
+    local dialog = world:Dialog()
+    expect(dialog, "dialog shown")
+    equal(
+        dialog.text,
+        world.L["inventory.locking.notePrompt"]:format(C_Item.GetItemLink(ItemLocation:CreateFromBagAndSlot(0, 1))),
+        "prompt names the item"
+    )
+    equal(dialog:GetEditBox():GetText(), "", "empty without a note")
+
+    world:TypeInDialog("  For my alt  ")
+    world:PressEnterInDialog()
+    expect(not world:Dialog(), "Enter closes the dialog")
+    local lines = world:ItemTooltip({ guid = "G1", id = "G1" })
+    equal(#lines, 3, "tooltip lines")
+    expect(lines[1]:find(world.L["inventory.locking.tooltipLine"], 1, true), "locked line first")
+    equal(lines[2], " ", "empty line before the note")
+    equal(lines[3], world.L["inventory.locking.noteLine"]:format("For my alt"), "trimmed, quoted note")
+
+    world:AltRightClick(1)
+    equal(world:Dialog():GetEditBox():GetText(), "For my alt", "pre-filled with the note")
+end)
+
+test("a note on an unlocked item locks it", function(world)
+    WriteNote(world, 2, "Quest item")
+    expect(Locking(world):IsGUIDLocked("G2"), "locked")
+    expect(world.prints[#world.prints]:find("[G2]", 1, true), "lock announced")
+    equal(Locking(world):GetGUIDNote("G2"), "Quest item", "note")
+end)
+
+test("cancelling or a blank note leaves an unlocked item alone", function(world)
+    world:AltRightClick(2)
+    world:TypeInDialog("Quest item")
+    world:ClickDialogButton(2)
+    WriteNote(world, 2, "   ")
+    expect(not Locking(world):IsGUIDLocked("G2"), "still unlocked")
+    equal(#world:ItemTooltip({ guid = "G2", id = "G2" }), 0, "tooltip lines")
+end)
+
+test("a blank note removes the note and keeps the lock", function(world)
+    WriteNote(world, 1, "For my alt")
+    WriteNote(world, 1, "")
+    expect(Locking(world):IsGUIDLocked("G1"), "still locked")
+    equal(Locking(world):GetGUIDNote("G1"), nil, "note")
+    equal(#world:ItemTooltip({ guid = "G1", id = "G1" }), 1, "only the locked line")
+end)
+
+test("unlocking removes the note", function(world)
+    WriteNote(world, 1, "For my alt")
+    world:AltClick(1)
+    world:AltClick(1)
+    equal(Locking(world):GetGUIDNote("G1"), nil, "note after locking again")
+end)
+
+test("a note follows its item, even when it moves while the dialog is open", function(world)
+    world:AltRightClick(1)
+    world.bags[0][1], world.bags[0][3] = nil, "G1"
+    world:Fire("BAG_UPDATE_DELAYED")
+    world:TypeInDialog("Moved")
+    world:ClickDialogButton(1)
+    equal(Locking(world):GetGUIDNote("G1"), "Moved", "note on the moved item")
+    expect(Locking(world):IsLocked(ItemLocation:CreateFromBagAndSlot(0, 3)), "lock in the new slot")
+end)
+
+test("the note shows without the locked line", function(world)
+    WriteNote(world, 1, "For my alt")
+    world:Setting("inventory.locking.showTooltip"):SetValue(false)
+    local lines = world:ItemTooltip({ guid = "G1", id = "G1" })
+    equal(#lines, 2, "tooltip lines")
+    equal(lines[1], " ", "empty line before the note")
+    equal(lines[2], world.L["inventory.locking.noteLine"]:format("For my alt"), "note")
+end)
+
+test("turning the feature off hides notes and the note dialog", function(world)
+    WriteNote(world, 1, "For my alt")
+    world:AltRightClick(1)
+    world:Setting("inventory.locking.enabled"):SetValue(false)
+    expect(not world:Dialog(), "dialog hidden")
+    equal(#world:ItemTooltip({ guid = "G1", id = "G1" }), 0, "tooltip lines")
+
+    world:Setting("inventory.locking.enabled"):SetValue(true)
+    equal(Locking(world):GetGUIDNote("G1"), "For my alt", "note kept")
+end)
+
 test("draws the chosen indicator style", function(world)
     world:AltClick(1)
     local indicator = world:Setting("inventory.locking.indicator")

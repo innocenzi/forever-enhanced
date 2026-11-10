@@ -2,7 +2,7 @@ local _, ns = ...
 
 ns:RegisterLocale("enUS", {
     ["inventory.locking.title"] = "Item locking",
-    ["inventory.locking.description"] = "Alt Left Click an item in your bags or bank to lock it. Locked items can't be moved, sold, destroyed, mailed, traded or auctioned, but can still be used or equipped.",
+    ["inventory.locking.description"] = "Alt Left Click an item in your bags or bank to lock it. Locked items can't be moved, sold, destroyed, mailed, traded or auctioned, but can still be used or equipped. Alt Right Click to add a note.",
     ["inventory.locking.indicator"] = "Lock indicator",
     ["inventory.locking.indicator.tooltip"] = "Controls how locked items are marked.",
     ["inventory.locking.indicator.padlock"] = "Small padlock",
@@ -25,11 +25,13 @@ ns:RegisterLocale("enUS", {
     ["inventory.locking.sellJunkBlocked"] = "Some of your junk is locked.",
     ["inventory.locking.sellJunkConfirm"] = "Are you sure you want to sell %d junk |4item:items;? %d locked |4item:items; will be kept.",
     ["inventory.locking.allJunkLocked"] = "All of your junk is locked.",
+    ["inventory.locking.notePrompt"] = "Enter a note for %s:",
+    ["inventory.locking.noteLine"] = '"%s"',
 })
 
 ns:RegisterLocale("frFR", {
     ["inventory.locking.title"] = "Verrouillage d’objets",
-    ["inventory.locking.description"] = "Alt-clic gauche sur un objet de vos sacs ou de votre banque pour le verrouiller. Un objet verrouillé ne peut pas être déplacé, vendu, détruit, envoyé, échangé ni mis aux enchères, mais peut toujours être utilisé ou équipé.",
+    ["inventory.locking.description"] = "Alt-clic gauche sur un objet de vos sacs ou de votre banque pour le verrouiller. Un objet verrouillé ne peut pas être déplacé, vendu, détruit, envoyé, échangé ni mis aux enchères, mais peut toujours être utilisé ou équipé. Alt-clic droit pour ajouter une note.",
     ["inventory.locking.indicator"] = "Indicateur de verrouillage",
     ["inventory.locking.indicator.tooltip"] = "Contrôle comment les objets verrouillés sont signalés.",
     ["inventory.locking.indicator.padlock"] = "Petit cadenas",
@@ -52,4 +54,6 @@ ns:RegisterLocale("frFR", {
     ["inventory.locking.sellJunkBlocked"] = "Une partie de votre camelote est verrouillée.",
     ["inventory.locking.sellJunkConfirm"] = "Voulez-vous vraiment vendre %d |4objet:objets; de camelote ? %d |4objet verrouillé sera conservé:objets verrouillés seront conservés;.",
     ["inventory.locking.allJunkLocked"] = "Toute votre camelote est verrouillée.",
+    ["inventory.locking.notePrompt"] = "Entrez une note pour %s :",
+    ["inventory.locking.noteLine"] = "« %s »",
 })

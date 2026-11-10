@@ -207,6 +207,8 @@ for _, name in ipairs({
     "SetRotation",
     "SetJustifyH",
     "SetTextColor",
+    "HighlightText",
+    "SetMaxLetters",
 }) do
     Region[name] = NoOp
 end
@@ -1444,8 +1446,43 @@ EventRegistry = {
     end,
 }
 
+ACCEPT = "Accept"
+CANCEL = "Cancel"
+
+function strtrim(text)
+    return (text:gsub("^%s+", ""):gsub("%s+$", ""))
+end
+
+-- Named dialogs (StaticPopupDialogs): the last one shown is world.dialog. Its
+-- edit box, when it has one, is a child EditBox; OnShow runs once shown, like the client.
+StaticPopupDialogs = {}
+
+function StaticPopup_Show(which, textArg1, textArg2, data)
+    local info = assert(StaticPopupDialogs[which], "Dialog " .. which .. " does not exist.")
+    local dialog = NewRegion({ frameType = "Frame", which = which, info = info, data = data })
+    dialog.text = info.text:format(textArg1, textArg2)
+    if info.hasEditBox then
+        local editBox = NewRegion({ frameType = "EditBox", parent = dialog })
+        function dialog.GetEditBox()
+            return editBox
+        end
+    end
+    world.dialog = dialog
+    if info.OnShow then
+        info.OnShow(dialog, data)
+    end
+    return dialog
+end
+
+function StaticPopup_StandardEditBoxOnEscapePressed(editBox)
+    editBox:GetParent():Hide()
+end
+
 function StaticPopup_Hide(which)
     table.insert(world.hiddenPopups, which)
+    if world.dialog and world.dialog.which == which then
+        world.dialog:Hide()
+    end
 end
 
 -- Records the popup data ({ text, text_arg1, text_arg2, callback }); tests accept it by calling callback.
@@ -1630,6 +1667,43 @@ function world:AltClick(slot)
     self:SetAlt(true)
     self:ClickShield(slot, "LeftButton")
     self:SetAlt(false)
+end
+
+function world:AltRightClick(slot)
+    self:SetAlt(true)
+    self:ClickShield(slot, "RightButton")
+    self:SetAlt(false)
+end
+
+-- The shown dialog (StaticPopup_Show), or nil.
+function world:Dialog()
+    local dialog = self.dialog
+    return dialog and dialog.shown and dialog or nil
+end
+
+local function ShownDialog()
+    return assert(world:Dialog(), "no dialog shown")
+end
+
+-- Replaces the text of the dialog's edit box, as the player typing.
+function world:TypeInDialog(text)
+    ShownDialog():GetEditBox().text = text
+end
+
+-- Enter in the dialog's edit box.
+function world:PressEnterInDialog()
+    local dialog = ShownDialog()
+    dialog.info.EditBoxOnEnterPressed(dialog:GetEditBox(), dialog.data)
+end
+
+-- Clicks the dialog's first (accept) or second (cancel) button; both hide it.
+function world:ClickDialogButton(index)
+    local dialog = ShownDialog()
+    local handler = index == 1 and dialog.info.OnAccept or dialog.info.OnCancel
+    if handler then
+        handler(dialog, dialog.data)
+    end
+    dialog:Hide()
 end
 
 -- Describes the lock indicator on a bag button: "" (never drawn), "hidden",

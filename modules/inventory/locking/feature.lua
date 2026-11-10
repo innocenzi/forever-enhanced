@@ -1,18 +1,19 @@
 -- Item Locking: Alt+Left-click a bag or bank item to lock that exact item
 -- (by GUID). A locked item can't be picked up, right-click is blocked wherever
 -- it would sell, mail, trade or auction the item, Sell All Junk keeps it, and
--- sorting leaves it in place.
+-- sorting leaves it in place. Alt+Right-click writes a note on the item.
 --
 -- Files of this slice:
 --   feature.lua     registration, schema and lifecycle (this file)
 --   locales.lua     strings
---   store.lua       lock set and public API
+--   store.lua       lock set, notes and public API
+--   notes.lua       note popup
 --   indicators.lua  lock indicator styles drawn on item buttons
 --   buttons.lua     item buttons: indicators and click shield
 --   guards.lua      cursor guard
 --   junk.lua        Sell All Junk with locked junk
 --   sorting.lua     puts locked items back after a sort
---   tooltip.lua     "Locked" tooltip line
+--   tooltip.lua     "Locked" and note tooltip lines
 
 local _, ns = ...
 
@@ -40,6 +41,7 @@ function Locking:OnEnable()
 end
 
 function Locking:OnDisable()
+    self.Notes:Disable()
     self.Sorting:Disable()
     self.Junk:Disable()
     self.Guards:Disable()
