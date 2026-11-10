@@ -4,11 +4,11 @@
 
 # Forever Enhanced
 
-Quality-of-life improvements for World of Warcraft Forever, keeping the default UI familiar.
+A lightweight utility addon for Forever. It keeps the default UI familiar while adding a handful of practical quality-of-life improvements, all of which are highly configurable and can be deactivated.
 
 </div>
 
-A lightweight utility addon for Forever. It keeps the default UI familiar while adding a handful of practical quality-of-life improvements for questing, professions, bags, merchants and other interfaces, all of which are highly configurable and can be deactivated.
+&nbsp;
 
 ## Features
 
