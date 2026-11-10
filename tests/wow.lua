@@ -178,6 +178,10 @@ BANK_BAG = "Bank Bag"
 BANK_BAG_PURCHASE = "Purchase Bank Bag"
 BAGSLOTTEXT_COLON = "Bag Slots:"
 INVTYPE_HEAD = "Head"
+-- The format of item objectives: the French one is the game's ("%1$s :
+-- %2$d/%3$d", modelled with a no-break space before the colon); the English
+-- one matches the tracker's "3/10 Crispy Bat Wing".
+QUEST_ITEMS_NEEDED = ({ enUS = "%2$d/%3$d %1$s", frFR = "%1$s\194\160: %2$d/%3$d" })[TEST_LOCALE]
 
 function CreateAtlasMarkup(atlas)
     return "|A:" .. atlas .. "|a"
@@ -2299,13 +2303,26 @@ function world:AcceptQuest(quest)
     self:Fire("QUEST_ACCEPTED", quest.questID)
 end
 
+-- An objective's text as the client words it, from QUEST_ITEMS_NEEDED: "3/10
+-- Crispy Bat Wing", "Steak de loup : 3/10". WoW's format takes positional
+-- arguments ("%2$d"), Lua's doesn't: substitute them here.
+local function ObjectiveText(name, numFulfilled, numRequired)
+    local args, nextArg = { name, numFulfilled, numRequired }, 0
+    return (
+        QUEST_ITEMS_NEEDED:gsub("%%(%d*)%$?[sd]", function(position)
+            nextArg = nextArg + 1
+            return tostring(args[tonumber(position) or nextArg])
+        end)
+    )
+end
+
 -- Objective `index` of a quest now has `numFulfilled` (and the objective text
--- `text`, if given; "<n>/<total> <name>" stays in sync otherwise), then the
+-- `text`, if given; it stays in sync with the count otherwise), then the
 -- client fires QUEST_LOG_UPDATE.
 function world:Progress(questID, index, numFulfilled, text)
     local objective = FindQuest(questID).objectives[index]
     if not text and objective.name then
-        text = ("%d/%d %s"):format(numFulfilled, objective.numRequired, objective.name)
+        text = ObjectiveText(objective.name, numFulfilled, objective.numRequired)
     end
     objective.numFulfilled = numFulfilled
     objective.finished = numFulfilled >= objective.numRequired
@@ -2313,14 +2330,15 @@ function world:Progress(questID, index, numFulfilled, text)
     self:Fire("QUEST_LOG_UPDATE")
 end
 
--- A counted objective, like the client's: "0/8 Kobold Vermin slain". `type` is
--- the client's objective type ("item", "monster", "object"...), "item" by default.
+-- A counted objective, like the client's: "0/8 Kobold Vermin slain" ("Kobold
+-- Vermin slain : 0/8" in French). `type` is the client's objective type
+-- ("item", "monster", "object"...), "item" by default.
 function world:Objective(name, numRequired, numFulfilled, type)
     numFulfilled = numFulfilled or 0
     return {
         name = name,
         type = type or "item",
-        text = ("%d/%d %s"):format(numFulfilled, numRequired, name),
+        text = ObjectiveText(name, numFulfilled, numRequired),
         finished = numFulfilled >= numRequired,
         numFulfilled = numFulfilled,
         numRequired = numRequired,

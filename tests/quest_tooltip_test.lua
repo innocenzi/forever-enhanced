@@ -57,6 +57,22 @@ test("ignores objectives that aren't items, and partial names", function(world)
     equal(#Lines(world, "Bat Wing"), 0, "partial name")
 end)
 
+test("reads the item name in any client language's wording", function(world)
+    local formats = {
+        "%s: %d/%d", -- not positional
+        "%1$s：%2$d/%3$d", -- full-width colon
+        "%1$s (%2$d/%3$d)", -- pattern characters
+        "%2$d/%3$d %1$s",
+    }
+    for _, format in ipairs(formats) do
+        world.env.QUEST_ITEMS_NEEDED = format
+        WithQuests(world, {
+            { questID = 1, title = "Odd Names", objectives = { world:Objective("Bat-Wing (Large) 50%", 10, 3) } },
+        })
+        equal(Lines(world, "Bat-Wing (Large) 50%")[1], Line(world, "Odd Names", 3, 10), format)
+    end
+end)
+
 test("follows progress and quests leaving the log", function(world)
     WithQuests(world, { BatWings(world, 3) })
     equal(Lines(world, "Crispy Bat Wing")[1], Line(world, "Bat Wings", 3, 10), "before")
