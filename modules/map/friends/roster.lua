@@ -70,6 +70,7 @@ end
 local function Changed()
     dirty = true
     Friends.Map:OnRosterChanged()
+    Friends.OpenMap:OnRosterChanged()
 end
 
 local listener = ns:CreateEventListener({

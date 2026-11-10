@@ -78,7 +78,7 @@ local world = {
     bankTabs = { 6, 7 },
     maxBankTabs = 3,
     bankBags = { [2] = "GBAG" },
-    player = { guid = "Player-1-00000001", name = "Hylmew", class = "MAGE", realm = "Forever" },
+    player = { guid = "Player-1-00000001", name = "Hylmew", class = "MAGE", realm = "Forever", level = 12 },
     itemSearch = "",
     modifiedClicks = {},
     sortRequested = false,
@@ -1509,6 +1509,11 @@ function UnitClass()
     return world.player.class:lower(), world.player.class
 end
 
+function UnitLevel(unit)
+    assert(unit == "player", "only the player is modelled")
+    return world.player.level
+end
+
 function GetNormalizedRealmName()
     return world.player.realm
 end
@@ -1857,6 +1862,24 @@ Enum.SendAddonMessageResult = { Success = 0, AddonMessageThrottle = 3, ChannelTh
 
 function GetTime()
     return world.now
+end
+
+-- The client's strsplit: splits on any character of `delimiters`, into at most
+-- `pieces` parts (the last keeps the rest).
+function strsplit(delimiters, text, pieces)
+    local parts = {}
+    local start = 1
+    local pattern = "[" .. delimiters:gsub("%p", "%%%0") .. "]"
+    while not pieces or #parts < pieces - 1 do
+        local from, to = text:find(pattern, start)
+        if not from then
+            break
+        end
+        table.insert(parts, text:sub(start, from - 1))
+        start = to + 1
+    end
+    table.insert(parts, text:sub(start))
+    return table.unpack(parts)
 end
 
 function CreateVector2D(x, y)
@@ -3202,23 +3225,17 @@ function world:FriendPins()
     return pins
 end
 
-local function OnlyPrefix()
-    local only
-    for prefix in pairs(world.addonPrefixes) do
-        assert(not only, "several prefixes registered")
-        only = prefix
-    end
-    return assert(only, "no prefix registered")
-end
+-- The prefix of the addon's own friends protocol, the default of the two below.
+local FRIENDS_PREFIX = "FEFriends"
 
 -- An addon message whispered by `sender` ("Name-Realm"), on the addon's prefix by default.
 function world:ReceiveWhisperAddon(message, sender, prefix)
-    self:Fire("CHAT_MSG_ADDON", prefix or OnlyPrefix(), message, "WHISPER", sender, "", 0, 0, "", 0)
+    self:Fire("CHAT_MSG_ADDON", prefix or FRIENDS_PREFIX, message, "WHISPER", sender, "", 0, 0, "", 0)
 end
 
 -- Battle.net game data from the friend playing on `gameAccountID`.
 function world:ReceiveGameData(message, gameAccountID, prefix)
-    self:Fire("BN_CHAT_MSG_ADDON", prefix or OnlyPrefix(), message, "WHISPER", gameAccountID)
+    self:Fire("BN_CHAT_MSG_ADDON", prefix or FRIENDS_PREFIX, message, "WHISPER", gameAccountID)
 end
 
 return world

@@ -23,16 +23,26 @@ local watchers = {}
 local answers = {}
 local ticker
 
-local function CurrentMessage()
+-- The player's position to share: uiMapID, x, y, or nil in an instance or
+-- where the game gives none.
+function Sharing:CurrentPosition()
     if IsInInstance() then
-        return Comm.HIDDEN
+        return nil
     end
     local mapID = C_Map.GetBestMapForUnit("player")
     local position = mapID and C_Map.GetPlayerMapPosition(mapID, "player")
     if not position then
+        return nil
+    end
+    return mapID, position.x, position.y
+end
+
+local function CurrentMessage()
+    local mapID, x, y = Sharing:CurrentPosition()
+    if not mapID then
         return Comm.HIDDEN
     end
-    return Comm:PositionMessage(mapID, position.x, position.y)
+    return Comm:PositionMessage(mapID, x, y)
 end
 
 local function Answer(guid, message, now)

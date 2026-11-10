@@ -24,7 +24,7 @@ A lightweight utility addon for Forever. It keeps the default UI familiar while 
 - Automatic junk selling and repairs at merchants, optionally with guild funds
 - Combo points on enemy nameplates
 - TomTom's `/way` coordinates from guides set the game's map pin, with its navigation arrow (also `/wayb` for your position and `/cway` to clear it; TomTom keeps them when it's installed)
-- Friends who also use Forever Enhanced show on your world map, and you on theirs (off by default; only your friends can see you, never inside instances, and you can stop sharing your position)
+- Friends who also use Forever Enhanced show on your world map, and you on theirs (off by default; only your friends can see you, never inside instances, and you can stop sharing your position), optionally along with friends who use OpenMap
 
 All of those features can be enabled or disabled individually, and most of them are disabled by default to prevent ruining your vanilla experience.
 

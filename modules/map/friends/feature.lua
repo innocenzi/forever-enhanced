@@ -6,14 +6,17 @@
 -- (character friends and Battle.net friends) are ever answered.
 --
 -- "share": answering friends' requests. When off, the player still sees friends.
+-- "openmap": also speaking OpenMap's protocol, to see friends who use the
+-- OpenMap addon and, while sharing, be seen by them.
 --
 -- Files of this slice:
 --   feature.lua  registration, schema and lifecycle (this file)
 --   locales.lua  strings
 --   roster.lua   online friends who could run the addon, by GUID, and how to reach them
---   comm.lua     the message protocol: paced sending and receiving from friends only
+--   comm.lua     paced channels that only hear friends, and the addon's own protocol
 --   sharing.lua  share: answers watching friends with the player's position
 --   map.lua      the friends' pins on the world map and the requests behind them
+--   openmap.lua  openmap: OpenMap's protocol, on a channel of its own
 --   pins.xml     the pin template
 
 local _, ns = ...
@@ -23,10 +26,11 @@ local Friends = ns:RegisterFeature("map", "friends", {
     enabledByDefault = false,
     settings = {
         { key = "share", type = "toggle", default = true },
+        { key = "openmap", type = "toggle", default = false },
     },
     presets = {
         minimal = { enabled = false },
-        enhanced = { enabled = true },
+        enhanced = { enabled = true, openmap = true },
     },
 })
 
@@ -35,9 +39,11 @@ function Friends:OnEnable()
     self.Comm:Enable()
     self.Map:Enable()
     self:SyncPart("share", self.Sharing)
+    self:SyncPart("openmap", self.OpenMap)
 end
 
 function Friends:OnDisable()
+    self:SyncPart("openmap", self.OpenMap)
     self:SyncPart("share", self.Sharing)
     self.Map:Disable()
     self.Comm:Disable()
@@ -46,4 +52,5 @@ end
 
 function Friends:OnSettingChanged()
     self:SyncPart("share", self.Sharing)
+    self:SyncPart("openmap", self.OpenMap)
 end

@@ -102,4 +102,5 @@ modules\map\friends\roster.lua
 modules\map\friends\comm.lua
 modules\map\friends\sharing.lua
 modules\map\friends\map.lua
+modules\map\friends\openmap.lua
 modules\map\friends\pins.xml

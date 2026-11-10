@@ -1,8 +1,9 @@
 -- The friends' pins on the world map: a data provider on WorldMapFrame draws
 -- the last position each friend sent, converted to the shown map through
 -- world coordinates (a friend in a zone shows on its continent too).
--- Positions older than POSITION_SECONDS are dropped, and group members are
--- left to Blizzard's own pins.
+-- Positions expire (after POSITION_SECONDS for the addon's own), and group
+-- members are left to Blizzard's own pins. openmap.lua adds the positions of
+-- friends who use OpenMap through SetPosition and ClearPosition.
 --
 -- While the map is shown it asks friends for their position: at once, then
 -- every WATCH_SECONDS. A friend who answered once (a peer) is asked each time.
@@ -22,7 +23,7 @@ local TICK_SECONDS = 5
 local WATCH_SECONDS = 15
 local POSITION_SECONDS = 40
 
--- guid -> { mapID, x, y, time }
+-- guid -> { mapID, x, y, expiresAt }
 local positions = {}
 -- guid -> true once asked this session / once they answered
 local asked = {}
@@ -58,8 +59,9 @@ function provider:RefreshAllData()
     self:RemoveAllData()
     local map = self:GetMap()
     local shownMapID = map:GetMapID()
+    local now = GetTime()
     for guid, position in pairs(positions) do
-        if not C_PartyInfo.IsGUIDInGroup(guid) then
+        if now <= position.expiresAt and not C_PartyInfo.IsGUIDInGroup(guid) then
             local x, y = ToShownMap(position, shownMapID)
             if x then
                 map:AcquirePin(PIN_TEMPLATE, guid, position.mapID, x, y)
@@ -96,7 +98,7 @@ local function DropExpired()
     local now = GetTime()
     local dropped = false
     for guid, position in pairs(positions) do
-        if now - position.time > POSITION_SECONDS then
+        if now > position.expiresAt then
             positions[guid] = nil
             dropped = true
         end
@@ -128,30 +130,41 @@ function Map:StopWatching()
     end
 end
 
-function Map:OnPosition(guid, mapID, x, y)
-    peers[guid] = true
-    positions[guid] = { mapID = mapID, x = x, y = y, time = GetTime() }
+-- Shows the friend `guid` at (x, y) on mapID for `seconds`, unless updated.
+function Map:SetPosition(guid, mapID, x, y, seconds)
+    positions[guid] = { mapID = mapID, x = x, y = y, expiresAt = GetTime() + seconds }
     Refresh()
 end
 
-function Map:OnHidden(guid)
-    peers[guid] = true
+function Map:ClearPosition(guid)
     if positions[guid] then
         positions[guid] = nil
         Refresh()
     end
 end
 
+function Map:OnPosition(guid, mapID, x, y)
+    peers[guid] = true
+    self:SetPosition(guid, mapID, x, y, POSITION_SECONDS)
+end
+
+function Map:OnHidden(guid)
+    peers[guid] = true
+    self:ClearPosition(guid)
+end
+
 -- Forgets friends who went offline, so they're asked again when they're back.
 function Map:OnRosterChanged()
-    local changed = false
     for guid in pairs(asked) do
         if not Roster:Get(guid) then
             asked[guid], peers[guid] = nil, nil
-            if positions[guid] then
-                positions[guid] = nil
-                changed = true
-            end
+        end
+    end
+    local changed = false
+    for guid in pairs(positions) do
+        if not Roster:Get(guid) then
+            positions[guid] = nil
+            changed = true
         end
     end
     if changed then

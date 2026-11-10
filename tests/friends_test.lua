@@ -1,6 +1,6 @@
 -- Friends on the Map: who gets asked and how, answering friends only, the
 -- pins on the shown map, pacing under the addon message throttle, and
--- turning things off. Alice is a character friend on the player's realm, Bob a
+-- turning things off, then the same for OpenMap's protocol. Alice is a character friend on the player's realm, Bob a
 -- Battle.net friend on game account 7, Carol an offline character friend;
 -- game account 9 is a Battle.net friend in the desktop app.
 
@@ -280,5 +280,152 @@ test("turning it off removes the pins, hides the player and stops sending", func
     world:ReceiveGameData("1W", 7)
     world:Elapse(60)
     equal(Sent(world), "", "messages")
+    equal(world:TickerCount(), 0, "tickers")
+end)
+
+-- OpenMap's protocol ---------------------------------------------------------------------
+
+local OPENMAP = "OpenMapLoc"
+
+local function L1(mapID, x, y, class, level)
+    return ("L1\t%d\t%.4f\t%.4f\t%s\t%d"):format(mapID, x, y, class or "WARRIOR", level or 20)
+end
+
+test("greets online friends in OpenMap's protocol only once turned on", function(world)
+    Setup(world)
+    equal(Sent(world), "", "off by default")
+
+    Set(world, "openmap", true)
+    equal(Sent(world), "#7 H1, Alice H1", "hellos")
+
+    world.bnetFriends[1][1].isOnline = false
+    world:Fire("BN_FRIEND_INFO_CHANGED")
+    world.bnetFriends[1][1].isOnline = true
+    world:Fire("BN_FRIEND_INFO_CHANGED")
+    equal(Sent(world), "#7 H1", "hello to a friend back online")
+end)
+
+test("answers an OpenMap hello with the position while sharing", function(world)
+    Setup(world)
+    world:StandAt(250, 500)
+    Set(world, "openmap", true)
+    Sent(world)
+
+    world:ReceiveWhisperAddon("H1", "Alice-Forever", OPENMAP)
+    equal(Sent(world), "Alice " .. L1(1, 0.25, 0.5, "MAGE", 12), "sharing")
+
+    Set(world, "share", false)
+    world:ReceiveGameData("H1", 7, OPENMAP)
+    equal(Sent(world), "#7 H2", "not sharing")
+end)
+
+test("sends the position to OpenMap users while moving, less often standing still", function(world)
+    Setup(world)
+    world:StandAt(250, 500)
+    Set(world, "openmap", true)
+    Sent(world)
+
+    world:ReceiveWhisperAddon("H2", "Alice-Forever", OPENMAP)
+    equal(Sent(world), "Alice " .. L1(1, 0.25, 0.5, "MAGE", 12), "a new OpenMap user")
+
+    world:Elapse(10)
+    equal(Sent(world), "", "standing still")
+
+    world:StandAt(300, 500)
+    world:Elapse(2)
+    equal(Sent(world), "Alice " .. L1(1, 0.3, 0.5, "MAGE", 12), "moved")
+
+    world:Elapse(58)
+    equal(Sent(world), "", "standing still again")
+    world:Elapse(2)
+    equal(Sent(world), "Alice " .. L1(1, 0.3, 0.5, "MAGE", 12), "a minute later")
+
+    Set(world, "share", false)
+    world:Elapse(2)
+    equal(Sent(world), "Alice L0", "stopped sharing")
+    world:Elapse(120)
+    equal(Sent(world), "", "nothing more")
+end)
+
+test("tells OpenMap users the player stopped sharing in an instance", function(world)
+    Setup(world)
+    world:StandAt(250, 500)
+    Set(world, "openmap", true)
+    world:ReceiveWhisperAddon("H2", "Alice-Forever", OPENMAP)
+    Sent(world)
+
+    world:StandAt(0, 0, 0, 36)
+    world:Elapse(2)
+    equal(Sent(world), "Alice L0", "in an instance")
+end)
+
+test("draws friends who use OpenMap until they stop sharing or go quiet", function(world)
+    Setup(world)
+    Set(world, "share", false)
+    Set(world, "openmap", true)
+    world:OpenMap(1)
+    Sent(world)
+
+    world:ReceiveWhisperAddon(L1(1, 0.25, 0.5), "Alice-Forever", OPENMAP)
+    world:ReceiveGameData(L1(1, 0.1, 0.2, "MAGE"), 7, OPENMAP)
+    equal(Pins(world), "Alice 0.25 0.50, Bob 0.10 0.20", "pins")
+
+    world:Elapse(15)
+    equal(Sent(world), "", "never asked in the addon's own protocol")
+
+    world:ReceiveGameData("L0", 7, OPENMAP)
+    equal(Pins(world), "Alice 0.25 0.50", "Bob stopped sharing")
+
+    world:Elapse(130)
+    equal(Pins(world), "Alice 0.25 0.50", "still fresh")
+    world:Elapse(10)
+    equal(Pins(world), "", "quiet")
+end)
+
+test("ignores OpenMap messages while turned off, and from anyone but friends", function(world)
+    Setup(world)
+    world:OpenMap(1)
+    world:ReceiveWhisperAddon(L1(1, 0.25, 0.5), "Alice-Forever", OPENMAP)
+    world:ReceiveWhisperAddon("H1", "Alice-Forever", OPENMAP)
+    equal(#world:FriendPins(), 0, "pins while off")
+    Sent(world)
+
+    Set(world, "share", false)
+    Set(world, "openmap", true)
+    Sent(world)
+    world:ReceiveWhisperAddon(L1(1, 0.25, 0.5), "Mallory-Forever", OPENMAP)
+    world:ReceiveGameData("H1", 42, OPENMAP)
+    world:ReceiveWhisperAddon("L1\t1\tnope\t0.5\tMAGE\t1", "Alice-Forever", OPENMAP)
+    world:ReceiveWhisperAddon(L1(1, 1.5, 0.5), "Alice-Forever", OPENMAP)
+    equal(#world:FriendPins(), 0, "pins")
+    equal(Sent(world), "", "messages")
+end)
+
+test("leaves OpenMap's protocol to OpenMap when it's loaded", function(world)
+    world.loadedAddOns.OpenMap = true
+    Setup(world)
+    Set(world, "openmap", true)
+    world:ReceiveWhisperAddon("H1", "Alice-Forever", OPENMAP)
+    equal(Sent(world), "", "messages")
+    equal(world:TickerCount(), 0, "tickers")
+end)
+
+test("turning OpenMap off tells its users and removes their pins", function(world)
+    Setup(world)
+    world:StandAt(250, 500)
+    Set(world, "openmap", true)
+    world:OpenMap(1)
+    world:ReceiveWhisperAddon(L1(1, 0.25, 0.5), "Alice-Forever", OPENMAP)
+    Sent(world)
+
+    Set(world, "openmap", false)
+    equal(Sent(world), "Alice L0", "stopped sharing")
+    equal(#world:FriendPins(), 0, "pins")
+
+    world:ReceiveWhisperAddon(L1(1, 0.25, 0.5), "Alice-Forever", OPENMAP)
+    world:CloseMap()
+    world:Elapse(120)
+    equal(Sent(world), "", "messages")
+    equal(#world:FriendPins(), 0, "pins after")
     equal(world:TickerCount(), 0, "tickers")
 end)
