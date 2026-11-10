@@ -96,3 +96,10 @@ modules\map\way\feature.lua
 modules\map\way\locales.lua
 modules\map\way\parser.lua
 modules\map\way\commands.lua
+modules\map\friends\feature.lua
+modules\map\friends\locales.lua
+modules\map\friends\roster.lua
+modules\map\friends\comm.lua
+modules\map\friends\sharing.lua
+modules\map\friends\map.lua
+modules\map\friends\pins.xml

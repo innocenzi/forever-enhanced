@@ -1828,6 +1828,254 @@ function InCombatLockdown()
     return world.inCombat
 end
 
+-- Friends and addon messages -------------------------------------------------------------
+-- world.friends: character friends { guid, name, connected } (name without the
+-- realm for the player's realm, like the client). world.bnetFriends: Battle.net
+-- friends, each a list of game accounts { gameAccountID, playerGuid, isOnline,
+-- clientProgram, wowProjectID }. world.players[guid] = { name, realm, class }
+-- answers GetPlayerInfoByGUID, and world.groupGUIDs[guid] puts one in the group.
+--
+-- Sent addon messages go to world.sentAddon ({ prefix, message, chatType,
+-- target } for whispers, { prefix, message, gameAccountID } for Battle.net).
+-- The client allows ADDON_MESSAGE_BURST messages per prefix, then one per
+-- second, and returns AddonMessageThrottle past that.
+
+local ADDON_MESSAGE_BURST = 10
+
+world.friends = {}
+world.bnetFriends = {}
+world.players = {}
+world.groupGUIDs = {}
+world.sentAddon = {}
+world.addonPrefixes = {}
+world.addonAllowance = {}
+
+BNET_CLIENT_WOW = "WoW"
+WOW_PROJECT_ID = 16
+
+Enum.SendAddonMessageResult = { Success = 0, AddonMessageThrottle = 3, ChannelThrottle = 8 }
+
+function GetTime()
+    return world.now
+end
+
+function CreateVector2D(x, y)
+    return { x = x, y = y }
+end
+
+function CreateFromMixins(...)
+    return Mixin({}, ...)
+end
+
+local function SpendAllowance(prefix)
+    local allowance = world.addonAllowance[prefix] or { tokens = ADDON_MESSAGE_BURST, at = world.now }
+    allowance.tokens = math.min(ADDON_MESSAGE_BURST, allowance.tokens + (world.now - allowance.at))
+    allowance.at = world.now
+    world.addonAllowance[prefix] = allowance
+    if allowance.tokens < 1 then
+        return false
+    end
+    allowance.tokens = allowance.tokens - 1
+    return true
+end
+
+local function SendAddon(prefix, record)
+    assert(world.addonPrefixes[prefix], "unregistered prefix " .. prefix)
+    assert(#record.message <= 255, "addon message too long")
+    if not SpendAllowance(prefix) then
+        return Enum.SendAddonMessageResult.AddonMessageThrottle
+    end
+    record.prefix = prefix
+    table.insert(world.sentAddon, record)
+    return Enum.SendAddonMessageResult.Success
+end
+
+C_ChatInfo.RegisterAddonMessagePrefix = function(prefix)
+    assert(#prefix <= 16, "prefix too long")
+    world.addonPrefixes[prefix] = true
+    return true
+end
+
+C_ChatInfo.SendAddonMessage = function(prefix, message, chatType, target)
+    assert(chatType == "WHISPER" and target, "only whispers are modelled")
+    return SendAddon(prefix, { message = message, chatType = chatType, target = target })
+end
+
+C_FriendList = {
+    GetNumFriends = function()
+        return #world.friends
+    end,
+    GetFriendInfoByIndex = function(index)
+        local friend = world.friends[index]
+        if friend then
+            return { name = friend.name, guid = friend.guid, connected = friend.connected ~= false }
+        end
+    end,
+}
+
+function BNGetNumFriends()
+    local online = 0
+    for _, accounts in ipairs(world.bnetFriends) do
+        for _, account in ipairs(accounts) do
+            if account.isOnline ~= false then
+                online = online + 1
+                break
+            end
+        end
+    end
+    return #world.bnetFriends, online
+end
+
+C_BattleNet = {
+    GetFriendNumGameAccounts = function(friendIndex)
+        return #world.bnetFriends[friendIndex]
+    end,
+    GetFriendGameAccountInfo = function(friendIndex, accountIndex)
+        local account = world.bnetFriends[friendIndex][accountIndex]
+        if account then
+            return {
+                gameAccountID = account.gameAccountID,
+                playerGuid = account.playerGuid,
+                isOnline = account.isOnline ~= false,
+                clientProgram = account.clientProgram or BNET_CLIENT_WOW,
+                wowProjectID = account.wowProjectID or WOW_PROJECT_ID,
+            }
+        end
+    end,
+    SendGameData = function(gameAccountID, prefix, data)
+        return SendAddon(prefix, { message = data, gameAccountID = gameAccountID })
+    end,
+}
+
+C_PartyInfo = {
+    IsGUIDInGroup = function(guid)
+        return world.groupGUIDs[guid] == true
+    end,
+}
+
+function GetPlayerInfoByGUID(guid)
+    local player = world.players[guid]
+    if player then
+        return player.class:lower(), player.class, "Human", "Human", 2, player.name, player.realm
+    end
+end
+
+-- World map ----------------------------------------------------------------------------------
+-- WorldMapFrame is a map canvas showing WorldMapFrame.mapID. Like the canvas, it
+-- refreshes its data providers when it opens, before their OnShow, and calls
+-- their OnMapChanged when the shown map changes. Pins come from frame
+-- templates, pooled per template; a new pin gets OnLoad from the canvas.
+
+MapCanvasDataProviderMixin = {
+    OnAdded = function(self, map)
+        self.owningMap = map
+    end,
+    OnRemoved = function(self, map)
+        assert(map == self.owningMap, "removed from another map")
+        self.owningMap = nil
+    end,
+    RemoveAllData = NoOp,
+    RefreshAllData = NoOp,
+    OnShow = NoOp,
+    OnHide = NoOp,
+    GetMap = function(self)
+        return self.owningMap
+    end,
+    OnMapChanged = function(self)
+        self:RefreshAllData()
+    end,
+}
+
+MapCanvasPinMixin = {
+    OnLoad = NoOp,
+    OnAcquired = NoOp,
+    UseFrameLevelType = NoOp,
+    SetScalingLimits = NoOp,
+    SetPosition = function(self, x, y)
+        self.position = { x = x, y = y }
+    end,
+}
+
+templates.ForeverEnhancedFriendPinTemplate = function(frame)
+    frame.Dot = frame:CreateTexture()
+    Mixin(frame, ForeverEnhanced:GetFeature("map", "friends").Map.PinMixin)
+end
+
+WorldMapFrame = CreateFrame("Frame")
+WorldMapFrame.shown = false
+WorldMapFrame.dataProviders = {}
+WorldMapFrame.pins = {}
+WorldMapFrame.freePins = {}
+
+function WorldMapFrame:AddDataProvider(provider)
+    self.dataProviders[provider] = true
+    provider:OnAdded(self)
+end
+
+function WorldMapFrame:RemoveDataProvider(provider)
+    provider:RemoveAllData()
+    self.dataProviders[provider] = nil
+    provider:OnRemoved(self)
+end
+
+function WorldMapFrame:GetMapID()
+    return self.mapID
+end
+
+function WorldMapFrame:AcquirePin(template, ...)
+    self.freePins[template] = self.freePins[template] or {}
+    local pin = table.remove(self.freePins[template])
+    if not pin then
+        pin = CreateFrame("Frame", nil, self, template)
+        pin:OnLoad()
+    end
+    pin:Show()
+    pin:OnAcquired(...)
+    table.insert(self.pins, pin)
+    return pin
+end
+
+function WorldMapFrame:RemoveAllPinsByTemplate(template)
+    for index = #self.pins, 1, -1 do
+        local pin = self.pins[index]
+        if pin.template == template then
+            table.remove(self.pins, index)
+            pin:Hide()
+            table.insert(self.freePins[template], pin)
+        end
+    end
+end
+
+WorldMapFrame:SetScript("OnShow", function(self)
+    for provider in pairs(self.dataProviders) do
+        provider:RefreshAllData(true)
+    end
+    for provider in pairs(self.dataProviders) do
+        provider:OnShow()
+    end
+end)
+
+WorldMapFrame:SetScript("OnHide", function(self)
+    for provider in pairs(self.dataProviders) do
+        provider:OnHide()
+    end
+end)
+
+-- The map position of a world position (yards on a continent), like the
+-- client: outside 0..1 when it's off the map, nil when the map is elsewhere.
+C_Map.GetMapPosFromWorldPos = function(continentID, worldPosition, uiMapID)
+    if MAP_CONTINENTS[uiMapID] == continentID then
+        return uiMapID, { x = worldPosition.x / MAP_SIZE, y = worldPosition.y / MAP_SIZE }
+    end
+    if uiMapID == 4 and continentID == 0 then
+        return uiMapID,
+            {
+                x = (worldPosition.x - NORTHSHIRE.left) / NORTHSHIRE.size,
+                y = (worldPosition.y - NORTHSHIRE.top) / NORTHSHIRE.size,
+            }
+    end
+end
+
 -- UI globals ---------------------------------------------------------------------------
 
 GameTooltip = {
@@ -1838,8 +2086,13 @@ GameTooltip = {
     end,
     SetText = function(_, text)
         world.tooltip = text
+        world.tooltipLines = {}
+    end,
+    AddLine = function(_, text)
+        table.insert(world.tooltipLines, text)
     end,
     Show = NoOp,
+    Hide = NoOp,
     IsOwned = function()
         return false
     end,
@@ -2915,6 +3168,57 @@ function world:ComboPoints(plate)
         end
     end
     return state, bar
+end
+
+-- Opens the world map on uiMapID (the player's map by default).
+function world:OpenMap(uiMapID)
+    WorldMapFrame.mapID = uiMapID or C_Map.GetBestMapForUnit("player")
+    WorldMapFrame:Show()
+end
+
+-- Switches the open map to uiMapID.
+function world:ShowMap(uiMapID)
+    WorldMapFrame.mapID = uiMapID
+    for provider in pairs(WorldMapFrame.dataProviders) do
+        provider:OnMapChanged()
+    end
+end
+
+function world:CloseMap()
+    WorldMapFrame:Hide()
+end
+
+-- The friend pins on the map: { guid, x, y }, sorted by GUID.
+function world:FriendPins()
+    local pins = {}
+    for _, pin in ipairs(WorldMapFrame.pins) do
+        if pin.template == "ForeverEnhancedFriendPinTemplate" then
+            table.insert(pins, { guid = pin.guid, x = pin.position.x, y = pin.position.y, frame = pin })
+        end
+    end
+    table.sort(pins, function(a, b)
+        return a.guid < b.guid
+    end)
+    return pins
+end
+
+local function OnlyPrefix()
+    local only
+    for prefix in pairs(world.addonPrefixes) do
+        assert(not only, "several prefixes registered")
+        only = prefix
+    end
+    return assert(only, "no prefix registered")
+end
+
+-- An addon message whispered by `sender` ("Name-Realm"), on the addon's prefix by default.
+function world:ReceiveWhisperAddon(message, sender, prefix)
+    self:Fire("CHAT_MSG_ADDON", prefix or OnlyPrefix(), message, "WHISPER", sender, "", 0, 0, "", 0)
+end
+
+-- Battle.net game data from the friend playing on `gameAccountID`.
+function world:ReceiveGameData(message, gameAccountID, prefix)
+    self:Fire("BN_CHAT_MSG_ADDON", prefix or OnlyPrefix(), message, "WHISPER", gameAccountID)
 end
 
 return world

@@ -21,6 +21,7 @@ local TEST_FILES = {
     "tests/way_test.lua",
     "tests/combopoints_test.lua",
     "tests/glow_test.lua",
+    "tests/friends_test.lua",
 }
 
 local function ReadAddonFiles()
