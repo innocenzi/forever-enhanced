@@ -132,8 +132,71 @@ test("feature settings grey out with their module", function(world)
     expect(not row.predicate(), "greyed out with the module off")
 end)
 
-test("client locale wins over the fallback", function(world)
-    local expected = world.env.TEST_LOCALE == "frFR" and "Activer" or "Enable"
-    equal(world.L["core.enable"], expected, "core.enable")
+local ENABLE = { enUS = "Enable", frFR = "Activer" }
+
+-- The supported locale the client isn't running.
+local function OtherLocale(locale)
+    return locale == "frFR" and "enUS" or "frFR"
+end
+
+test("follows the client language by default", function(world)
+    equal(world.env.ForeverEnhancedDB.language, "auto", "saved default")
+    equal(world.L["core.enable"], ENABLE[world.env.TEST_LOCALE], "core.enable")
     equal(world.L["missing.key"], "missing.key", "missing keys render as the key")
+end)
+
+test("a chosen language wins over the client's", function(world)
+    local other = OtherLocale(world.env.TEST_LOCALE)
+    equal(world.L["core.enable"], ENABLE[other], "core.enable")
+    equal(world.categories[2].name, world.L["inventory.title"], "settings panel in that language")
+    equal(world:Setting("language").tbl.language, other, "kept")
+end, {
+    savedVariables = function(locale)
+        return { language = OtherLocale(locale) }
+    end,
+})
+
+test("an unknown language resets to the client's", function(world)
+    equal(world.env.ForeverEnhancedDB.language, "auto", "reset")
+    equal(world.L["core.enable"], ENABLE[world.env.TEST_LOCALE], "core.enable")
+end, {
+    savedVariables = function()
+        return { language = "deDE" }
+    end,
+})
+
+test("the language dropdown opens the root page", function(world)
+    local root = world.categories[1]
+    local dropdown = root.items[2]
+    equal(dropdown.setting, world:Setting("language"), "first setting")
+    equal(dropdown.tooltip, world.L["core.language.tooltip"], "tooltip")
+    equal(#dropdown.options, 3, "options")
+    equal(dropdown.options[1].value, "auto", "client language first")
+    equal(dropdown.options[1].label, world.L["core.language.auto"], "its label")
+    equal(dropdown.options[2].label, "English", "named in its own language")
+    equal(dropdown.options[3].label, "Français", "named in its own language")
+end)
+
+test("changing the language offers to reload", function(world)
+    world:Setting("language"):SetValue(OtherLocale(world.env.TEST_LOCALE))
+    local popup = world.popups[#world.popups]
+    expect(popup, "confirmation shown")
+    equal(popup.text, world.L["core.language.reloadConfirm"], "confirmation text")
+    expect(not world.reloaded, "waits for the player")
+    popup.callback()
+    expect(world.reloaded, "reloads once accepted")
+end)
+
+test("a text setting left at its default follows the language", function(world)
+    local db = world.env.ForeverEnhancedDB.modules.quests.features.announce
+    local clientDefault = db.template
+    world.env.ForeverEnhancedDB.language = OtherLocale(world.env.TEST_LOCALE)
+    world.ns.Database:Initialize()
+    expect(db.template ~= clientDefault, "no longer the client language's default")
+    equal(db.template, world.L["quests.announce.template.default"], "the chosen language's default")
+
+    db.template = "{quest} done"
+    world.env.ForeverEnhancedDB.language = "auto"
+    world.ns.Database:Initialize()
+    equal(db.template, "{quest} done", "a custom text is kept")
 end)

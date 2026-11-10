@@ -19,8 +19,9 @@ local function Save(editBox, data)
     Locking:SetNote(data.guid, data.link, editBox:GetText())
 end
 
+-- The text is set when shown: strings are in the player's language only after
+-- the addon has loaded.
 StaticPopupDialogs[DIALOG] = {
-    text = ns.L["inventory.locking.notePrompt"],
     button1 = ACCEPT,
     button2 = CANCEL,
     hasEditBox = 1,
@@ -50,6 +51,7 @@ function Locking:EditNote(itemLocation)
         return
     end
     local link = C_Item.GetItemLink(itemLocation)
+    StaticPopupDialogs[DIALOG].text = ns.L["inventory.locking.notePrompt"]
     StaticPopup_Show(DIALOG, link, nil, { guid = guid, link = link, note = self:GetGUIDNote(guid) })
 end
 

@@ -27,6 +27,8 @@ Forever Enhanced: a World of Warcraft Forever addon of small, independent qualit
 ## Localization
 
 - Every player-facing string exists in `enUS` and `frFR` (correct French accents). Each slice registers its own strings with `ns:RegisterLocale`.
+- The player picks the addon's language in Options (`ForeverEnhancedDB.language`: `"auto"` for the client's, or one of `ns.LANGUAGES`); a change applies after a reload. `ns.L` is filled only at `ADDON_LOADED` (before that every key renders as itself): never read `L` at file load, look strings up when they're shown or frames are built. A text setting still at a locale's default switches to the new language's. Game text (quest objectives, item names) stays in the client's language: parse it by `GetLocale()`.
+- Adding a language: append it to `ns.LANGUAGES` and its native name in `core/locale.lua`, and to `LOCALES` in `tests/run.lua`.
 - Keys: `<module>.title`, `<module>.description`, `<module>.<feature>.title|description|<key>|<key>.tooltip|<key>.<option>|<key>.format|<key>.default` (`.format`: a slider's value label, e.g. `"%d yd"`, the plain number otherwise; `.default`: the default of an entry without one), plus any feature strings under `<module>.<feature>.`.
 - The settings list truncates labels past about 30 characters: keep labels short and put details in the `.tooltip`.
 - Write like Blizzard's own GlobalStrings (reuse their wording when a game string exists: "Sell All Junk Items", "Clean Up Bags", "Dépôt", "Ranger les sacs").

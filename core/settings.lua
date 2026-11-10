@@ -266,9 +266,43 @@ local function AddModule(module)
     end
 end
 
+-- The addon's language: the client's ("auto") or one of ns.LANGUAGES, named in
+-- their own language. Strings are taken when frames are built, so it applies
+-- after a reload, which the player is offered right away.
+local function AddLanguage()
+    local setting = RegisterSetting(
+        rootCategory,
+        "language",
+        "language",
+        ForeverEnhancedDB,
+        Settings.VarType.String,
+        L["core.language"],
+        ns.Database.LANGUAGE_DEFAULT
+    )
+    local function GetOptions()
+        local container = Settings.CreateControlTextContainer()
+        container:Add(ns.Database.LANGUAGE_DEFAULT, L["core.language.auto"])
+        for _, locale in ipairs(ns.LANGUAGES) do
+            container:Add(locale, ns:GetLanguageName(locale))
+        end
+        return container:GetData()
+    end
+    Settings.CreateDropdown(rootCategory, setting, GetOptions, L["core.language.tooltip"])
+    setting:SetValueChangedCallback(function()
+        StaticPopup_ShowCustomGenericConfirmation({
+            text = L["core.language.reloadConfirm"],
+            callback = ReloadUI,
+        })
+    end)
+end
+
 function SettingsPanel:Build()
     local layout
     rootCategory, layout = Settings.RegisterVerticalLayoutCategory(ns.title)
+
+    layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(L["core.general"]))
+    AddLanguage()
+
     layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(L["core.modules"], L["core.modules.tooltip"]))
 
     for _, module in ns:EnumerateModules() do

@@ -1,6 +1,7 @@
 -- Saved variables.
 --
 -- ForeverEnhancedDB (account):
+--   language = "auto" (the client's) or one of ns.LANGUAGES
 --   modules[moduleId] = { enabled, features = { [featureId] = { enabled, <schema keys> } } }
 --   stores[moduleId][featureId] = feature-owned table, shared by every character
 -- ForeverEnhancedCharacterDB (character):
@@ -15,7 +16,11 @@ local _, ns = ...
 local Database = {
     -- Modules are enabled by default; features unless they say otherwise.
     ENABLED_DEFAULT = true,
+    -- The addon speaks the client's language unless the player picks another.
+    LANGUAGE_DEFAULT = "auto",
 }
+
+local LANGUAGE_ENTRY = { options = { Database.LANGUAGE_DEFAULT, unpack(ns.LANGUAGES) } }
 ns.Database = Database
 
 local function GetOrCreateTable(parent, key)
@@ -58,11 +63,17 @@ local function KeepOnly(tbl, allowedKeys)
 end
 
 -- An entry without a default takes it from the locale, so it can be in the
--- player's language (every locale file is loaded by now).
-local function ResolveDefault(feature, entry)
-    if entry.default == nil then
-        local key = feature:GetLocaleKey(entry.key .. ".default")
-        entry.default = assert(rawget(ns.L, key), "missing default: " .. key)
+-- player's language (every locale file is loaded and the language set by now).
+-- A saved value left at another language's default follows the language.
+local function ResolveDefault(featureDb, feature, entry)
+    if entry.default ~= nil and not entry.localeDefault then
+        return
+    end
+    local key = feature:GetLocaleKey(entry.key .. ".default")
+    entry.default = assert(rawget(ns.L, key), "missing default: " .. key)
+    entry.localeDefault = true
+    if ns:IsLocaleString(key, featureDb[entry.key]) then
+        featureDb[entry.key] = entry.default
     end
 end
 
@@ -72,7 +83,7 @@ local function InitializeFeature(savedFeatures, feature)
 
     ApplyDefault(featureDb, "enabled", feature.enabledByDefault)
     for _, entry in ipairs(feature.settings) do
-        ResolveDefault(feature, entry)
+        ResolveDefault(featureDb, feature, entry)
         knownKeys[entry.key] = true
         ApplyDefault(featureDb, entry.key, entry.default, entry)
     end
@@ -101,6 +112,10 @@ end
 function Database:Initialize()
     ForeverEnhancedDB = type(ForeverEnhancedDB) == "table" and ForeverEnhancedDB or {}
     ForeverEnhancedCharacterDB = type(ForeverEnhancedCharacterDB) == "table" and ForeverEnhancedCharacterDB or {}
+
+    -- Before the modules: their locale defaults come in this language.
+    ApplyDefault(ForeverEnhancedDB, "language", Database.LANGUAGE_DEFAULT, LANGUAGE_ENTRY)
+    ns:SetLanguage(ForeverEnhancedDB.language)
 
     local savedModules = GetOrCreateTable(ForeverEnhancedDB, "modules")
     local knownModules = {}

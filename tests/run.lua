@@ -40,7 +40,9 @@ local function Run(path, env, ...)
 end
 
 -- A fresh fake client with the addon loaded and the player logged in.
-local function Boot(locale)
+-- `options.savedVariables(locale)` returns the account saved table the client
+-- loads before ADDON_LOADED.
+local function Boot(locale, options)
     local env = setmetatable({ TEST_LOCALE = locale }, { __index = _G })
     env._G = env
 
@@ -48,6 +50,9 @@ local function Boot(locale)
     local ns = {}
     for _, path in ipairs(ADDON_FILES) do
         Run(path, env, "ForeverEnhanced", ns)
+    end
+    if options and options.savedVariables then
+        env.ForeverEnhancedDB = options.savedVariables(locale)
     end
     world:Fire("ADDON_LOADED", "ForeverEnhanced")
     world:Fire("PLAYER_LOGIN")
@@ -88,8 +93,9 @@ local function LoadTests(path)
     for name, func in pairs(assertions) do
         env[name] = func
     end
-    function env.test(name, func)
-        table.insert(tests, { file = path, name = name, func = func })
+    -- options: { savedVariables = function(locale) return ForeverEnhancedDB end }
+    function env.test(name, func, options)
+        table.insert(tests, { file = path, name = name, func = func, options = options })
     end
     Run(path, env)
 end
@@ -102,7 +108,7 @@ local passed, failed = 0, 0
 for _, locale in ipairs(LOCALES) do
     for _, case in ipairs(tests) do
         local ok, err = pcall(function()
-            local world = Boot(locale)
+            local world = Boot(locale, case.options)
             currentClientEnv = world.env
             case.func(world)
         end)

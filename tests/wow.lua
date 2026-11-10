@@ -1734,6 +1734,10 @@ function StaticPopup_ShowCustomGenericConfirmation(data)
     table.insert(world.popups, data)
 end
 
+function ReloadUI()
+    world.reloaded = true
+end
+
 -- Item tooltip post-calls, in registration order.
 world.tooltipPostCalls = {}
 TooltipDataProcessor = {
