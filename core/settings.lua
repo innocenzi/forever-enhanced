@@ -23,12 +23,35 @@ local SettingsPanel = {}
 ns.SettingsPanel = SettingsPanel
 
 local VARIABLE_PREFIX = "ForeverEnhanced."
--- Our text row, defined in settings.xml.
-local TEXT_TEMPLATE = "ForeverEnhancedSettingsTextControlTemplate"
+-- Our rows, defined in settings.xml: Blizzard's own under our names, so their
+-- pages never reuse (and run tainted in) frames our rows used.
+local TEMPLATES = {
+    header = "ForeverEnhancedSettingsSectionHeaderTemplate",
+    checkbox = "ForeverEnhancedSettingsCheckboxControlTemplate",
+    dropdown = "ForeverEnhancedSettingsDropdownControlTemplate",
+    slider = "ForeverEnhancedSettingsSliderControlTemplate",
+    text = "ForeverEnhancedSettingsTextControlTemplate",
+}
 local TEXT_MAX_LETTERS = 200
 
 local function OptionalText(key)
     return rawget(L, key)
+end
+
+-- Adds a control row for `setting` with our template of that kind. `options`:
+-- a function returning a dropdown's options, or a slider's options.
+local function AddControl(category, kind, setting, options, tooltip)
+    local initializer = Settings.CreateControlInitializer(TEMPLATES[kind], setting, options, tooltip)
+    Settings.RegisterInitializer(category, initializer)
+    return initializer
+end
+
+local function AddCheckbox(category, setting, tooltip)
+    return AddControl(category, "checkbox", setting, nil, tooltip)
+end
+
+local function AddSectionHeader(layout, name, tooltip)
+    layout:AddInitializer(Settings.CreateElementInitializer(TEMPLATES.header, { name = name, tooltip = tooltip }))
 end
 
 -- Text row: Blizzard's settings have no edit box control, so settings.xml
@@ -119,7 +142,7 @@ local controls = {
     toggle = {
         varType = Settings.VarType.Boolean,
         create = function(category, setting, tooltip)
-            return Settings.CreateCheckbox(category, setting, tooltip)
+            return AddCheckbox(category, setting, tooltip)
         end,
     },
     -- { key, type = "dropdown", default = option, options = { option, ... } }
@@ -133,7 +156,7 @@ local controls = {
                 end
                 return container:GetData()
             end
-            return Settings.CreateDropdown(category, setting, GetOptions, tooltip)
+            return AddControl(category, "dropdown", setting, GetOptions, tooltip)
         end,
     },
     -- { key, type = "slider", default = number, min, max, step } (whole numbers)
@@ -147,16 +170,14 @@ local controls = {
             options:SetLabelFormatter(MinimalSliderWithSteppersMixin.Label.Right, function(value)
                 return format:format(value)
             end)
-            return Settings.CreateSlider(category, setting, options, tooltip)
+            return AddControl(category, "slider", setting, options, tooltip)
         end,
     },
     -- { key, type = "text", default = string } (a blank text resets to the default)
     text = {
         varType = Settings.VarType.String,
         create = function(category, setting, tooltip)
-            local initializer = Settings.CreateControlInitializer(TEXT_TEMPLATE, setting, nil, tooltip)
-            Settings.RegisterInitializer(category, initializer)
-            return initializer
+            return AddControl(category, "text", setting, nil, tooltip)
         end,
     },
 }
@@ -235,7 +256,7 @@ local function AddFeature(category, layout, feature)
     local prefix = feature:GetLocaleKey()
     local description = L[prefix .. ".description"]
 
-    layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(L[prefix .. ".title"], description))
+    AddSectionHeader(layout, L[prefix .. ".title"], description)
 
     local enabledSetting = RegisterSetting(
         category,
@@ -246,7 +267,7 @@ local function AddFeature(category, layout, feature)
         L["core.enable"],
         feature.enabledByDefault
     )
-    local enabledInitializer = Settings.CreateCheckbox(category, enabledSetting, description)
+    local enabledInitializer = AddCheckbox(category, enabledSetting, description)
     enabledInitializer:AddModifyPredicate(function()
         return module.db.enabled
     end)
@@ -273,7 +294,7 @@ local function AddModule(module)
         title,
         ns.Database.ENABLED_DEFAULT
     )
-    Settings.CreateCheckbox(rootCategory, moduleSetting, L[module.id .. ".description"])
+    AddCheckbox(rootCategory, moduleSetting, L[module.id .. ".description"])
     moduleSetting:SetValueChangedCallback(function()
         ns:RefreshModule(module)
     end)
@@ -305,7 +326,7 @@ local function AddLanguage()
         end
         return container:GetData()
     end
-    Settings.CreateDropdown(rootCategory, setting, GetOptions, L["core.language.tooltip"])
+    AddControl(rootCategory, "dropdown", setting, GetOptions, L["core.language.tooltip"])
     setting:SetValueChangedCallback(function()
         StaticPopup_ShowCustomGenericConfirmation({
             text = L["core.language.reloadConfirm"],
@@ -351,18 +372,18 @@ local function AddPresets()
         end
         return container:GetData()
     end
-    Settings.CreateDropdown(rootCategory, setting, GetOptions, L["core.presets.tooltip"])
+    AddControl(rootCategory, "dropdown", setting, GetOptions, L["core.presets.tooltip"])
 end
 
 function SettingsPanel:Build()
     local layout
     rootCategory, layout = Settings.RegisterVerticalLayoutCategory(ns.title)
 
-    layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(L["core.general"]))
+    AddSectionHeader(layout, L["core.general"])
     AddLanguage()
     AddPresets()
 
-    layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(L["core.modules"], L["core.modules.tooltip"]))
+    AddSectionHeader(layout, L["core.modules"], L["core.modules.tooltip"])
 
     for _, module in ns:EnumerateModules() do
         AddModule(module)

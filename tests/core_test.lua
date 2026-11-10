@@ -21,6 +21,17 @@ test("builds the settings panel from the registered schemas", function(world)
     equal(dropdown.options[2].label, world.L["inventory.locking.indicator.center"], "option label")
 end)
 
+-- Blizzard's pages reuse frames of its templates, which addon rows leave tainted.
+test("settings rows use our own templates", function(world)
+    for _, category in ipairs(world.categories) do
+        for index, item in ipairs(category.items) do
+            local where = category.name .. " row " .. index
+            expect(item.template, where .. " has a template")
+            expect(item.template:find("^ForeverEnhanced"), where .. " uses our template: " .. item.template)
+        end
+    end
+end)
+
 test("fills schema defaults", function(world)
     local db = world.env.ForeverEnhancedDB.modules.inventory
     equal(db.enabled, true, "module enabled by default")

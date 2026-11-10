@@ -886,11 +886,20 @@ Settings = {
             { name = name, default = default, getValue = getValue, setValue = setValue }
         )
     end,
+    -- Blizzard's builders: rows with Blizzard's templates, whose frames its own pages reuse.
     CreateCheckbox = function(category, setting, tooltip)
-        return AddInitializer(category, { setting = setting, tooltip = tooltip })
+        return AddInitializer(
+            category,
+            { template = "SettingsCheckboxControlTemplate", setting = setting, tooltip = tooltip }
+        )
     end,
     CreateDropdown = function(category, setting, getOptions, tooltip)
-        return AddInitializer(category, { setting = setting, tooltip = tooltip, options = getOptions() })
+        return AddInitializer(category, {
+            template = "SettingsDropdownControlTemplate",
+            setting = setting,
+            tooltip = tooltip,
+            options = getOptions(),
+        })
     end,
     CreateSliderOptions = function(minValue, maxValue, step)
         return {
@@ -903,15 +912,29 @@ Settings = {
         }
     end,
     CreateSlider = function(category, setting, sliderOptions, tooltip)
-        return AddInitializer(category, { setting = setting, tooltip = tooltip, slider = sliderOptions })
+        return AddInitializer(category, {
+            template = "SettingsSliderControlTemplate",
+            setting = setting,
+            tooltip = tooltip,
+            slider = sliderOptions,
+        })
     end,
-    -- A custom row (our text control): created, then registered to the category.
+    -- A row with any template: created, then registered to the category. `options`
+    -- is what the template's control reads: a function returning a dropdown's
+    -- options (kept here as the options it returns), or a slider's options.
     CreateControlInitializer = function(template, setting, options, tooltip)
         assert(template, "missing template")
-        return setmetatable(
-            { template = template, setting = setting, options = options, tooltip = tooltip },
-            Initializer
-        )
+        local initializer = { template = template, setting = setting, tooltip = tooltip }
+        if type(options) == "function" then
+            initializer.options = options()
+        elseif options then
+            initializer.slider = options
+        end
+        return setmetatable(initializer, Initializer)
+    end,
+    CreateElementInitializer = function(template, data)
+        assert(template, "missing template")
+        return { template = template, header = data.name, tooltip = data.tooltip }
     end,
     RegisterInitializer = function(category, initializer)
         table.insert(category.items, initializer)
@@ -930,7 +953,7 @@ Settings = {
 }
 
 function CreateSettingsListSectionHeaderInitializer(name, tooltip)
-    return { header = name, tooltip = tooltip }
+    return { template = "SettingsListSectionHeaderTemplate", header = name, tooltip = tooltip }
 end
 
 -- Items, bags and cursor ------------------------------------------------------------
