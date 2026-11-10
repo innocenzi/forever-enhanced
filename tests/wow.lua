@@ -1308,7 +1308,12 @@ C_QuestLog = {
             return quest.distance * quest.distance, not quest.offContinent
         end
     end,
+    -- Returns nothing while the client has no quest data for the map (seen
+    -- after a zone change on a boat).
     GetQuestsOnMap = function()
+        if world.mapQuestsUnavailable then
+            return
+        end
         local pois = {}
         for _, quest in ipairs(world.questLog) do
             if quest.onMap then

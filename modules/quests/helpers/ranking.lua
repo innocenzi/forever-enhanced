@@ -29,13 +29,17 @@ local function GetDistance(questID)
     end
 end
 
+-- The quests on the player's map, or nil when the client has no quest data
+-- for it (it returns nothing for a while after a zone change, e.g. on a boat).
 local function GetQuestsInCurrentZone()
-    local quests = {}
     local mapID = C_Map.GetBestMapForUnit("player")
-    if mapID then
-        for _, poi in ipairs(C_QuestLog.GetQuestsOnMap(mapID)) do
-            quests[poi.questID] = true
-        end
+    local pois = mapID and C_QuestLog.GetQuestsOnMap(mapID)
+    if not pois then
+        return nil
+    end
+    local quests = {}
+    for _, poi in ipairs(pois) do
+        quests[poi.questID] = true
     end
     return quests
 end
@@ -46,7 +50,13 @@ end
 function Ranking:GetQuests()
     local scope = Helpers:GetSetting("scope")
     local range = Helpers:GetSetting("range")
-    local inZone = scope == "zone" and GetQuestsInCurrentZone()
+    local inZone
+    if scope == "zone" then
+        inZone = GetQuestsInCurrentZone()
+        if not inZone then
+            return nil
+        end
+    end
     local Watches = Helpers.Watches
 
     local quests, scores = {}, {}

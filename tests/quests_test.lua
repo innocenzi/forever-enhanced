@@ -81,6 +81,20 @@ test("in the current zone, tracks only quests on the player's map", function(wor
     equal(world:Watched(), "2 5", "watched")
 end)
 
+test("in the current zone, leaves the tracker alone while the map has no quest data", function(world)
+    Enable(world)
+    WithQuests(world)
+    world.mapQuestsUnavailable = true
+    Set(world, "scope", "zone")
+    world:NextFrame()
+    equal(world:Watched(), "5", "watched")
+
+    world.mapQuestsUnavailable = nil
+    world.questLog[2].onMap = true
+    world:Elapse(TICK_SECONDS)
+    equal(world:Watched(), "2", "watched once the data is in")
+end)
+
 test("ignores quests that can't be tracked or have no location", function(world)
     Enable(world)
     world:SetQuests({
