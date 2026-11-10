@@ -111,6 +111,51 @@ test("ignores quests that can't be tracked or have no location", function(world)
     equal(world:Watched(), "7", "watched")
 end)
 
+test("leaves out dungeon and raid quests outside instances when asked to", function(world)
+    Enable(world)
+    world:SetQuests({
+        { questID = 1, distance = 10, tagID = Enum.QuestTag.Dungeon },
+        { questID = 2, distance = 20, tagID = Enum.QuestTag.Raid },
+        { questID = 3, distance = 30, tagID = Enum.QuestTag.Group },
+        { questID = 4, distance = 40 },
+    })
+    world.watches = { 1 }
+    Set(world, "count", 2)
+    world:NextFrame()
+    equal(world:Watched(), "1 2", "watched by default")
+
+    Set(world, "dungeons", false)
+    world:NextFrame()
+    equal(world:Watched(), "3 4", "watched without dungeon quests")
+end)
+
+test("inside an instance, tracks its dungeon quests first when asked to", function(world)
+    Enable(world)
+    Set(world, "dungeons", false)
+    -- Quest 1 has objectives on the instance's map, quest 2 sits under its
+    -- header, quest 3 belongs to another dungeon. No quest has a distance here.
+    world:SetQuests({
+        { isHeader = true, title = "Westfall" },
+        { questID = 1, tagID = Enum.QuestTag.Dungeon, onMap = true },
+        { questID = 4 },
+        { isHeader = true, title = "The Deadmines" },
+        { questID = 2, tagID = Enum.QuestTag.Dungeon },
+        { isHeader = true, title = "Wailing Caverns" },
+        { questID = 3, tagID = Enum.QuestTag.Dungeon },
+    })
+    world.watches = { 4 }
+    world:StandAt(0, 0, 0, 36)
+    world:Fire("ZONE_CHANGED_NEW_AREA")
+    world:NextFrame()
+    equal(world:Watched(), "1 2", "watched inside the Deadmines")
+
+    world:StandAt(0, 0)
+    world:MoveTo({ [1] = 10, [2] = 20, [3] = 30, [4] = 40 })
+    world:Fire("ZONE_CHANGED_NEW_AREA")
+    world:NextFrame()
+    equal(world:Watched(), "4", "watched after leaving")
+end)
+
 test("leaves the tracker alone when no quest has a location", function(world)
     Enable(world)
     WithQuests(world)

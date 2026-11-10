@@ -988,6 +988,7 @@ Enum = {
     TooltipDataType = { Item = 0 },
     PowerType = { ComboPoints = 4 },
     CraftingReagentType = { Optional = 0, Basic = 1, Finishing = 2 },
+    QuestTag = { Group = 1, PvP = 41, Raid = 62, Dungeon = 81, Heroic = 85, Raid10 = 88, Raid25 = 89 },
     UIMapType = { Cosmic = 0, World = 1, Continent = 2, Zone = 3, Dungeon = 4, Micro = 5, Orphan = 6 },
 }
 NUM_TOTAL_EQUIPPED_BAG_SLOTS = 0
@@ -1306,6 +1307,7 @@ C_Container = {
 -- Quests ----------------------------------------------------------------------------------
 -- world.questLog entries: { questID, title, distance (yards, nil = no location),
 -- offContinent, onMap, isHeader, isHidden, isTask, isBounty, isWorldQuest,
+-- tagID (Enum.QuestTag, nil = untagged),
 -- objectives = { { text, finished, numFulfilled, numRequired }, ... } }.
 
 local function FindQuest(questID)
@@ -1340,6 +1342,13 @@ C_QuestLog = {
     end,
     IsWorldQuest = function(questID)
         return FindQuest(questID).isWorldQuest == true
+    end,
+    -- Nil for an untagged quest. The tag name stands in for the client's localized one.
+    GetQuestTagInfo = function(questID)
+        local quest = FindQuest(questID)
+        if quest and quest.tagID then
+            return { tagID = quest.tagID, tagName = tostring(quest.tagID) }
+        end
     end,
     GetDistanceSqToQuest = function(questID)
         local quest = FindQuest(questID)
@@ -1731,6 +1740,24 @@ local function IsDescendant(uiMapID, ancestorID)
         parentID = MAPS[parentID].parentMapID
     end
     return false
+end
+
+-- Every instance is a 5-player dungeon on map 3. Outside one, the client
+-- names the continent.
+function IsInInstance()
+    if world.position.instanceID then
+        return true, "party"
+    end
+    return false, "none"
+end
+
+function GetInstanceInfo()
+    local position = world.position
+    if position.instanceID then
+        return MAPS[3].name, "party", 1, "Normal", 5, 0, false, position.instanceID
+    end
+    local continent = position.continentID == 1 and MAPS[11] or MAPS[10]
+    return continent.name, "none", 0, "", 0, 0, false, position.continentID
 end
 
 C_Map = {
