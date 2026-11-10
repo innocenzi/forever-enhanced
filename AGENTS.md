@@ -62,7 +62,9 @@ Forever Enhanced: a World of Warcraft Forever addon of small, independent qualit
 
 ## Packaging
 
-CurseForge packages from `.pkgmeta`. When adding dev-only files or folders, add them to its ignore list so the zip contains only runtime files.
+The BigWigs packager builds the zip from `.pkgmeta`. When adding dev-only files or folders, add them to its ignore list so the zip contains only runtime files.
+
+`.github/workflows/ci.yml` runs lint, tests and typecheck on every push and pull request. On a `v*` tag (pushed by `bun run release`) it also packages the addon and uploads it to CurseForge (project `1795191`, `CF_API_KEY` repository secret) and to GitHub Releases, with that release's git-cliff notes as the changelog.
 
 ## Commits
 
