@@ -77,9 +77,6 @@ modules\interface\windows\store.lua
 modules\interface\windows\placement.lua
 modules\interface\windows\handles.lua
 modules\interface\windows\tracking.lua
-modules\interface\waypoint\feature.lua
-modules\interface\waypoint\locales.lua
-modules\interface\waypoint\arrival.lua
 modules\interface\combopoints\feature.lua
 modules\interface\combopoints\locales.lua
 modules\interface\combopoints\bar.lua
@@ -88,3 +85,13 @@ modules\interface\glow\locales.lua
 modules\interface\glow\cvars.lua
 modules\interface\glow\effect.lua
 modules\interface\glow\target.lua
+
+# Map
+modules\map\module.lua
+modules\map\waypoint\feature.lua
+modules\map\waypoint\locales.lua
+modules\map\waypoint\arrival.lua
+modules\map\way\feature.lua
+modules\map\way\locales.lua
+modules\map\way\parser.lua
+modules\map\way\commands.lua

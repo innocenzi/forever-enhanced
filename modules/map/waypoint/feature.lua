@@ -9,8 +9,8 @@
 
 local _, ns = ...
 
-local Waypoint = ns:RegisterFeature("interface", "waypoint", {
-    order = 2,
+local Waypoint = ns:RegisterFeature("map", "waypoint", {
+    order = 1,
     settings = {
         { key = "range", type = "slider", default = 30, min = 5, max = 100, step = 5 },
         { key = "announce", type = "toggle", default = true },

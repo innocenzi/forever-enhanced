@@ -9,7 +9,7 @@
 
 local _, ns = ...
 
-local ComboPoints = ns:RegisterFeature("interface", "combopoints", { order = 3 })
+local ComboPoints = ns:RegisterFeature("interface", "combopoints", { order = 2 })
 
 function ComboPoints:OnEnable()
     self.Bars:Enable()

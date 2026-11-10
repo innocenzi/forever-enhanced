@@ -25,6 +25,9 @@
 -- Console variables live in world.cvars. The soft interact target (what the
 -- Interact Key would act on) is world.softInteract, picked from
 -- world.nearbyObject while the soft target CVars allow it.
+--
+-- Slash commands are registered like in the client (SlashCmdList, SLASH_<KEY>n)
+-- and run from world:Chat, which first imports them into hash_SlashCmdList.
 
 local BAG_SIZE = 4
 local SERVER_CONFIRM_SECONDS = 0.05
@@ -920,6 +923,7 @@ Enum = {
     TooltipDataType = { Item = 0 },
     PowerType = { ComboPoints = 4 },
     CraftingReagentType = { Optional = 0, Basic = 1, Finishing = 2 },
+    UIMapType = { Cosmic = 0, World = 1, Continent = 2, Zone = 3, Dungeon = 4, Micro = 5, Orphan = 6 },
 }
 NUM_TOTAL_EQUIPPED_BAG_SLOTS = 0
 
@@ -1581,6 +1585,12 @@ C_SuperTrack = {
     GetSuperTrackedQuestID = function()
         return world.superTracked
     end,
+    SetSuperTrackedUserWaypoint = function(superTracked)
+        world.superTrackingWaypoint = superTracked
+    end,
+    IsSuperTrackingUserWaypoint = function()
+        return world.superTrackingWaypoint == true
+    end,
 }
 
 -- Maps are MAP_SIZE yards squares whose top left corner is the world origin of
@@ -1588,9 +1598,68 @@ C_SuperTrack = {
 local MAP_SIZE = 1000
 local MAP_CONTINENTS = { [1] = 0, [2] = 1 }
 
+-- The map tree under Azeroth (9): a zone on each continent and a dungeon, which
+-- can't hold a pin. The player is on map 1 or 2 by continent, on 3 in an instance.
+local MAPS = {
+    [1] = { name = "Elwynn Forest", mapType = Enum.UIMapType.Zone, parentMapID = 10 },
+    [2] = { name = "Durotar", mapType = Enum.UIMapType.Zone, parentMapID = 11 },
+    [3] = { name = "The Deadmines", mapType = Enum.UIMapType.Dungeon, parentMapID = 1 },
+    [9] = { name = "Azeroth", mapType = Enum.UIMapType.World, parentMapID = 0 },
+    [10] = { name = "Eastern Kingdoms", mapType = Enum.UIMapType.Continent, parentMapID = 9 },
+    [11] = { name = "Kalimdor", mapType = Enum.UIMapType.Continent, parentMapID = 9 },
+}
+
+local function GetMapInfo(uiMapID)
+    local map = MAPS[uiMapID]
+    if map then
+        return { mapID = uiMapID, name = map.name, mapType = map.mapType, parentMapID = map.parentMapID }
+    end
+end
+
+local function IsDescendant(uiMapID, ancestorID)
+    local parentID = MAPS[uiMapID].parentMapID
+    while parentID ~= 0 do
+        if parentID == ancestorID then
+            return true
+        end
+        parentID = MAPS[parentID].parentMapID
+    end
+    return false
+end
+
 C_Map = {
     GetBestMapForUnit = function()
-        return 1
+        local position = world.position
+        if position.instanceID then
+            return 3
+        end
+        return position.continentID == 1 and 2 or 1
+    end,
+    GetMapInfo = GetMapInfo,
+    -- Sorted by map ID; direct children only unless allDescendants.
+    GetMapChildrenInfo = function(uiMapID, mapType, allDescendants)
+        local children = {}
+        for childID, map in pairs(MAPS) do
+            local related = map.parentMapID == uiMapID or (allDescendants and IsDescendant(childID, uiMapID))
+            if related and (mapType == nil or map.mapType == mapType) then
+                table.insert(children, GetMapInfo(childID))
+            end
+        end
+        table.sort(children, function(a, b)
+            return a.mapID < b.mapID
+        end)
+        return children
+    end,
+    CanSetUserWaypointOnMap = function(uiMapID)
+        return MAPS[uiMapID] ~= nil and MAPS[uiMapID].mapType ~= Enum.UIMapType.Dungeon
+    end,
+    -- Nil off the player's continent and in an instance, like the client.
+    GetPlayerMapPosition = function(uiMapID, unit)
+        assert(unit == "player", "only the player is modelled")
+        local position = world.position
+        if not position.instanceID and MAP_CONTINENTS[uiMapID] == position.continentID then
+            return { x = position.x / MAP_SIZE, y = position.y / MAP_SIZE }
+        end
     end,
     SetUserWaypoint = function(point)
         world.waypoint = point
@@ -1599,6 +1668,7 @@ C_Map = {
     end,
     ClearUserWaypoint = function()
         world.waypoint = nil
+        world.superTrackingWaypoint = false
         world:Fire("USER_WAYPOINT_UPDATED")
     end,
     HasUserWaypoint = function()
@@ -1614,6 +1684,14 @@ C_Map = {
         end
     end,
 }
+
+UiMapPoint = {
+    CreateFromCoordinates = function(uiMapID, x, y)
+        return { uiMapID = uiMapID, position = { x = x, y = y } }
+    end,
+}
+
+MAP_PIN_INVALID_MAP = "Map pins can't be placed on this map."
 
 -- World coordinates in yards, in the order of the matching world position
 -- fields (x, y); nothing in an instance, like the client.
@@ -1661,6 +1739,37 @@ UIErrorsFrame = {
 }
 
 NAVIGATION_DESTINATION_REACHED_MESSAGE = "You have reached your destination."
+
+SOUNDKIT = setmetatable({}, {
+    __index = function(_, name)
+        return name
+    end,
+})
+
+PlaySound = NoOp
+
+-- Slash commands, as in the client: addons fill SlashCmdList and SLASH_<KEY>n, and
+-- every chat line moves them into hash_SlashCmdList (keyed by the uppercase
+-- command) and into the proxy table behind SlashCmdList.
+SlashCmdList = setmetatable({}, { __index = {} })
+hash_SlashCmdList = {}
+hash_ChatTypeInfoList = {}
+
+local function ImportSlashCommands()
+    local proxy = getmetatable(SlashCmdList).__index
+    for key, handler in pairs(SlashCmdList) do
+        local i = 1
+        local tag = _G["SLASH_" .. key .. i]
+        while tag do
+            hash_SlashCmdList[tag:upper()] = handler
+            hash_ChatTypeInfoList[tag:upper()] = key
+            i = i + 1
+            tag = _G["SLASH_" .. key .. i]
+        end
+        proxy[key] = handler
+    end
+    wipe(SlashCmdList)
+end
 
 DEFAULT_CHAT_FRAME = {
     AddMessage = function(_, message)
@@ -2103,6 +2212,19 @@ function world:Objective(name, numRequired, numFulfilled, type)
         numFulfilled = numFulfilled,
         numRequired = numRequired,
     }
+end
+
+-- The player sends `text` from the chat edit box. Returns false when it names no
+-- slash command (the client then prints its help hint).
+function world:Chat(text)
+    local command, message = text:match("^(/%S+)%s*(.-)$")
+    ImportSlashCommands()
+    local handler = hash_SlashCmdList[command:upper()]
+    if not handler then
+        return false
+    end
+    handler(strtrim(message))
+    return true
 end
 
 -- A group chat message from `author` ("Name-Realm"); true when a filter hid it.

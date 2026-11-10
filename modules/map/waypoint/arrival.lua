@@ -5,7 +5,7 @@
 
 local _, ns = ...
 
-local Waypoint = ns:GetFeature("interface", "waypoint")
+local Waypoint = ns:GetFeature("map", "waypoint")
 
 local Arrival = {}
 Waypoint.Arrival = Arrival

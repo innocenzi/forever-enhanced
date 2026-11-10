@@ -7,7 +7,7 @@ end
 test("builds the settings panel from the registered schemas", function(world)
     local root, inventory = world.categories[1], world.categories[2]
     expect(root.registered, "root category registered as an AddOn category")
-    equal(#world.categories, 4, "categories")
+    equal(#world.categories, 5, "categories")
     equal(inventory.name, world.L["inventory.title"], "module subcategory name")
 
     local dropdown -- the first one: Item Locking's indicator
