@@ -1,6 +1,7 @@
 -- TomTom /way command: coordinates, zones, /wayb, /cway, tracking and
 -- registration. Map 1 is Elwynn Forest (continent 0, where the player
--- starts), map 2 Durotar (continent 1), map 3 a dungeon.
+-- starts), map 2 Durotar (continent 1), map 3 a dungeon, map 4 Northshire, a
+-- starting area inside Elwynn Forest.
 
 local function Pin()
     local point = C_Map.GetUserWaypoint()
@@ -93,6 +94,16 @@ test("/wayb pins the player's position", function(world)
     world:Chat("/wayb")
     expect(not C_Map.HasUserWaypoint(), "no pin in an instance")
     equal(world.errors[#world.errors], MAP_PIN_INVALID_MAP, "invalid map error")
+end)
+
+test("pins the zone when the player stands in a starting area", function(world)
+    world:StandAt(900, 100)
+    equal(C_Map.GetBestMapForUnit("player"), 4, "player map")
+    world:Chat("/way 45 63")
+    ExpectPin(1, 0.45, 0.63, "/way")
+
+    world:Chat("/wayb")
+    ExpectPin(1, 0.9, 0.1, "/wayb")
 end)
 
 test("doesn't track the pin when tracking is off", function(world)

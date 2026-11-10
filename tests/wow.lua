@@ -1629,16 +1629,30 @@ C_SuperTrack = {
 local MAP_SIZE = 1000
 local MAP_CONTINENTS = { [1] = 0, [2] = 1 }
 
--- The map tree under Azeroth (9): a zone on each continent and a dungeon, which
--- can't hold a pin. The player is on map 1 or 2 by continent, on 3 in an instance.
+-- The map tree under Azeroth (9): a zone on each continent, a dungeon, which
+-- can't hold a pin, and Northshire, a starting area inside Elwynn Forest with its
+-- own map. The player is on map 1 or 2 by continent, on 4 inside NORTHSHIRE (yards
+-- on continent 0) and on 3 in an instance.
 local MAPS = {
     [1] = { name = "Elwynn Forest", mapType = Enum.UIMapType.Zone, parentMapID = 10 },
     [2] = { name = "Durotar", mapType = Enum.UIMapType.Zone, parentMapID = 11 },
     [3] = { name = "The Deadmines", mapType = Enum.UIMapType.Dungeon, parentMapID = 1 },
+    [4] = { name = "Northshire", mapType = Enum.UIMapType.Micro, parentMapID = 1 },
     [9] = { name = "Azeroth", mapType = Enum.UIMapType.World, parentMapID = 0 },
     [10] = { name = "Eastern Kingdoms", mapType = Enum.UIMapType.Continent, parentMapID = 9 },
     [11] = { name = "Kalimdor", mapType = Enum.UIMapType.Continent, parentMapID = 9 },
 }
+
+local NORTHSHIRE = { left = 800, top = 0, size = 200 }
+
+local function InNorthshire(position)
+    return not position.instanceID
+        and position.continentID == 0
+        and position.x >= NORTHSHIRE.left
+        and position.x < NORTHSHIRE.left + NORTHSHIRE.size
+        and position.y >= NORTHSHIRE.top
+        and position.y < NORTHSHIRE.top + NORTHSHIRE.size
+end
 
 local function GetMapInfo(uiMapID)
     local map = MAPS[uiMapID]
@@ -1663,6 +1677,9 @@ C_Map = {
         local position = world.position
         if position.instanceID then
             return 3
+        end
+        if InNorthshire(position) then
+            return 4
         end
         return position.continentID == 1 and 2 or 1
     end,
@@ -1690,6 +1707,12 @@ C_Map = {
         local position = world.position
         if not position.instanceID and MAP_CONTINENTS[uiMapID] == position.continentID then
             return { x = position.x / MAP_SIZE, y = position.y / MAP_SIZE }
+        end
+        if uiMapID == 4 and InNorthshire(position) then
+            return {
+                x = (position.x - NORTHSHIRE.left) / NORTHSHIRE.size,
+                y = (position.y - NORTHSHIRE.top) / NORTHSHIRE.size,
+            }
         end
     end,
     SetUserWaypoint = function(point)
@@ -1723,6 +1746,13 @@ UiMapPoint = {
 }
 
 MAP_PIN_INVALID_MAP = "Map pins can't be placed on this map."
+
+function IsInInstance()
+    if world.position.instanceID then
+        return true, "party"
+    end
+    return false, "none"
+end
 
 -- World coordinates in yards, in the order of the matching world position
 -- fields (x, y); nothing in an instance, like the client.

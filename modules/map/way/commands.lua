@@ -36,6 +36,21 @@ local function Clear()
     PlaySound(SOUNDKIT.UI_MAP_WAYPOINT_REMOVE)
 end
 
+-- The zone the player is in. Guides write coordinates on the zone, while the
+-- player's own map may be a starting area, a cave or a building inside it.
+local function GetPlayerZone()
+    local mapID = C_Map.GetBestMapForUnit("player")
+    local info = mapID and not IsInInstance() and C_Map.GetMapInfo(mapID)
+    while info and (info.mapType == Enum.UIMapType.Micro or info.mapType == Enum.UIMapType.Dungeon) do
+        local parent = C_Map.GetMapInfo(info.parentMapID)
+        if not parent or parent.mapType < Enum.UIMapType.Zone then
+            break
+        end
+        info = parent
+    end
+    return info and info.mapID or mapID
+end
+
 -- /way [zone] x y [description], /way reset
 local function PlaceFromText(text)
     local lower = text:lower()
@@ -56,14 +71,14 @@ local function PlaceFromText(text)
             return
         end
     else
-        mapID = C_Map.GetBestMapForUnit("player")
+        mapID = GetPlayerZone()
     end
     Place(mapID, point.x / 100, point.y / 100)
 end
 
 -- /wayb [description]: the player's position.
 local function WayBack()
-    local mapID = C_Map.GetBestMapForUnit("player")
+    local mapID = GetPlayerZone()
     local position = mapID and C_Map.GetPlayerMapPosition(mapID, "player")
     if not position then
         ns:Error(MAP_PIN_INVALID_MAP)
