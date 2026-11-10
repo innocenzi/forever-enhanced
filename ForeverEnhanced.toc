@@ -84,3 +84,8 @@ modules\interface\waypoint\arrival.lua
 modules\interface\combopoints\feature.lua
 modules\interface\combopoints\locales.lua
 modules\interface\combopoints\bar.lua
+modules\interface\glow\feature.lua
+modules\interface\glow\locales.lua
+modules\interface\glow\cvars.lua
+modules\interface\glow\effect.lua
+modules\interface\glow\target.lua

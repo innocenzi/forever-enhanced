@@ -18,6 +18,7 @@ local TEST_FILES = {
     "tests/windows_test.lua",
     "tests/waypoint_test.lua",
     "tests/combopoints_test.lua",
+    "tests/glow_test.lua",
 }
 
 local function ReadAddonFiles()
