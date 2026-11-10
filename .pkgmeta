@@ -1,5 +1,9 @@
 package-as: ForeverEnhanced
 
+manual-changelog:
+  filename: CHANGELOG.md
+  markup-type: markdown
+
 ignore:
   - .luarc.json
   - .release
