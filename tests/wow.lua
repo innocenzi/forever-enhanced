@@ -2087,11 +2087,13 @@ function world:Progress(questID, index, numFulfilled, text)
     self:Fire("QUEST_LOG_UPDATE")
 end
 
--- A counted objective, like the client's: "0/8 Kobold Vermin slain".
-function world:Objective(name, numRequired, numFulfilled)
+-- A counted objective, like the client's: "0/8 Kobold Vermin slain". `type` is
+-- the client's objective type ("item", "monster", "object"...), "item" by default.
+function world:Objective(name, numRequired, numFulfilled, type)
     numFulfilled = numFulfilled or 0
     return {
         name = name,
+        type = type or "item",
         text = ("%d/%d %s"):format(numFulfilled, numRequired, name),
         finished = numFulfilled >= numRequired,
         numFulfilled = numFulfilled,

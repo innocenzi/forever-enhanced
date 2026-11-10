@@ -69,6 +69,10 @@ modules\quests\announce\questie.lua
 modules\quests\sparkles\feature.lua
 modules\quests\sparkles\locales.lua
 modules\quests\sparkles\sparkle.lua
+modules\quests\tooltip\feature.lua
+modules\quests\tooltip\locales.lua
+modules\quests\tooltip\needs.lua
+modules\quests\tooltip\tooltip.lua
 
 # Interface
 modules\interface\module.lua
