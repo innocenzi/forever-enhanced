@@ -228,27 +228,6 @@ end)
 
 local COMBAT_TICK_SECONDS = 1
 
-local function EnterCombat(world)
-    world.inCombat = true
-    world:Fire("PLAYER_REGEN_DISABLED")
-end
-
-local function LeaveCombat(world)
-    world.inCombat = false
-    world:Fire("PLAYER_REGEN_ENABLED")
-end
-
--- Tickers still running, ours and other features'.
-local function TickerCount(world)
-    local count = 0
-    for _, timer in ipairs(world.timers) do
-        if timer.interval and not timer.cancelled then
-            count = count + 1
-        end
-    end
-    return count
-end
-
 -- MOB holds 3 points while the player targets OTHER.
 local function PointsOnAnotherUnit(world)
     local plate = Rogue(world)
@@ -262,7 +241,7 @@ end
 test("moves below the cast bar in combat", function(world)
     local plate = Rogue(world)
     world:SetComboPoints(2)
-    EnterCombat(world)
+    world:EnterCombat()
 
     world:SetCasting("MOB", true)
     local _, bar = world:ComboPoints(plate)
@@ -275,7 +254,7 @@ end)
 
 test("placed below a cast when the points appear in combat", function(world)
     local plate = Rogue(world)
-    EnterCombat(world)
+    world:EnterCombat()
     world:SetCasting("MOB", true)
     world:SetComboPoints(1)
     local _, bar = world:ComboPoints(plate)
@@ -284,7 +263,7 @@ end)
 
 test("in combat, notices points running out on a unit that isn't targeted", function(world)
     local plate = PointsOnAnotherUnit(world)
-    EnterCombat(world)
+    world:EnterCombat()
 
     world.comboPoints.MOB = 1
     world:Elapse(COMBAT_TICK_SECONDS)
@@ -297,35 +276,35 @@ end)
 
 test("checks again when leaving combat, then stops checking", function(world)
     local plate = PointsOnAnotherUnit(world)
-    local others = TickerCount(world)
-    EnterCombat(world)
-    equal(TickerCount(world), others + 1, "checking in combat")
+    local others = world:TickerCount()
+    world:EnterCombat()
+    equal(world:TickerCount(), others + 1, "checking in combat")
 
     world.comboPoints.MOB = nil
-    LeaveCombat(world)
+    world:LeaveCombat()
     equal(world:ComboPoints(plate), nil, "checked when leaving combat")
-    equal(TickerCount(world), others, "no longer checking")
+    equal(world:TickerCount(), others, "no longer checking")
 end)
 
 test("doesn't check out of combat", function(world)
     PointsOnAnotherUnit(world)
-    local withFeature = TickerCount(world)
+    local withFeature = world:TickerCount()
     world:Setting("interface.combopoints.enabled"):SetValue(false)
-    equal(TickerCount(world), withFeature, "no ticker of ours out of combat")
+    equal(world:TickerCount(), withFeature, "no ticker of ours out of combat")
 end)
 
 test("checks when enabled in combat, and stops when disabled", function(world)
     local plate = PointsOnAnotherUnit(world)
     world:Setting("interface.combopoints.enabled"):SetValue(false)
-    local others = TickerCount(world)
+    local others = world:TickerCount()
     world.inCombat = true
     world:Setting("interface.combopoints.enabled"):SetValue(true)
-    equal(TickerCount(world), others + 1, "checking in combat")
+    equal(world:TickerCount(), others + 1, "checking in combat")
 
     world.comboPoints.MOB = nil
     world:Elapse(COMBAT_TICK_SECONDS)
     equal(world:ComboPoints(plate), nil, "updated on the next tick")
 
     world:Setting("interface.combopoints.enabled"):SetValue(false)
-    equal(TickerCount(world), others, "stopped when disabled")
+    equal(world:TickerCount(), others, "stopped when disabled")
 end)

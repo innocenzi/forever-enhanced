@@ -21,6 +21,7 @@ Forever Enhanced: a World of Warcraft Forever addon of small, independent qualit
 - Saved variables: `feature.db` (account, derived from the schema; unknown keys are dropped), `feature:GetCharacterStore()` (per character, feature-owned) and `feature:GetAccountStore()` (account-wide, feature-owned: data one character saves for the others to read).
 - Events: `ns:CreateEventListener({ EVENT = function(listener, ...) end })`, then `:Start()` / `:Stop()` with the feature lifecycle.
 - Containers: `ns.Containers` (`BAG_IDS`, `ALL_CONTAINER_IDS`, `GetBankContainerIDs()`, `ForEachSlot`).
+- CVars: only through `ns:CreateCVarOverride(feature)` (`core/cvars.lua`), created at file load. `:Set(name, value)` keeps the player's value (in the feature's account store, under `cvars`); `:Restore()` in `OnDisable` puts it back unless the player changed it since. It writes only on change (every write runs `CVAR_UPDATE` handlers from our tainted code) and never in combat.
 - Moving items: only through `ns:CreateMover({ Plan, maxMovesPerKey })` (`core/moves.lua`), never ad-hoc pickup sequences. `Plan()` returns the moves still needed from live positions; the mover sends non-conflicting moves in rounds and waits for the server between them.
 
 ## Localization

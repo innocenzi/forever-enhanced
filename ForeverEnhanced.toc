@@ -12,6 +12,7 @@
 
 # Core
 core\events.lua
+core\cvars.lua
 core\containers.lua
 core\moves.lua
 core\tooltips.lua
@@ -65,6 +66,9 @@ modules\quests\announce\locales.lua
 modules\quests\announce\message.lua
 modules\quests\announce\objectives.lua
 modules\quests\announce\questie.lua
+modules\quests\sparkles\feature.lua
+modules\quests\sparkles\locales.lua
+modules\quests\sparkles\sparkle.lua
 
 # Interface
 modules\interface\module.lua

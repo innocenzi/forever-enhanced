@@ -16,6 +16,7 @@ A lightweight utility addon for Forever. It keeps the default UI familiar while 
 - Movable windows and bags
 - Automatic quest tracking by distance, so you always track what is closest to you
 - Quest objective announcements to your group (off by default)
+- Quest items you can loot always sparkle, even after picking a graphics preset (the game also makes some quest NPCs sparkle; turning it off takes a game restart)
 - Bank viewable from anywhere, including in profession UI tooltips
 - Quick bank deposit and withdraw
 - Automatic junk selling and repairs at merchants, optionally with guild funds (off by default)

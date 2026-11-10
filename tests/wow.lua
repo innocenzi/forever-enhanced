@@ -21,6 +21,10 @@
 -- nameplate (world.namePlates). Like Forever, combo points are held per unit
 -- (world.comboPoints, by GUID): a unit keeps its points when the player
 -- targets another or builds points on another.
+--
+-- Console variables live in world.cvars. The soft interact target (what the
+-- Interact Key would act on) is world.softInteract, picked from
+-- world.nearbyObject while the soft target CVars allow it.
 
 local BAG_SIZE = 4
 local SERVER_CONFIRM_SECONDS = 0.05
@@ -209,6 +213,9 @@ for _, name in ipairs({
     "SetTextColor",
     "HighlightText",
     "SetMaxLetters",
+    "SetBlendMode",
+    "SetAlpha",
+    "SetIgnoreParentAlpha",
 }) do
     Region[name] = NoOp
 end
@@ -550,6 +557,14 @@ function Region:SetAtlas(atlas)
     self.atlas = atlas
 end
 
+function Region:GetTexture()
+    return self.texture
+end
+
+function Region:GetAtlas()
+    return self.atlas
+end
+
 function Region:SetDesaturated(desaturated)
     self.desaturated = desaturated
 end
@@ -725,6 +740,44 @@ C_Timer = {
         local ticker = C_Timer.NewTimer(seconds, callback)
         ticker.interval = seconds
         return ticker
+    end,
+}
+
+-- Console variables ------------------------------------------------------------
+-- world.cvars holds string values by lower-case name: like the client, names
+-- are case-insensitive, and only known CVars can be set. Setting one fires
+-- CVAR_UPDATE at once (the client's handlers run synchronously), with the name
+-- as given. world.combatCVarWrites lists the names set during combat.
+
+world.cvars = {
+    outlinemodeshowlooteffectwhendisabled = "0",
+    graphicsquality = "5",
+    softtargetinteract = "1",
+    softtargetinteractrange = "10",
+    softtargetinteractarc = "0",
+    softtargetinteractonlyinrange = "1",
+    softtargeticongameobject = "0",
+    softtargeticoninteract = "1",
+    softtargetnameplateinteract = "0",
+}
+world.combatCVarWrites = {}
+
+C_CVar = {
+    GetCVar = function(name)
+        return world.cvars[name:lower()]
+    end,
+    SetCVar = function(name, value)
+        local key = name:lower()
+        assert(world.cvars[key], "unknown cvar " .. name)
+        value = tostring(value)
+        world.cvars[key] = value
+        if world.inCombat then
+            table.insert(world.combatCVarWrites, name)
+        end
+        world:Fire("CVAR_UPDATE", name, value)
+        if key:find("^softtarget") then
+            world:QueueSoftInteractRefresh()
+        end
     end,
 }
 
@@ -1205,6 +1258,11 @@ end
 Constants = { QuestWatchConsts = { MAX_QUEST_WATCHES = 25 } }
 
 C_QuestLog = {
+    -- Only the soft interact object is modelled (see Soft interact below).
+    UnitIsRelatedToActiveQuest = function(unit)
+        assert(unit == "softinteract", "only the soft interact object is modelled")
+        return world.softInteract ~= nil and world.softInteract.quest == true
+    end,
     GetNumQuestLogEntries = function()
         return #world.questLog, #world.questLog
     end,
@@ -1381,8 +1439,15 @@ local function NamePlateToken(guid)
     end
 end
 
--- The shown nameplate of a nameplate token ("nameplate1"), the only units modelled.
+-- The shown nameplate of a nameplate token ("nameplate1"), or of the soft
+-- interact object: nil while it has none, or when world.softInteractPlateByUnit
+-- is false (then only its nameplate token finds it).
 local function NamePlateOf(unit)
+    if unit == "softinteract" then
+        local object = world.softInteract
+        local token = object and world.softInteractPlateByUnit ~= false and NamePlateToken(object.guid)
+        return token and world.namePlates[token]
+    end
     return assert(unit:match("^nameplate%d+$") and world.namePlates[unit], "unknown unit " .. unit)
 end
 
@@ -1393,7 +1458,8 @@ end
 
 C_NamePlate = {
     GetNamePlateForUnit = function(unit)
-        return NamePlateOf(unit).frame
+        local namePlate = NamePlateOf(unit)
+        return namePlate and namePlate.frame
     end,
     GetNamePlates = function()
         local frames = {}
@@ -1403,6 +1469,113 @@ C_NamePlate = {
         return frames
     end,
 }
+
+-- Soft interact -------------------------------------------------------------------------
+-- world.nearbyObject: what the Interact Key would act on, set with
+-- world:SoftInteract({ guid, gameObject (default true; false for an NPC),
+-- cursor ("Mine", "GatherHerbs", "Quest", "LootAll", ...), unable (the cursor's
+-- "Unable" variant: can't use it now), inRange, quest }) or nil.
+-- Like the client, the game picks it as the "softinteract" unit
+-- (world.softInteract) only while SoftTargetInteract allows the keyboard (2 or
+-- 3), and gives it a nameplate while SoftTargetNameplateInteract is on (a world
+-- object only with SoftTargetIconGameObject on too). The game picks again at
+-- once when the player moves, and on the next frame after a soft target CVar
+-- changes; nameplates follow on the next frame.
+
+-- The soft interact object, or a nameplate's unit.
+function UnitIsGameObject(unit)
+    if unit == "softinteract" then
+        return world.softInteract ~= nil and world.softInteract.gameObject
+    end
+    local namePlate = world.namePlates[unit]
+    return namePlate ~= nil and namePlate.gameObject
+end
+
+function UnitIsInInteractRange(unit)
+    assert(unit == "softinteract" and world.softInteract, "only the soft interact object is modelled")
+    return world.softInteract.inRange == true
+end
+
+-- Cursor files have file IDs, like the client's (GetTexture returns the ID).
+local fileIDs, fileCount = {}, 0
+function GetFileIDFromPath(path)
+    local key = path:lower()
+    if not fileIDs[key] then
+        fileCount = fileCount + 1
+        fileIDs[key] = 100000 + fileCount
+    end
+    return fileIDs[key]
+end
+
+-- The cursor the object shows on mouseover: by file ID, or by atlas when
+-- world.cursorAtlases is set ("Cursor_Crosshair_UnableMine_64"; then
+-- GetTexture gives no cursor file).
+function SetUnitCursorTexture(texture, unit)
+    assert(unit == "softinteract", "only the soft interact object is modelled")
+    local object = world.softInteract
+    if not object then
+        return false
+    end
+    local name = (object.unable and "Unable" or "") .. object.cursor
+    if world.cursorAtlases then
+        texture:SetTexture(nil)
+        texture:SetAtlas("Cursor_Crosshair_" .. name .. "_64")
+    else
+        texture:SetTexture(GetFileIDFromPath("Interface\\Cursor\\" .. name))
+    end
+    return true
+end
+
+local function PickSoftInteract()
+    local enabled = world.cvars.softtargetinteract == "2" or world.cvars.softtargetinteract == "3"
+    local old, new = world.softInteract, enabled and world.nearbyObject or nil
+    if old == new then
+        return
+    end
+    if old and NamePlateToken(old.guid) then
+        world:HideNamePlate(old.guid)
+    end
+    world.softInteract = new
+    world:Fire("PLAYER_SOFT_INTERACT_CHANGED", old and old.guid, new and new.guid)
+end
+
+local function UpdateSoftInteractNamePlate()
+    local object = world.softInteract
+    local shown = object and NamePlateToken(object.guid)
+    local wanted = object ~= nil
+        and world.cvars.softtargetnameplateinteract ~= "0"
+        and (not object.gameObject or world.cvars.softtargeticongameobject ~= "0")
+    if wanted and not shown then
+        world:ShowNamePlate(object.guid, object.gameObject)
+    elseif shown and not wanted then
+        world:HideNamePlate(object.guid)
+    end
+end
+
+local softInteractRefreshQueued = false
+function world:QueueSoftInteractRefresh()
+    if softInteractRefreshQueued then
+        return
+    end
+    softInteractRefreshQueued = true
+    table.insert(self.nextFrameCallbacks, function()
+        softInteractRefreshQueued = false
+        PickSoftInteract()
+        UpdateSoftInteractNamePlate()
+    end)
+end
+
+local objectCount = 0
+function world:SoftInteract(object)
+    if object then
+        objectCount = objectCount + 1
+        object.guid = object.guid or ("GameObject-0-" .. objectCount)
+        object.gameObject = object.gameObject ~= false
+    end
+    self.nearbyObject = object
+    PickSoftInteract()
+    self:QueueSoftInteractRefresh()
+end
 
 C_SuperTrack = {
     GetSuperTrackedQuestID = function()
@@ -1704,6 +1877,28 @@ function world:Elapse(seconds)
         nextTimer.callback()
         self:NextFrame()
     end
+end
+
+-- Like the client, PLAYER_REGEN_DISABLED fires just before the combat lockdown starts.
+function world:EnterCombat()
+    self:Fire("PLAYER_REGEN_DISABLED")
+    self.inCombat = true
+end
+
+function world:LeaveCombat()
+    self.inCombat = false
+    self:Fire("PLAYER_REGEN_ENABLED")
+end
+
+-- Tickers still running, every feature's.
+function world:TickerCount()
+    local count = 0
+    for _, timer in ipairs(self.timers) do
+        if timer.interval and not timer.cancelled then
+            count = count + 1
+        end
+    end
+    return count
 end
 
 function world:Setting(path)
@@ -2346,12 +2541,13 @@ local function NewNamePlate()
     return frame
 end
 
-function world:ShowNamePlate(guid)
+-- `gameObject`: the plate of a world object (the soft interact one).
+function world:ShowNamePlate(guid, gameObject)
     namePlateCount = namePlateCount + 1
     local frame = table.remove(freeNamePlates) or NewNamePlate()
     local token = "nameplate" .. namePlateCount
     frame.unitToken = token
-    self.namePlates[token] = { guid = guid, frame = frame }
+    self.namePlates[token] = { guid = guid, frame = frame, gameObject = gameObject == true }
     self:Fire("NAME_PLATE_UNIT_ADDED", token)
     return frame
 end
