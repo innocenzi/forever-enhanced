@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.2.0 - 2026-11-10
+
+
+### Features
+- **core:** let players choose the addon's language
+- merge related settings into bank and quest helpers features
+- **map:** set the map pin with TomTom's /way commands
+- **core:** add minimal and enhanced setting presets
+- **map:** show friends who use the addon on the world map
+- **map:** optionally show friends who use OpenMap on the world map
+
+
+### Fixes
+- **quests:** keep nearby tracking from erroring while the zone has no quest data
+- **map:** pin /way coordinates on the zone from starting areas, caves and buildings
+- **core:** keep the settings panel from blocking Blizzard's audio options
+- **quests:** hide the chat bubbles of other players' Questie announcements
+- **quests:** show quest objectives in item tooltips on non-English clients
+- **map:** tell players that friends on the map and the Enhanced preset share their position
+
 ## 0.1.0 - 2026-11-10
 
 
