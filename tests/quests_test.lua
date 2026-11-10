@@ -4,6 +4,10 @@
 
 local TICK_SECONDS = 2
 
+local function Enable(world)
+    world:Setting("quests.nearby.enabled"):SetValue(true)
+end
+
 local function Set(world, key, value)
     world:Setting("quests.nearby." .. key):SetValue(value)
 end
@@ -24,7 +28,15 @@ local function Pins(world)
     return world.env.ForeverEnhancedCharacterDB.quests.nearby.pins
 end
 
+test("leaves the tracker alone until enabled", function(world)
+    WithQuests(world)
+    world:NextFrame()
+    world:Elapse(TICK_SECONDS)
+    equal(world:Watched(), "5", "watched")
+end)
+
 test("tracks the closest quests and untracks the farthest", function(world)
+    Enable(world)
     WithQuests(world)
     Set(world, "count", 2)
     world:NextFrame()
@@ -37,6 +49,7 @@ test("tracks the closest quests and untracks the farthest", function(world)
 end)
 
 test("does nothing when the tracked quests are already the right ones", function(world)
+    Enable(world)
     WithQuests(world)
     Set(world, "count", 2)
     world:NextFrame()
@@ -46,6 +59,7 @@ test("does nothing when the tracked quests are already the right ones", function
 end)
 
 test("within range, tracks only quests closer than the distance", function(world)
+    Enable(world)
     WithQuests(world)
     Set(world, "scope", "range")
     Set(world, "range", 150)
@@ -58,6 +72,7 @@ test("within range, tracks only quests closer than the distance", function(world
 end)
 
 test("in the current zone, tracks only quests on the player's map", function(world)
+    Enable(world)
     WithQuests(world)
     world.questLog[2].onMap = true
     world.questLog[5].onMap = true
@@ -67,6 +82,7 @@ test("in the current zone, tracks only quests on the player's map", function(wor
 end)
 
 test("ignores quests that can't be tracked or have no location", function(world)
+    Enable(world)
     world:SetQuests({
         { isHeader = true },
         { questID = 1, distance = 10, isTask = true },
@@ -82,6 +98,7 @@ test("ignores quests that can't be tracked or have no location", function(world)
 end)
 
 test("leaves the tracker alone when no quest has a location", function(world)
+    Enable(world)
     WithQuests(world)
     for _, quest in ipairs(world.questLog) do
         quest.distance = nil
@@ -91,6 +108,7 @@ test("leaves the tracker alone when no quest has a location", function(world)
 end)
 
 test("untracks everything when no quest is within range", function(world)
+    Enable(world)
     WithQuests(world)
     Set(world, "scope", "range")
     Set(world, "range", 100)
@@ -100,6 +118,7 @@ test("untracks everything when no quest is within range", function(world)
 end)
 
 test("a tracked quest isn't replaced by one only slightly closer", function(world)
+    Enable(world)
     world:SetQuests({ { questID = 1, distance = 100 }, { questID = 2, distance = 120 } })
     Set(world, "count", 1)
     world:NextFrame()
@@ -115,6 +134,7 @@ test("a tracked quest isn't replaced by one only slightly closer", function(worl
 end)
 
 test("never untracks the super-tracked quest", function(world)
+    Enable(world)
     WithQuests(world)
     world.superTracked = 5
     Set(world, "count", 1)
@@ -123,6 +143,7 @@ test("never untracks the super-tracked quest", function(world)
 end)
 
 test("untracks far quests the player tracked, by default", function(world)
+    Enable(world)
     WithQuests(world)
     Set(world, "count", 2)
     world:NextFrame()
@@ -132,6 +153,7 @@ test("untracks far quests the player tracked, by default", function(world)
 end)
 
 test("keeps quests the player tracked when asked to, across sessions", function(world)
+    Enable(world)
     WithQuests(world)
     Set(world, "keepManual", true)
     Set(world, "count", 2)
@@ -150,6 +172,7 @@ test("keeps quests the player tracked when asked to, across sessions", function(
 end)
 
 test("a quest Blizzard watches on accept isn't kept as a manual track", function(world)
+    Enable(world)
     WithQuests(world)
     Set(world, "keepManual", true)
     Set(world, "count", 2)
@@ -161,6 +184,7 @@ test("a quest Blizzard watches on accept isn't kept as a manual track", function
 end)
 
 test("a quest the player untracks stays out until they change zone", function(world)
+    Enable(world)
     WithQuests(world)
     Set(world, "count", 2)
     world:NextFrame()
@@ -175,6 +199,7 @@ test("a quest the player untracks stays out until they change zone", function(wo
 end)
 
 test("tracking a dismissed quest again brings it back", function(world)
+    Enable(world)
     WithQuests(world)
     Set(world, "count", 2)
     world:NextFrame()
@@ -186,6 +211,7 @@ test("tracking a dismissed quest again brings it back", function(world)
 end)
 
 test("waits for the end of combat to change the tracker", function(world)
+    Enable(world)
     WithQuests(world)
     Set(world, "count", 2)
     world:NextFrame()
@@ -201,6 +227,7 @@ test("waits for the end of combat to change the tracker", function(world)
 end)
 
 test("turning the feature off stops updates and leaves the tracker as it is", function(world)
+    Enable(world)
     WithQuests(world)
     Set(world, "count", 2)
     world:NextFrame()

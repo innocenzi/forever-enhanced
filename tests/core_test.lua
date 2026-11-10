@@ -66,6 +66,7 @@ test("labels slider values with the locale's format", function(world)
 end)
 
 test("a setting that requires another sits under it and greys out", function(world)
+    world:Setting("quests.nearby.enabled"):SetValue(true)
     local range = QuestsInitializer(world, "range")
     equal(range.parent, QuestsInitializer(world, "scope"), "parent")
     expect(not range.predicate(), "greyed out unless the scope is 'range'")

@@ -12,6 +12,8 @@ local _, ns = ...
 
 local Nearby = ns:RegisterFeature("quests", "nearby", {
     order = 1,
+    -- It takes over the objective tracker: the player opts in.
+    enabledByDefault = false,
     settings = {
         { key = "scope", type = "dropdown", default = "closest", options = { "closest", "range", "zone" } },
         {
