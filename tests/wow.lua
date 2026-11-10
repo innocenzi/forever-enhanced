@@ -9,7 +9,10 @@
 -- combat flag, plus a player position (world.position) and the map pin
 -- (world.waypoint). The player can be in a party and/or an instance group
 -- (world.party, world.instanceGroup); group chat goes to world.sentChat and
--- incoming chat runs through the registered chat filters (world:ReceiveChat).
+-- incoming chat fires its event, shows a chat bubble and runs through the
+-- registered chat filters (world:ReceiveChat). Like the client, bubbles are
+-- reused once hidden, and forbidden to addons while world.bubblesForbidden (in
+-- dungeons and raids).
 -- At a merchant, the player has world.money and gear to repair for
 -- world.repairCost; sold items are credited after SERVER_CONFIRM_SECONDS.
 --
@@ -90,6 +93,8 @@ local world = {
     instanceGroup = false,
     sentChat = {},
     chatFilters = {},
+    chatBubbles = {},
+    bubblesForbidden = false,
     target = nil,
     comboPoints = {},
     namePlates = {},
@@ -217,7 +222,6 @@ for _, name in ipairs({
     "HighlightText",
     "SetMaxLetters",
     "SetBlendMode",
-    "SetAlpha",
     "SetIgnoreParentAlpha",
 }) do
     Region[name] = NoOp
@@ -276,6 +280,14 @@ end
 
 function Region:GetText()
     return self.text or ""
+end
+
+function Region:SetAlpha(alpha)
+    self.alpha = alpha
+end
+
+function Region:GetAlpha()
+    return self.alpha or 1
 end
 
 function Region:CreateFontString()
@@ -1423,6 +1435,23 @@ C_ChatInfo = {
     end,
 }
 
+-- Bubbles shown with the player's chat bubble options.
+C_ChatBubbles = {
+    GetAllChatBubbles = function(includeForbidden)
+        local bubbles = {}
+        for _, bubble in ipairs(world.chatBubbles) do
+            if includeForbidden or not bubble.forbidden then
+                table.insert(bubbles, bubble)
+            end
+        end
+        return bubbles
+    end,
+}
+
+function GetTime()
+    return world.now
+end
+
 -- world.chatFilters[event] = { filter, ... }, in registration order, without duplicates.
 ChatFrameUtil = {
     AddMessageEventFilter = function(event, filter)
@@ -2313,8 +2342,52 @@ end
 
 -- A group chat message from `author` ("Name-Realm"); true when a filter hid it.
 function world:ReceiveChat(event, message, author)
+    self:Fire(event, message, author)
+    self:ShowChatBubble(message)
     for _, filter in ipairs(self.chatFilters[event] or {}) do
         if filter(DEFAULT_CHAT_FRAME, event, message, author) then
+            return true
+        end
+    end
+    return false
+end
+
+-- Shows `message` in a chat bubble (a ChatBubbleTemplate under the client's
+-- frame), reusing a hidden one like the client.
+function world:ShowChatBubble(message)
+    local bubble
+    for _, candidate in ipairs(self.chatBubbles) do
+        if not candidate:IsShown() and candidate.forbidden == self.bubblesForbidden then
+            bubble = candidate
+            break
+        end
+    end
+    if not bubble then
+        bubble = CreateFrame("Frame")
+        bubble.forbidden = self.bubblesForbidden
+        local content = CreateFrame("Frame", nil, bubble)
+        content.String = content:CreateFontString()
+        function bubble:GetChildren()
+            return content
+        end
+        table.insert(self.chatBubbles, bubble)
+    end
+    bubble:GetChildren().String:SetText(message)
+    bubble:Show()
+end
+
+-- Hides every bubble, as when their messages time out.
+function world:ExpireChatBubbles()
+    for _, bubble in ipairs(self.chatBubbles) do
+        bubble:Hide()
+    end
+end
+
+-- Whether the player sees a bubble with this text.
+function world:IsChatBubbleVisible(message)
+    for _, bubble in ipairs(self.chatBubbles) do
+        local content = bubble:GetChildren()
+        if bubble:IsShown() and content.String:GetText() == message and content:GetAlpha() > 0 then
             return true
         end
     end
