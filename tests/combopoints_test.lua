@@ -12,10 +12,27 @@ local function Rogue(world)
     return plate
 end
 
--- How far below the target highlight the bar starts, in the plate's units.
-local function Drop(bar)
-    local _, _, _, _, y = bar:GetPoint(1)
-    return -y * bar:GetEffectiveScale() / bar:GetParent():GetEffectiveScale()
+-- Where the bar's top edge stands on the plate, in the plate's units (the
+-- bar's anchor offsets are in its own scale): how far below the target
+-- highlight, and how far its center is from the highlight's.
+local function Placement(bar, plate)
+    local point, relativeTo, relativePoint, x, y = bar:GetPoint(1)
+    assert(point == "TOP" and relativePoint == "BOTTOM", "anchored by its top to the bottom of a region")
+    local scale = bar:GetEffectiveScale() / bar:GetParent():GetEffectiveScale()
+    local left, bottom, width = relativeTo:GetScreenRect()
+    local highlight = plate.UnitFrame.HealthBarsContainer.healthBar.selectedBorder
+    local highlightLeft, highlightBottom, highlightWidth = highlight:GetScreenRect()
+    local drop = highlightBottom - (bottom + y * scale)
+    local shift = (left + width / 2 + x * scale) - (highlightLeft + highlightWidth / 2)
+    return drop, shift
+end
+
+local function Drop(bar, plate)
+    return (Placement(bar, plate))
+end
+
+local function Shift(bar, plate)
+    return select(2, Placement(bar, plate))
 end
 
 -- How far the cast bar area reaches below the target highlight.
@@ -32,16 +49,9 @@ test("shows the points under the target's nameplate", function(world)
     equal(points.slots, 5, "slots")
     equal(points.active, 2, "filled")
     expect(points.animated, "building a point animates")
-    local point, relativeTo, relativePoint, x, y = bar:GetPoint(1)
-    equal(point, "TOP", "anchor point")
-    equal(
-        relativeTo,
-        plate.UnitFrame.HealthBarsContainer.healthBar.selectedBorder,
-        "anchored under the target highlight"
-    )
-    equal(relativePoint, "BOTTOM", "centered under it")
-    equal(x, 0, "centered")
-    expect(y < 0 and Drop(bar) < CastBarDepth(world), "right under the target highlight")
+    equal(Shift(bar, plate), 0, "centered on the target highlight")
+    local drop = Drop(bar, plate)
+    expect(drop > 0 and drop < CastBarDepth(world), "right under the target highlight")
 end)
 
 test("follows points as they are built and spent", function(world)
@@ -153,12 +163,11 @@ test("moves below the cast bar while the unit casts", function(world)
     local _, bar = world:ComboPoints(plate)
 
     world:SetCasting("MOB", true)
-    local relativeTo = select(2, bar:GetPoint(1))
-    equal(relativeTo, plate.UnitFrame.HealthBarsContainer.healthBar.selectedBorder, "still centered on the health bar")
-    expect(Drop(bar) > CastBarDepth(world), "below the cast bar area")
+    equal(Shift(bar, plate), 0, "still centered on the health bar")
+    expect(Drop(bar, plate) > CastBarDepth(world), "below the cast bar area")
 
     world:SetCasting("MOB", false)
-    expect(Drop(bar) < CastBarDepth(world), "back under the health bar")
+    expect(Drop(bar, plate) < CastBarDepth(world), "back under the health bar")
 end)
 
 test("placed below a cast already showing when the points appear", function(world)
@@ -166,7 +175,7 @@ test("placed below a cast already showing when the points appear", function(worl
     world:SetCasting("MOB", true)
     world:SetComboPoints(1)
     local _, bar = world:ComboPoints(plate)
-    expect(Drop(bar) > CastBarDepth(world), "below the cast bar area")
+    expect(Drop(bar, plate) > CastBarDepth(world), "below the cast bar area")
 end)
 
 test("each bar follows its own plate's cast bar", function(world)
@@ -177,8 +186,11 @@ test("each bar follows its own plate's cast bar", function(world)
     world:SetComboPoints(1)
 
     world:SetCasting("MOB", true)
-    expect(Drop(select(2, world:ComboPoints(mobPlate))) > CastBarDepth(world), "casting unit's bar moves down")
-    expect(Drop(select(2, world:ComboPoints(otherPlate))) < CastBarDepth(world), "other bar stays")
+    expect(
+        Drop(select(2, world:ComboPoints(mobPlate)), mobPlate) > CastBarDepth(world),
+        "casting unit's bar moves down"
+    )
+    expect(Drop(select(2, world:ComboPoints(otherPlate)), otherPlate) < CastBarDepth(world), "other bar stays")
 end)
 
 test("works for druids", function(world)
@@ -245,6 +257,30 @@ local function PointsOnAnotherUnit(world)
     world:Target("OTHER")
     return plate
 end
+
+-- Plates can't be measured in combat.
+test("moves below the cast bar in combat", function(world)
+    local plate = Rogue(world)
+    world:SetComboPoints(2)
+    EnterCombat(world)
+
+    world:SetCasting("MOB", true)
+    local _, bar = world:ComboPoints(plate)
+    equal(Shift(bar, plate), 0, "centered on the health bar")
+    expect(Drop(bar, plate) > CastBarDepth(world), "below the cast bar area")
+
+    world:SetCasting("MOB", false)
+    expect(Drop(bar, plate) < CastBarDepth(world), "back under the health bar")
+end)
+
+test("placed below a cast when the points appear in combat", function(world)
+    local plate = Rogue(world)
+    EnterCombat(world)
+    world:SetCasting("MOB", true)
+    world:SetComboPoints(1)
+    local _, bar = world:ComboPoints(plate)
+    expect(Drop(bar, plate) > CastBarDepth(world), "below the cast bar area")
+end)
 
 test("in combat, notices points running out on a unit that isn't targeted", function(world)
     local plate = PointsOnAnotherUnit(world)

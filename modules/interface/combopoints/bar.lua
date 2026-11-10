@@ -7,7 +7,8 @@
 -- badge beside it). The cast bar shows in the space below the health bar, so
 -- while it's up the points move below the cast bar area. Its visibility is
 -- polled from the bar's own frame while shown rather than hooked, since
--- Blizzard's plates are pooled and hooks can't be removed.
+-- Blizzard's plates are pooled and hooks can't be removed. Plate regions
+-- can't be measured in combat, so both spots are built from anchors only.
 -- The points are Blizzard's RogueComboPointTemplate, the one the combo arc
 -- around the target frame portrait is built from.
 -- Points can run out on a unit that isn't the target without an event we
@@ -36,33 +37,42 @@ local freeBars = {}
 
 local BarMixin = {}
 
--- Under the health bar, or as far below it as the bottom of the cast bar
--- area. The health bar's border is drawn past its frame, and the target
--- highlight past the border: the points go under the highlight, which is
--- centered on the health bar. The offset is converted to our own scale.
-function BarMixin:Place()
-    local unitFrame = self.plate.UnitFrame
+-- The health bar's border is drawn past its frame, and the target highlight
+-- past the border: the points go under the highlight, which is centered on
+-- the health bar. The cast bar area spans the whole plate, level badge
+-- included, so the spot below it takes its height from the area and its
+-- horizontal center from the highlight: `left` and `right` each reach from a
+-- bottom corner of the highlight to the area's opposite bottom corner, and
+-- `belowCastBars` spans from the bottom left of one to the bottom right of
+-- the other.
+local function AnchorBelowCastBars(bar)
+    local unitFrame = bar.plate.UnitFrame
     local highlight = unitFrame.HealthBarsContainer.healthBar.selectedBorder
     local castBars = unitFrame.CastBarsContainer
-    local below = castBars.castBar:IsShown()
+    local left, right, belowCastBars = bar.left, bar.right, bar.belowCastBars
+    for _, frame in ipairs({ left, right, belowCastBars }) do
+        frame:SetParent(bar.plate)
+        frame:ClearAllPoints()
+    end
+    left:SetPoint("TOPLEFT", highlight, "BOTTOMLEFT")
+    left:SetPoint("BOTTOMRIGHT", castBars, "BOTTOMRIGHT")
+    right:SetPoint("TOPRIGHT", highlight, "BOTTOMRIGHT")
+    right:SetPoint("BOTTOMLEFT", castBars, "BOTTOMLEFT")
+    belowCastBars:SetPoint("BOTTOMLEFT", left, "BOTTOMLEFT")
+    belowCastBars:SetPoint("BOTTOMRIGHT", right, "BOTTOMRIGHT")
+end
+
+-- Under the health bar, or below the cast bar area while it shows.
+function BarMixin:Place()
+    local unitFrame = self.plate.UnitFrame
+    local below = unitFrame.CastBarsContainer.castBar:IsShown()
     if below == self.belowCastBar then
         return
     end
     self.belowCastBar = below
-
-    local offset = OFFSET_Y
-    if below then
-        local highlightBottom, castBarsBottom = highlight:GetBottom(), castBars:GetBottom()
-        if highlightBottom and castBarsBottom then
-            local scale = highlight:GetEffectiveScale() / self.frame:GetEffectiveScale()
-            offset = offset - math.max(highlightBottom - castBarsBottom, 0) * scale
-        else
-            -- Not laid out yet: under the health bar, and try again next frame.
-            self.belowCastBar = nil
-        end
-    end
+    local relativeTo = below and self.belowCastBars or unitFrame.HealthBarsContainer.healthBar.selectedBorder
     self.frame:ClearAllPoints()
-    self.frame:SetPoint("TOP", highlight, "BOTTOM", 0, offset)
+    self.frame:SetPoint("TOP", relativeTo, "BOTTOM", 0, OFFSET_Y)
 end
 
 -- `instant` skips the fill animation, for points shown as they already are
@@ -86,6 +96,10 @@ local function NewBar()
     frame:SetHeight(POINT_SIZE)
     frame:Hide()
     local bar = Mixin({ frame = frame, points = {} }, BarMixin)
+    bar.left = CreateFrame("Frame", nil, UIParent)
+    bar.right = CreateFrame("Frame", nil, UIParent)
+    bar.belowCastBars = CreateFrame("Frame", nil, UIParent)
+    bar.belowCastBars:SetHeight(1)
     frame:SetScript("OnUpdate", function()
         bar:Place()
     end)
@@ -107,6 +121,7 @@ local function Acquire(plate)
     for _, point in ipairs(bar.points) do
         point:SetActiveNoAnimation(false)
     end
+    AnchorBelowCastBars(bar)
     bar:Place()
     bar.frame:Show()
     barsByPlate[plate] = bar
@@ -120,8 +135,10 @@ local function Release(plate)
     end
     barsByPlate[plate] = nil
     bar.frame:Hide()
-    bar.frame:ClearAllPoints()
-    bar.frame:SetParent(UIParent)
+    for _, frame in ipairs({ bar.frame, bar.left, bar.right, bar.belowCastBars }) do
+        frame:ClearAllPoints()
+        frame:SetParent(UIParent)
+    end
     bar.plate = nil
     table.insert(freeBars, bar)
 end

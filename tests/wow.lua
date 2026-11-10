@@ -382,12 +382,17 @@ function Region:GetPoint(index)
     end
 end
 
-function Region:GetWidth()
-    return self.width or 0
-end
-
-function Region:GetHeight()
-    return self.height or 0
+-- Nameplate regions can't be measured in combat (the client errors), nor
+-- anything inside them.
+local function CheckMeasurable(region)
+    local ancestor = region
+    while ancestor do
+        assert(
+            not (world.inCombat and ancestor.restrictedInCombat),
+            "Action[FrameMeasurement] failed because[Can't measure restricted regions]"
+        )
+        ancestor = ancestor.parent or ancestor.owner
+    end
 end
 
 -- A point's offset from the bottom left corner of a width x height rect.
@@ -397,32 +402,98 @@ local function PointOffset(point, width, height)
     return x, y
 end
 
--- The frame's bottom left corner on screen, from its first anchor (UIParent is the screen).
-function Region:GetBottomLeftCorner()
-    if self == UIParent then
-        return 0, 0
+-- What a point fixes on each axis: "min", "max" or "center".
+local function PointParts(point)
+    local x = point:find("LEFT") and "min" or point:find("RIGHT") and "max" or "center"
+    local y = point:find("BOTTOM") and "min" or point:find("TOP") and "max" or "center"
+    return x, y
+end
+
+-- Start and size on one axis: two fixed parts give both, one takes the
+-- region's own size.
+local function SolveAxis(fixed, size)
+    local min, max, center = fixed.min, fixed.max, fixed.center
+    if min and max then
+        return min, max - min
+    elseif min and center then
+        return min, 2 * (center - min)
+    elseif max and center then
+        return 2 * center - max, 2 * (max - center)
+    elseif min then
+        return min, size
+    elseif max then
+        return max - size, size
     end
-    local point, relativeTo, relativePoint, x, y = self:GetPoint(1)
-    if not point then
+    return center - size / 2, size
+end
+
+-- The region's rect on screen (left, bottom, width, height) from all its
+-- anchors, like the client's layout (UIParent is the screen; scales aren't
+-- applied). Fake only, and never restricted: for tests to look at.
+function Region:GetScreenRect()
+    if self == UIParent then
+        return 0, 0, self.width, self.height
+    end
+    if self:GetNumPoints() == 0 then
         return nil
     end
-    local relativeLeft, relativeBottom = relativeTo:GetBottomLeftCorner()
-    local relativeX, relativeY = PointOffset(relativePoint, relativeTo:GetWidth(), relativeTo:GetHeight())
-    local ownX, ownY = PointOffset(point, self:GetWidth(), self:GetHeight())
-    return relativeLeft + relativeX + x - ownX, relativeBottom + relativeY + y - ownY
+    local xs, ys = {}, {}
+    for _, anchor in ipairs(self.anchors) do
+        local point, relativeTo, relativePoint, x, y = unpack(anchor, 1, 5)
+        local relativeLeft, relativeBottom, relativeWidth, relativeHeight
+        if relativeTo then
+            relativeLeft, relativeBottom, relativeWidth, relativeHeight = relativeTo:GetScreenRect()
+        end
+        if not relativeLeft then
+            return nil
+        end
+        local relativeX, relativeY = PointOffset(relativePoint, relativeWidth, relativeHeight)
+        local xPart, yPart = PointParts(point)
+        xs[xPart] = relativeLeft + relativeX + x
+        ys[yPart] = relativeBottom + relativeY + y
+    end
+    local left, width = SolveAxis(xs, self.width or 0)
+    local bottom, height = SolveAxis(ys, self.height or 0)
+    return left, bottom, width, height
+end
+
+-- The size its anchors give it, or else the size it was given.
+function Region:GetWidth()
+    CheckMeasurable(self)
+    return select(3, self:GetScreenRect()) or self.width or 0
+end
+
+function Region:GetHeight()
+    CheckMeasurable(self)
+    return select(4, self:GetScreenRect()) or self.height or 0
+end
+
+-- The region's bottom left corner on screen. Fake only, like GetScreenRect.
+function Region:GetBottomLeftCorner()
+    local left, bottom = self:GetScreenRect()
+    return left, bottom
 end
 
 function Region:GetLeft()
-    return (self:GetBottomLeftCorner())
+    CheckMeasurable(self)
+    return (self:GetScreenRect())
 end
 
 function Region:GetBottom()
-    return select(2, self:GetBottomLeftCorner())
+    CheckMeasurable(self)
+    return select(2, self:GetScreenRect())
 end
 
 function Region:GetRight()
-    local left = self:GetLeft()
-    return left and left + self:GetWidth()
+    CheckMeasurable(self)
+    local left, _, width = self:GetScreenRect()
+    return left and left + width
+end
+
+function Region:GetTop()
+    CheckMeasurable(self)
+    local _, bottom, _, height = self:GetScreenRect()
+    return bottom and bottom + height
 end
 
 function Region:GetName()
@@ -2241,9 +2312,11 @@ world.HIGHLIGHT_OVERFLOW = 4
 
 -- The unit frame stacks, from the bottom: the cast bar area (its cast bar
 -- hidden until the unit casts), then the health bar, narrower to leave room
--- for the level badge on its right.
+-- for the level badge on its right. Like the client's, its regions can't be
+-- measured in combat.
 local function NewNamePlate()
     local frame = CreateFrame("Frame", nil, UIParent)
+    frame.restrictedInCombat = true
     frame:SetSize(120, 40)
     frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
     local unitFrame = CreateFrame("Button", nil, frame)
