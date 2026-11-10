@@ -793,8 +793,22 @@ function Setting:SetValueChangedCallback(callback)
     self.callback = callback
 end
 
+function Setting:GetValue()
+    if self.getValue then
+        return self.getValue()
+    end
+    return self.tbl[self.key]
+end
+
 function Setting:SetValue(value)
-    self.tbl[self.key] = value
+    if self.setValue then
+        -- Like Blizzard's, a proxy is only written when the value differs.
+        if self.getValue() ~= value then
+            self.setValue(value)
+        end
+    else
+        self.tbl[self.key] = value
+    end
     if self.callback then
         self.callback(self, value)
     end
@@ -839,6 +853,14 @@ local function AddInitializer(category, initializer)
     return initializer
 end
 
+local function NewSetting(variable, varType, fields)
+    assert(not world.settings[variable], "duplicate setting variable " .. variable)
+    assert(type(fields.name) == "string" and type(fields.default) == varType, "malformed setting " .. variable)
+    local setting = setmetatable(fields, Setting)
+    world.settings[variable] = setting
+    return setting
+end
+
 MinimalSliderWithSteppersMixin = { Label = { Right = 3 } }
 
 Settings = {
@@ -851,14 +873,18 @@ Settings = {
         category.registered = true
     end,
     RegisterAddOnSetting = function(_, variable, key, tbl, varType, name, default)
-        assert(not world.settings[variable], "duplicate setting variable " .. variable)
-        assert(type(name) == "string" and type(default) == varType, "malformed setting " .. variable)
         if tbl[key] == nil then
             tbl[key] = default
         end
-        local setting = setmetatable({ key = key, tbl = tbl, name = name, default = default }, Setting)
-        world.settings[variable] = setting
-        return setting
+        return NewSetting(variable, varType, { key = key, tbl = tbl, name = name, default = default })
+    end,
+    -- A setting over get/set functions instead of a saved table (e.g. the preset picker).
+    RegisterProxySetting = function(_, variable, varType, name, default, getValue, setValue)
+        return NewSetting(
+            variable,
+            varType,
+            { name = name, default = default, getValue = getValue, setValue = setValue }
+        )
     end,
     CreateCheckbox = function(category, setting, tooltip)
         return AddInitializer(category, { setting = setting, tooltip = tooltip })
@@ -893,8 +919,8 @@ Settings = {
     CreateControlTextContainer = function()
         local data = {}
         return {
-            Add = function(_, value, label)
-                table.insert(data, { value = value, label = label })
+            Add = function(_, value, label, tooltip)
+                table.insert(data, { value = value, label = label, tooltip = tooltip })
             end,
             GetData = function()
                 return data

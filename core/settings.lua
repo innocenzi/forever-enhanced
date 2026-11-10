@@ -1,6 +1,6 @@
 -- Builds the Options > AddOns panel from the registered modules and features.
 --
--- Root page: one toggle per module.
+-- Root page: language, preset picker (core/presets.lua), one toggle per module.
 -- Module page: per feature, a section header, an "Enable" toggle, then the
 -- feature's schema entries as children of that toggle.
 --
@@ -162,9 +162,18 @@ local controls = {
 }
 
 local rootCategory
+-- Registered settings by path ("<module>.enabled", "<module>.<feature>.<key>"):
+-- presets change values through them, so controls and callbacks follow.
+local settingsByPath = {}
 
 local function RegisterSetting(category, path, key, tbl, varType, label, default)
-    return Settings.RegisterAddOnSetting(category, VARIABLE_PREFIX .. path, key, tbl, varType, label, default)
+    local setting = Settings.RegisterAddOnSetting(category, VARIABLE_PREFIX .. path, key, tbl, varType, label, default)
+    settingsByPath[path] = setting
+    return setting
+end
+
+function SettingsPanel:GetSetting(path)
+    return assert(settingsByPath[path], "unknown setting: " .. path)
 end
 
 -- The `requires = { key = value }` pair of an entry, or nil.
@@ -305,12 +314,53 @@ local function AddLanguage()
     end)
 end
 
+-- The preset picker: picking a preset asks for confirmation, then applies it.
+-- Nothing is saved: the dropdown always reads "none", so it keeps showing its
+-- placeholder.
+local PRESET_NONE = "none"
+
+local function ConfirmPreset(presetId)
+    if presetId == PRESET_NONE then
+        return
+    end
+    StaticPopup_ShowCustomGenericConfirmation({
+        text = L["core.presets.confirm"]:format(L["core.presets." .. presetId]),
+        callback = function()
+            ns:ApplyPreset(presetId)
+        end,
+    })
+end
+
+local function AddPresets()
+    local setting = Settings.RegisterProxySetting(
+        rootCategory,
+        VARIABLE_PREFIX .. "preset",
+        Settings.VarType.String,
+        L["core.presets"],
+        PRESET_NONE,
+        function()
+            return PRESET_NONE
+        end,
+        ConfirmPreset
+    )
+    local function GetOptions()
+        local container = Settings.CreateControlTextContainer()
+        container:Add(PRESET_NONE, L["core.presets.none"])
+        for _, presetId in ipairs(ns.PRESETS) do
+            container:Add(presetId, L["core.presets." .. presetId], L["core.presets." .. presetId .. ".tooltip"])
+        end
+        return container:GetData()
+    end
+    Settings.CreateDropdown(rootCategory, setting, GetOptions, L["core.presets.tooltip"])
+end
+
 function SettingsPanel:Build()
     local layout
     rootCategory, layout = Settings.RegisterVerticalLayoutCategory(ns.title)
 
     layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(L["core.general"]))
     AddLanguage()
+    AddPresets()
 
     layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(L["core.modules"], L["core.modules.tooltip"]))
 

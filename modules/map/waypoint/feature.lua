@@ -15,6 +15,10 @@ local Waypoint = ns:RegisterFeature("map", "waypoint", {
         { key = "range", type = "slider", default = 30, min = 5, max = 100, step = 5 },
         { key = "announce", type = "toggle", default = true },
     },
+    presets = {
+        minimal = { enabled = true, announce = false },
+        enhanced = { enabled = true },
+    },
 })
 
 function Waypoint:OnEnable()

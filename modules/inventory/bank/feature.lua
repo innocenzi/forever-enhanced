@@ -43,6 +43,10 @@ local Bank = ns:RegisterFeature("inventory", "bank", {
         },
         { key = "transfers", type = "toggle", default = true },
     },
+    presets = {
+        minimal = { enabled = true },
+        enhanced = { enabled = true, savedBank = true, openWithBags = true },
+    },
 })
 
 -- The saved bank part: its components check Bank:IsPartActive("savedBank").

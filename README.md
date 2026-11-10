@@ -26,3 +26,5 @@ A lightweight utility addon for Forever. It keeps the default UI familiar while 
 - TomTom's `/way` coordinates from guides set the game's map pin, with its navigation arrow (also `/wayb` for your position and `/cway` to clear it; TomTom keeps them when it's installed)
 
 All of those features can be enabled or disabled individually, and most of them are disabled by default to prevent ruining your vanilla experience.
+
+To set many options at once, pick a preset in Options > AddOns > Forever Enhanced: **Minimal** keeps the interface close to the default and quiet in chat, **Enhanced** turns everything on. You can still change each option afterwards.

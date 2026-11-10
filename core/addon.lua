@@ -93,7 +93,8 @@ function ns:RegisterModule(id, definition)
 end
 
 -- `definition` becomes the feature object:
--- { order, enabledByDefault (true when omitted), settings = { schema entries } }.
+-- { order, enabledByDefault (true when omitted), settings = { schema entries },
+--   presets = { [presetId] = { enabled = boolean, [settingKey] = value } } }.
 function ns:RegisterFeature(moduleId, id, definition)
     local module = assert(modules[moduleId], "unknown module: " .. moduleId)
     assert(not module.features[id], "feature already registered: " .. moduleId .. "." .. id)
@@ -104,6 +105,7 @@ function ns:RegisterFeature(moduleId, id, definition)
     feature.order = feature.order or math.huge
     feature.enabledByDefault = feature.enabledByDefault ~= false
     feature.settings = feature.settings or {}
+    feature.presets = feature.presets or {}
     feature.active = false
     feature.activeParts = {}
 

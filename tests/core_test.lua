@@ -203,3 +203,110 @@ test("a text setting left at its default follows the language", function(world)
     world.ns.Database:Initialize()
     equal(db.template, "{quest} done", "a custom text is kept")
 end)
+
+-- The root page's preset dropdown.
+local function PresetDropdown(world)
+    local setting = world:Setting("preset")
+    for _, item in ipairs(world.categories[1].items) do
+        if item.setting == setting then
+            return item
+        end
+    end
+end
+
+-- Picks the preset and accepts the confirmation.
+local function ApplyPreset(world, presetId)
+    world:Setting("preset"):SetValue(presetId)
+    world.popups[#world.popups].callback()
+end
+
+local function Feature(world, moduleId, id)
+    return world.ns:GetFeature(moduleId, id)
+end
+
+test("the preset dropdown lists the presets after a placeholder", function(world)
+    local dropdown = PresetDropdown(world)
+    expect(dropdown, "dropdown on the root page")
+    equal(dropdown.tooltip, world.L["core.presets.tooltip"], "tooltip")
+    equal(#dropdown.options, 3, "options")
+    equal(dropdown.options[1].value, "none", "placeholder first")
+    equal(dropdown.options[1].label, world.L["core.presets.none"], "its label")
+    equal(dropdown.options[2].value, "minimal", "presets in order")
+    equal(dropdown.options[2].label, world.L["core.presets.minimal"], "preset label")
+    equal(dropdown.options[3].tooltip, world.L["core.presets.enhanced.tooltip"], "preset tooltip")
+end)
+
+test("picking a preset asks first and keeps the placeholder", function(world)
+    world:Setting("preset"):SetValue("enhanced")
+    local popup = world.popups[#world.popups]
+    expect(popup, "confirmation shown")
+    equal(popup.text, world.L["core.presets.confirm"]:format(world.L["core.presets.enhanced"]), "text")
+    equal(world:Setting("preset"):GetValue(), "none", "dropdown still shows its placeholder")
+    expect(not Feature(world, "inventory", "merchant"):IsActive(), "waits for the player")
+
+    popup.callback()
+    expect(Feature(world, "inventory", "merchant"):IsActive(), "applied once accepted")
+
+    local count = #world.popups
+    world:Setting("preset"):SetValue("none")
+    equal(#world.popups, count, "the placeholder asks nothing")
+end)
+
+test("the enhanced preset turns every feature on, with their modules", function(world)
+    world:Setting("interface.enabled"):SetValue(false)
+    ApplyPreset(world, "enhanced")
+
+    for _, module in world.ns:EnumerateModules() do
+        for _, feature in ipairs(module.sortedFeatures) do
+            expect(feature:IsActive(), feature:GetLocaleKey() .. " active")
+        end
+    end
+    local modules = world.env.ForeverEnhancedDB.modules
+    equal(modules.interface.enabled, true, "module turned back on")
+    equal(modules.inventory.features.bank.openWithBags, true, "bank opens with bags")
+    equal(modules.quests.features.helpers.nearby, true, "nearby tracking")
+end)
+
+test("the minimal preset turns chatty features off and keeps what it doesn't list", function(world)
+    ApplyPreset(world, "enhanced")
+    world:Setting("interface.windows.modifier"):SetValue("alt")
+    ApplyPreset(world, "minimal")
+
+    expect(not Feature(world, "inventory", "merchant"):IsActive(), "merchant off")
+    expect(not Feature(world, "quests", "announce"):IsActive(), "announcements off")
+    expect(not Feature(world, "interface", "glow"):IsActive(), "glow off")
+    expect(Feature(world, "inventory", "locking"):IsActive(), "locking on")
+
+    local modules = world.env.ForeverEnhancedDB.modules
+    equal(modules.quests.features.helpers.nearby, false, "nearby tracking off")
+    equal(modules.inventory.features.locking.announce, false, "locking quiet")
+    equal(modules.map.features.waypoint.announce, false, "waypoint quiet")
+    equal(modules.interface.features.windows.modifier, "alt", "unlisted setting kept")
+    equal(modules.inventory.features.bank.openWithBags, true, "unlisted setting kept")
+    equal(modules.interface.enabled, true, "modules stay on")
+end)
+
+test("preset values are checked against the schemas", function(world)
+    local presets = Feature(world, "inventory", "locking").presets
+    local function Loads()
+        return pcall(function()
+            world.ns.Database:Initialize()
+        end)
+    end
+    expect(Loads(), "the shipped presets are valid")
+
+    presets.minimal.bogus = true
+    expect(not Loads(), "unknown setting")
+    presets.minimal.bogus = nil
+
+    presets.minimal.indicator = "removed-style"
+    expect(not Loads(), "value outside the options")
+    presets.minimal.indicator = nil
+
+    presets.minimal.enabled = "yes"
+    expect(not Loads(), "wrong type")
+    presets.minimal.enabled = true
+
+    presets.custom = {}
+    expect(not Loads(), "unknown preset")
+end)

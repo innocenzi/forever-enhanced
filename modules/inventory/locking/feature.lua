@@ -31,6 +31,10 @@ local Locking = ns:RegisterFeature("inventory", "locking", {
         { key = "showTooltip", type = "toggle", default = true },
         { key = "announce", type = "toggle", default = true },
     },
+    presets = {
+        minimal = { enabled = true, announce = false },
+        enhanced = { enabled = true },
+    },
 })
 
 function Locking:OnEnable()

@@ -20,6 +20,7 @@ core\locale.lua
 core\addon.lua
 core\messages.lua
 core\database.lua
+core\presets.lua
 core\settings.lua
 core\settings.xml
 core\locales.lua

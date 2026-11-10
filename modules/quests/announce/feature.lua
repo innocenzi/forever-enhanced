@@ -22,6 +22,10 @@ local Announce = ns:RegisterFeature("quests", "announce", {
         { key = "solo", type = "toggle", default = false },
         { key = "hideQuestie", type = "toggle", default = false },
     },
+    presets = {
+        minimal = { enabled = false },
+        enhanced = { enabled = true },
+    },
 })
 
 function Announce:OnEnable()

@@ -46,6 +46,10 @@ local Helpers = ns:RegisterFeature("quests", "helpers", {
         { key = "sparkles", type = "toggle", default = true },
         { key = "objectives", type = "toggle", default = true },
     },
+    presets = {
+        minimal = { enabled = true, nearby = false },
+        enhanced = { enabled = true, nearby = true, sparkles = true, objectives = true },
+    },
 })
 
 -- The nearby quests part: Refresh checks Helpers:IsPartActive("nearby").

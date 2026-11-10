@@ -77,18 +77,42 @@ local function ResolveDefault(featureDb, feature, entry)
     end
 end
 
+-- Preset values must name a known preset and a setting of the feature, with a
+-- value its schema accepts: a typo fails at load instead of applying nothing.
+local function ValidatePresets(feature, entries)
+    for presetId, values in pairs(feature.presets) do
+        local name = feature:GetLocaleKey() .. " preset " .. tostring(presetId)
+        assert(tContains(ns.PRESETS, presetId), "unknown preset: " .. name)
+        for key, value in pairs(values) do
+            local entry = entries[key]
+            if key == "enabled" then
+                assert(type(value) == "boolean", "invalid value for enabled in " .. name)
+            else
+                assert(entry, "unknown setting " .. tostring(key) .. " in " .. name)
+                assert(
+                    type(value) == type(entry.default) and IsAllowed(entry, value),
+                    "invalid value for " .. key .. " in " .. name
+                )
+            end
+        end
+    end
+end
+
 local function InitializeFeature(savedFeatures, feature)
     local featureDb = GetOrCreateTable(savedFeatures, feature.id)
     local knownKeys = { enabled = true }
+    local entries = {}
 
     ApplyDefault(featureDb, "enabled", feature.enabledByDefault)
     for _, entry in ipairs(feature.settings) do
         ResolveDefault(featureDb, feature, entry)
         knownKeys[entry.key] = true
+        entries[entry.key] = entry
         ApplyDefault(featureDb, entry.key, entry.default, entry)
     end
 
     KeepOnly(featureDb, knownKeys)
+    ValidatePresets(feature, entries)
     feature.db = featureDb
 end
 

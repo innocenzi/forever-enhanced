@@ -15,6 +15,10 @@ local Way = ns:RegisterFeature("map", "way", {
     settings = {
         { key = "track", type = "toggle", default = true },
     },
+    presets = {
+        minimal = { enabled = true },
+        enhanced = { enabled = true },
+    },
 })
 
 function Way:OnEnable()

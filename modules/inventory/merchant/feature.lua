@@ -25,6 +25,10 @@ local Merchant = ns:RegisterFeature("inventory", "merchant", {
         },
         { key = "announce", type = "toggle", default = true },
     },
+    presets = {
+        minimal = { enabled = false },
+        enhanced = { enabled = true, autoSellJunk = true, autoRepair = true },
+    },
 })
 
 local listener = ns:CreateEventListener({

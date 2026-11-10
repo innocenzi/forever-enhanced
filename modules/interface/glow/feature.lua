@@ -50,6 +50,10 @@ local ObjectGlow = ns:RegisterFeature("interface", "glow", {
     -- It changes the game's targeting (see above): the player opts in.
     enabledByDefault = false,
     settings = settings,
+    presets = {
+        minimal = { enabled = false },
+        enhanced = { enabled = true },
+    },
 })
 
 ObjectGlow.CATEGORIES = CATEGORIES
