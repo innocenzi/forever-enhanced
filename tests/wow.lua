@@ -192,6 +192,16 @@ function GetLocale()
     return TEST_LOCALE
 end
 
+-- Secret values (API results the client hides from addons in combat) aren't
+-- modelled: every value can be read.
+function canaccessvalue()
+    return true
+end
+
+function canaccesstable()
+    return true
+end
+
 -- world.loadedAddOns: load-on-demand Blizzard addons loaded so far.
 world.loadedAddOns = {}
 C_AddOns = {
