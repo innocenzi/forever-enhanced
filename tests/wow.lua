@@ -692,8 +692,9 @@ local templates = {
 
 function CreateFrame(frameType, name, parent, template)
     local frame = NewRegion({ frameType = frameType, name = name, parent = parent, template = template })
-    if template then
-        assert(templates[template], "unknown template " .. template)(frame)
+    -- Like the client, several templates apply in order ("A, B").
+    for each in (template or ""):gmatch("[^,%s]+") do
+        assert(templates[each], "unknown template " .. each)(frame)
     end
     if name then
         _G[name] = frame
@@ -3280,6 +3281,647 @@ end
 -- Battle.net game data from the friend playing on `gameAccountID`.
 function world:ReceiveGameData(message, gameAccountID, prefix)
     self:Fire("BN_CHAT_MSG_ADDON", prefix or FRIENDS_PREFIX, message, "WHISPER", gameAccountID)
+end
+
+-- Secure frames, action bars and casting ---------------------------------------------------
+-- Frames made from secure templates are protected: in combat, insecure code
+-- can't show, hide or set attributes on them, nor change bindings or state
+-- drivers (the client blocks the action). Restricted snippets (secure
+-- handlers) can, and run in a small environment through frame handles.
+--
+-- The action bar is world.actionBar: { page (1-6), bonus (0, or the stance's
+-- bonus bar, 1 for Stealth), vehicle }. Blizzard's main bar buttons
+-- (ActionButton1-12) show slot (page - 1) * 12 + i, or the bonus bar's on page
+-- 1; MultiBarBottomLeft shows slots 61-72. world.actions[slot] is the spell ID
+-- in a slot. world.bindings maps keys to binding commands; override bindings
+-- (world.overrides) take precedence, priority ones first.
+--
+-- Spells (world.spells, by ID, ranks pointing to their `base`) are cast by name
+-- (the client casts the highest rank). A cast fails with UI_ERROR_MESSAGE when
+-- the spell isn't usable (world.unusableSpells, world.noPowerSpells, by base
+-- ID) or during the global cooldown (GLOBAL_COOLDOWN seconds after a cast).
+-- Like the client, a refused cast reports its error at once. world.casts lists
+-- the names cast; world.uiErrors the errors UIErrorsFrame showed.
+
+local GLOBAL_COOLDOWN = 1.5
+local NUM_ACTION_BUTTONS = 12
+
+world.restricted = 0
+world.actionBar = { page = 1, bonus = 0, vehicle = false }
+world.actions = {}
+world.bindings = {}
+world.overrides = {}
+world.stateDrivers = {}
+world.casts = {}
+world.uiErrors = {}
+world.gcdUntil = -math.huge
+world.lockActionBars = true
+world.unusableSpells = { [8676] = true, [703] = true }
+world.noPowerSpells = {}
+
+local SPELL_NAMES = {
+    enUS = {
+        [53] = "Backstab",
+        [8676] = "Ambush",
+        [1752] = "Sinister Strike",
+        [703] = "Garrote",
+        [2098] = "Eviscerate",
+    },
+    frFR = {
+        [53] = "Attaque sournoise",
+        [8676] = "Embuscade",
+        [1752] = "Attaque pernicieuse",
+        [703] = "Garrot",
+        [2098] = "Éviscération",
+    },
+}
+world.spells = {
+    [53] = { icon = 132090 },
+    [2589] = { base = 53 },
+    [8676] = { icon = 132282 },
+    [1752] = { icon = 136189 },
+    [703] = { icon = 132297 },
+    [2098] = { icon = 132292 },
+}
+
+local function BaseSpell(spellID)
+    local spell = world.spells[spellID]
+    return spell and (spell.base or spellID)
+end
+
+local function AssertAllowed(action)
+    assert(
+        not (world.inCombat and world.restricted == 0),
+        "ADDON_ACTION_BLOCKED: " .. action .. " is protected in combat"
+    )
+end
+
+local function CheckSecure(frame, action)
+    if frame.secure then
+        AssertAllowed(action)
+    end
+end
+
+local RegionShow, RegionHide = Region.Show, Region.Hide
+
+function Region:Show()
+    CheckSecure(self, "Show")
+    RegionShow(self)
+end
+
+function Region:Hide()
+    CheckSecure(self, "Hide")
+    RegionHide(self)
+end
+
+function Region:SetAttribute(name, value)
+    CheckSecure(self, "SetAttribute")
+    self.attributes = self.attributes or {}
+    self.attributes[name] = value
+    self:RunScript("OnAttributeChanged", name, value)
+end
+
+function Region:IsEventRegistered(event)
+    return self.events[event] == true
+end
+
+function Region:GetSize()
+    return self:GetWidth(), self:GetHeight()
+end
+
+function Region:GetButtonState()
+    return self.buttonState or "NORMAL"
+end
+
+-- Not protected: addons may set it in combat.
+function Region:SetButtonState(state)
+    self.buttonState = state
+end
+
+-- self.tint: "white" or "blue" for Blizzard's usable and short of power icon
+-- colors, else { r, g, b }.
+function Region:SetVertexColor(r, g, b)
+    if r == 1 and g == 1 and b == 1 then
+        self.tint = "white"
+    elseif r == 0.5 and g == 0.5 and b == 1 then
+        self.tint = "blue"
+    else
+        self.tint = { r, g, b }
+    end
+end
+
+Region.SetPassThroughButtons = NoOp
+Region.SetMouseMotionEnabled = NoOp
+
+-- Runs a restricted snippet: `signature` names its arguments ("self,stateid,newstate",
+-- or "self,..."), `self` being the frame's handle.
+local RunSnippet
+
+local function Handle(frame)
+    local handle = {}
+    function handle:GetName()
+        return frame:GetName()
+    end
+    function handle:GetAttribute(name)
+        return frame:GetAttribute(name)
+    end
+    function handle:SetAttribute(name, value)
+        frame:SetAttribute(name, value)
+    end
+    function handle:Show()
+        frame:Show()
+    end
+    function handle:Hide()
+        frame:Hide()
+    end
+    function handle:ClearBindings()
+        ClearOverrideBindings(frame)
+    end
+    function handle:SetBindingClick(priority, key, name, button)
+        SetOverrideBindingClick(frame, priority, key, name, button)
+    end
+    function handle:RunAttribute(name, ...)
+        return RunSnippet(frame, "self,...", assert(frame:GetAttribute(name), "no snippet " .. name), ...)
+    end
+    return handle
+end
+
+function RunSnippet(frame, signature, body, ...)
+    local env = {
+        tonumber = tonumber,
+        tostring = tostring,
+        select = select,
+        format = string.format,
+        math = math,
+        string = string,
+    }
+    local source
+    if signature:find("%.%.%.") then
+        source = "local self = ...\nreturn (function(...)\n" .. body .. "\nend)(select(2, ...))"
+    else
+        source = "local " .. signature .. " = ...\n" .. body
+    end
+    local chunk = assert(load(source, "snippet", "t", env))
+    world.restricted = world.restricted + 1
+    local results = table.pack(pcall(chunk, Handle(frame), ...))
+    world.restricted = world.restricted - 1
+    assert(results[1], results[2])
+    return table.unpack(results, 2, results.n)
+end
+
+-- SecureButton_GetModifiedAttribute, without modifiers: "<name>1" for the left
+-- button, "<name>-<button>" for others, then the bare name.
+local function ButtonAttribute(frame, name, button)
+    local suffix = button == "LeftButton" and "1" or "-" .. button
+    local value = frame:GetAttribute(name .. suffix)
+    if value == nil then
+        value = frame:GetAttribute(name)
+    end
+    return value
+end
+
+local function PerformAction(frame, actionType, button)
+    if actionType == "spell" then
+        CastSpellByName(ButtonAttribute(frame, "spell", button))
+    elseif actionType ~= nil then
+        error("unmodelled action type " .. tostring(actionType))
+    end
+end
+
+-- SecureActionButton_OnClick, for clicks that aren't Blizzard's own mouse
+-- presses: on key down with useOnKeyDown (the CVar, on) or pressAndHoldAction,
+-- where `downbutton` remaps the down and `typerelease` acts on the release.
+local function SecureActionButtonOnClick(frame, button, down)
+    local pressAndHold = frame:GetAttribute("pressAndHoldAction")
+    if down then
+        local remapped = ButtonAttribute(frame, "downbutton", button) or button
+        PerformAction(frame, ButtonAttribute(frame, "type", remapped), remapped)
+    elseif pressAndHold then
+        PerformAction(frame, ButtonAttribute(frame, "typerelease", button), button)
+    end
+end
+
+templates.SecureActionButtonTemplate = function(frame)
+    frame.secure = true
+    frame.protected = true
+    frame.scripts.OnClick = SecureActionButtonOnClick
+end
+
+templates.SecureHandlerStateTemplate = function(frame)
+    frame.secure = true
+    frame.protected = true
+    function frame:Execute(body)
+        RunSnippet(self, "self", body)
+    end
+    frame.scripts.OnAttributeChanged = function(self, name, value)
+        local stateID = name:match("^state%-(.+)$")
+        local body = stateID and self:GetAttribute("_onstate-" .. stateID)
+        if body then
+            RunSnippet(self, "self,stateid,newstate", body, stateID, value)
+        end
+    end
+end
+
+-- ActionButtonSpellAlertMixin: `ProcStartAnim.playing` tells whether the glow played.
+templates.ActionButtonSpellAlertTemplate = function(frame)
+    frame.ProcStartAnim = {
+        Play = function(self)
+            self.playing = true
+        end,
+        Stop = function(self)
+            self.playing = false
+        end,
+    }
+end
+
+-- Macro conditions -----------------------------------------------------------------
+
+local function ConditionHolds(condition)
+    local name, argument = condition:match("^%s*(%a+):?(%d*)%s*$")
+    argument = tonumber(argument)
+    local bar = world.actionBar
+    if name == "vehicleui" then
+        return bar.vehicle
+    elseif name == "possessbar" or name == "overridebar" or name == "shapeshift" then
+        return false
+    elseif name == "bonusbar" then
+        return argument and bar.bonus == argument or (not argument and bar.bonus > 0)
+    elseif name == "actionbar" then
+        return bar.page == argument
+    end
+    error("unmodelled macro condition " .. condition)
+end
+
+function SecureCmdOptionParse(text)
+    for clause in text:gmatch("[^;]+") do
+        local groups, value = clause:match("^%s*(%[.*%])%s*(.-)%s*$")
+        if not groups then
+            return (clause:match("^%s*(.-)%s*$"))
+        end
+        for group in groups:gmatch("%[(.-)%]") do
+            local holds = true
+            for condition in group:gmatch("[^,]+") do
+                holds = holds and ConditionHolds(condition)
+            end
+            if holds then
+                return value
+            end
+        end
+    end
+    return nil
+end
+
+-- State drivers: like the client, registering one sets its state at once.
+local function SetDriverState(frame, state, driver)
+    local value = SecureCmdOptionParse(driver)
+    if frame:GetAttribute("state-" .. state) ~= value then
+        world.restricted = world.restricted + 1
+        frame:SetAttribute("state-" .. state, value)
+        world.restricted = world.restricted - 1
+    end
+end
+
+function RegisterStateDriver(frame, state, driver)
+    AssertAllowed("RegisterStateDriver")
+    world.stateDrivers[frame] = world.stateDrivers[frame] or {}
+    world.stateDrivers[frame][state] = driver
+    SetDriverState(frame, state, driver)
+end
+
+function UnregisterStateDriver(frame, state)
+    AssertAllowed("UnregisterStateDriver")
+    if world.stateDrivers[frame] then
+        world.stateDrivers[frame][state] = nil
+    end
+end
+
+-- Bindings ---------------------------------------------------------------------------
+
+function GetBindingKey(command)
+    local keys = {}
+    for key, bound in pairs(world.bindings) do
+        if bound == command then
+            table.insert(keys, key)
+        end
+    end
+    table.sort(keys)
+    return unpack(keys)
+end
+
+function SetOverrideBindingClick(owner, priority, key, name, button)
+    AssertAllowed("SetOverrideBindingClick")
+    for i = #world.overrides, 1, -1 do
+        local override = world.overrides[i]
+        if override.owner == owner and override.key == key then
+            table.remove(world.overrides, i)
+        end
+    end
+    if name then
+        table.insert(world.overrides, {
+            owner = owner,
+            priority = priority,
+            key = key,
+            name = name,
+            button = button or "LeftButton",
+        })
+    end
+    world:Fire("UPDATE_BINDINGS")
+end
+
+function ClearOverrideBindings(owner)
+    AssertAllowed("ClearOverrideBindings")
+    for i = #world.overrides, 1, -1 do
+        if world.overrides[i].owner == owner then
+            table.remove(world.overrides, i)
+        end
+    end
+    world:Fire("UPDATE_BINDINGS")
+end
+
+-- The override binding a key runs, or nil: priority ones first, then the latest.
+local function OverrideFor(key)
+    local found
+    for _, override in ipairs(world.overrides) do
+        if override.key == key and (not found or override.priority or not found.priority) then
+            found = override
+        end
+    end
+    return found
+end
+
+-- Spells and action slots ------------------------------------------------------------
+
+local function SpellByName(name)
+    for spellID in pairs(world.spells) do
+        if C_Spell.GetSpellName(spellID) == name then
+            return spellID
+        end
+    end
+end
+
+C_Spell = {
+    GetSpellName = function(spellID)
+        local base = BaseSpell(spellID)
+        return base and SPELL_NAMES[TEST_LOCALE][base]
+    end,
+    GetSpellTexture = function(spellID)
+        local base = BaseSpell(spellID)
+        return base and world.spells[base].icon
+    end,
+    IsSpellUsable = function(spellID)
+        local base = BaseSpell(spellID)
+        if world.noPowerSpells[base] then
+            return false, true
+        end
+        return not world.unusableSpells[base], false
+    end,
+}
+
+ERR_SPELL_COOLDOWN = "Spell is not ready yet."
+SPELL_FAILED_NOT_READY = "Not yet recovered"
+
+function CastSpellByName(name)
+    local spellID = assert(SpellByName(name), "unknown spell " .. tostring(name))
+    local usable = C_Spell.IsSpellUsable(spellID)
+    if not usable then
+        world:Fire("UI_ERROR_MESSAGE", 0, name .. ": " .. SPELL_FAILED_NOT_READY)
+    elseif world.now < world.gcdUntil then
+        world:Fire("UI_ERROR_MESSAGE", 0, ERR_SPELL_COOLDOWN)
+    else
+        table.insert(world.casts, name)
+        world.gcdUntil = world.now + GLOBAL_COOLDOWN
+    end
+end
+
+function GetActionInfo(slot)
+    if world.actions[slot] then
+        return "spell", world.actions[slot]
+    end
+end
+
+function PickupAction(slot)
+    AssertAllowed("PickupAction")
+    world.cursorAction = world.actions[slot]
+    world.actions[slot] = nil
+    world:Fire("ACTIONBAR_SLOT_CHANGED", slot)
+end
+
+function PlaceAction(slot)
+    AssertAllowed("PlaceAction")
+    world.actions[slot], world.cursorAction = world.cursorAction, world.actions[slot]
+    world:Fire("ACTIONBAR_SLOT_CHANGED", slot)
+end
+
+Settings.GetValue = function(name)
+    assert(name == "lockActionBars", "unmodelled setting " .. name)
+    return world.lockActionBars
+end
+
+function IsModifiedClick(action)
+    return world.modifiedClick == action
+end
+
+-- UIErrorsFrame shows the errors of refused casts (UI_ERROR_MESSAGE).
+do
+    local errorsFrame = CreateFrame("Frame")
+    errorsFrame.AddExternalErrorMessage = UIErrorsFrame.AddExternalErrorMessage
+    errorsFrame.AddExternalWarningMessage = UIErrorsFrame.AddExternalWarningMessage
+    errorsFrame:RegisterEvent("UI_ERROR_MESSAGE")
+    errorsFrame:SetScript("OnEvent", function(_, _, _, message)
+        table.insert(world.uiErrors, message)
+    end)
+    UIErrorsFrame = errorsFrame
+end
+
+-- Blizzard's action buttons ------------------------------------------------------------
+
+-- A spell newly put on a bar is marked (world.newActions, by slot) and its
+-- buttons show NewActionTexture until used or hovered.
+world.newActions = {}
+
+function GetNewActionHighlightMark(slot)
+    return world.newActions[slot]
+end
+
+function ClearNewActionHighlight(slot)
+    world.newActions[slot] = nil
+end
+
+local function ActionButton(name, bindingAction)
+    local button = CreateFrame("CheckButton", name)
+    button.protected = true
+    button.bindingAction = bindingAction
+    button.icon = button:CreateTexture()
+    button.NewActionTexture = button:CreateTexture()
+    button.NewActionTexture:Hide()
+    button:SetSize(45, 45)
+    function button:UpdateHighlightMark()
+        self.NewActionTexture:SetShown(GetNewActionHighlightMark(self.action) == true)
+    end
+    return button
+end
+
+-- Blizzard's TryUseActionButton: casts the button's spell and clears its new mark.
+local function UseActionButton(button)
+    CastSpellByName(C_Spell.GetSpellName(world.actions[button.action]))
+    if GetNewActionHighlightMark(button.action) then
+        ClearNewActionHighlight(button.action)
+        button:UpdateHighlightMark()
+    end
+end
+
+for i = 1, NUM_ACTION_BUTTONS do
+    ActionButton("ActionButton" .. i, "ACTIONBUTTON" .. i)
+    ActionButton("MultiBarBottomLeftButton" .. i, "MULTIACTIONBAR1BUTTON" .. i).action = 60 + i
+end
+
+-- What ActionBarController does on a page or bonus bar change.
+local function UpdateMainBar()
+    local bar = world.actionBar
+    local page = (bar.bonus > 0 and bar.page == 1) and 6 + bar.bonus or bar.page
+    for i = 1, NUM_ACTION_BUTTONS do
+        _G["ActionButton" .. i].action = (page - 1) * NUM_ACTION_BUTTONS + i
+    end
+end
+UpdateMainBar()
+
+local function UpdateStateDrivers()
+    for frame, drivers in pairs(world.stateDrivers) do
+        for state, driver in pairs(drivers) do
+            SetDriverState(frame, state, driver)
+        end
+    end
+end
+
+-- Puts the spell in an action slot, like dragging it from the spellbook.
+function world:PlaceSpell(slot, spellID)
+    self.actions[slot] = spellID
+    self:Fire("ACTIONBAR_SLOT_CHANGED", slot)
+end
+
+-- Like learning a new rank: the game marks the slot new, and its buttons show it.
+function world:MarkNewAction(slot)
+    self.newActions[slot] = true
+    for _, frame in ipairs(self.frames) do
+        if frame.UpdateHighlightMark and frame.action == slot then
+            frame:UpdateHighlightMark()
+        end
+    end
+end
+
+function world:Bind(key, command)
+    self.bindings[key] = command
+    self:Fire("UPDATE_BINDINGS")
+end
+
+-- Stealth and the like: the main bar shows the stance's bonus bar (0: none).
+function world:SetBonusBar(bonus)
+    self.actionBar.bonus = bonus
+    UpdateMainBar()
+    UpdateStateDrivers()
+    self:Fire("UPDATE_BONUS_ACTIONBAR")
+end
+
+function world:SetActionBarPage(page)
+    self.actionBar.page = page
+    UpdateMainBar()
+    UpdateStateDrivers()
+    self:Fire("ACTIONBAR_PAGE_CHANGED")
+end
+
+function world:SetSpellUsable(spellID, usable)
+    self.unusableSpells[BaseSpell(spellID)] = not usable or nil
+    self:Fire("SPELL_UPDATE_USABLE")
+end
+
+-- Energy running short of (or back up to) the spell's cost: only the power
+-- event fires, as for a spell on a bar page out of view.
+function world:SetShortOfPower(spellID, short)
+    self.noPowerSpells[BaseSpell(spellID)] = short or nil
+    self:Fire("UNIT_POWER_FREQUENT", "player", "ENERGY")
+end
+
+-- One click of a frame (the mouse, or a click binding), with its pre and post clicks.
+local function ClickFrame(frame, button, down)
+    frame:RunScript("PreClick", button, down)
+    frame:RunScript("OnClick", button, down)
+    frame:RunScript("PostClick", button, down)
+end
+
+-- A key going down or up, sent to whatever the key is bound to at that moment
+-- (like the client: a binding change while the key is held sends the release
+-- elsewhere). An override click binding clicks its frame; a Blizzard action
+-- button binding runs ActionButtonDown / ActionButtonUp: the button shows
+-- pushed while held and casts its slot's spell on the press
+-- (ActionButtonUseKeyDown).
+local function SendKey(key, down)
+    local override = OverrideFor(key)
+    if override then
+        ClickFrame(assert(_G[override.name], "no frame " .. override.name), override.button, down)
+        return
+    end
+    for _, frame in ipairs(world.frames) do
+        if world.bindings[key] and frame.bindingAction == world.bindings[key] then
+            if down then
+                if frame:GetButtonState() == "NORMAL" then
+                    frame:SetButtonState("PUSHED")
+                end
+                if frame.action and world.actions[frame.action] then
+                    UseActionButton(frame)
+                end
+            elseif frame:GetButtonState() == "PUSHED" then
+                frame:SetButtonState("NORMAL")
+            end
+        end
+    end
+end
+
+function world:KeyDown(key)
+    SendKey(key, true)
+end
+
+function world:KeyUp(key)
+    SendKey(key, false)
+end
+
+function world:PressKey(key)
+    SendKey(key, true)
+    SendKey(key, false)
+end
+
+-- A left click on whatever lies on top of the button: our overlay when shown.
+function world:ClickButton(button)
+    local target = button
+    for _, frame in ipairs(self.frames) do
+        if frame.parent == button and frame.secure and frame:IsShown() then
+            target = frame
+        end
+    end
+    if target == button then
+        UseActionButton(button)
+    else
+        ClickFrame(target, "LeftButton", true)
+        ClickFrame(target, "LeftButton", false)
+    end
+end
+
+-- The replacement shown on the button: its icon, whether its glow played and
+-- its tint (see SetVertexColor), or nil.
+function world:SwapShown(button)
+    for _, frame in ipairs(self.frames) do
+        if frame.parent == button and frame.Glow and frame:IsShown() then
+            return frame.Icon.texture, frame.Glow.ProcStartAnim.playing, frame.Icon.tint
+        end
+    end
+end
+
+-- The overlay frame (our secure button) on the button, shown or not.
+function world:Overlay(button)
+    for _, frame in ipairs(self.frames) do
+        if frame.parent == button and frame.secure then
+            return frame
+        end
+    end
 end
 
 return world

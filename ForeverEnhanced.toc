@@ -86,6 +86,12 @@ modules\interface\glow\locales.lua
 modules\interface\glow\cvars.lua
 modules\interface\glow\effect.lua
 modules\interface\glow\target.lua
+modules\interface\swaps\feature.lua
+modules\interface\swaps\locales.lua
+modules\interface\swaps\buttons.lua
+modules\interface\swaps\quiet.lua
+modules\interface\swaps\overlays.lua
+modules\interface\swaps\display.lua
 
 # Map
 modules\map\module.lua
