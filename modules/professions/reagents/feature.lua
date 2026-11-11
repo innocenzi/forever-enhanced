@@ -10,6 +10,7 @@
 --   locales.lua  strings
 --   data.lua     generated: item ID -> { spellID, skillLineID, quantity } records
 --   known.lua    the recipes this character knows, read from the profession window
+--   stock.lua    whether the bags hold all, some or none of a recipe's reagents
 --   tooltip.lua  the tooltip lines, refreshed when Shift changes
 
 local _, ns = ...

@@ -17,7 +17,7 @@ A lightweight utility addon for Forever. It keeps the default UI familiar while 
 - Automatic quest tracking by zone or distance, so you always track what is closest to you
 - Quest objective announcements to your group (or hide Questie's)
 - Show which quest an item belongs to in its tooltip
-- Show the crafting recipes of items' tooltips (press shift)
+- Show the crafting recipes of items' tooltips (press shift), marking the ones you have the reagents for
 - Show sparkles around interactable quest items in the world
 - Show what your bank contains from your inventory
 - Quick bank deposit and withdraw

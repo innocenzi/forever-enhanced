@@ -134,6 +134,63 @@ test("lists the recipes the profession window shows as learned first", function(
     equal(firstAid[2], Recipe(world, "Heavy Linen Bandage", 2), "then the others")
 end)
 
+-- A recipe line marked with the icon for `level` (Stock.ALL or Stock.SOME).
+local function Marked(world, level, name, quantity)
+    local Reagents = world.ns:GetFeature("professions", "reagents")
+    return Recipe(world, Reagents.Tooltip.STOCK_ICONS[Reagents.Stock[level]] .. " " .. name, quantity)
+end
+
+-- Puts `count` of itemID in slot `slot` (default 1) of the backpack.
+local function Carry(world, itemID, count, slot)
+    local guid = "I" .. itemID
+    world.bags[0][slot or 1] = guid
+    world.itemIDs[guid] = itemID
+    world.counts[guid] = count
+end
+
+local function KnowBandages(world)
+    Setup(world)
+    LearnFirstAidAndTailoring(world)
+    world:Fire("NEW_RECIPE_LEARNED", LINEN_BANDAGE)
+    world:Fire("NEW_RECIPE_LEARNED", HEAVY_LINEN_BANDAGE)
+    world.shift = true
+end
+
+test("marks known recipes the bags hold every reagent of with a check", function(world)
+    KnowBandages(world)
+    Carry(world, LINEN_CLOTH, 2)
+    local firstAid = Section(Lines(world), FIRST_AID)
+    equal(firstAid[1], Marked(world, "ALL", "Heavy Linen Bandage", 2), "enough for both")
+    equal(firstAid[2], Marked(world, "ALL", "Linen Bandage", 1), "enough for both")
+end)
+
+test("marks known recipes the bags hold some reagents of, after the craftable ones", function(world)
+    KnowBandages(world)
+    Carry(world, LINEN_CLOTH, 1)
+    local firstAid = Section(Lines(world), FIRST_AID)
+    equal(firstAid[1], Marked(world, "ALL", "Linen Bandage", 1), "craftable first")
+    equal(firstAid[2], Marked(world, "SOME", "Heavy Linen Bandage", 2), "short of cloth")
+end)
+
+test("leaves unmarked known recipes without reagents and unknown ones", function(world)
+    KnowBandages(world)
+    equal(Section(Lines(world), FIRST_AID)[1], Recipe(world, "Heavy Linen Bandage", 2), "no cloth")
+    Carry(world, LINEN_CLOTH, 20)
+    equal(Section(Lines(world), TAILORING)[1], Recipe(world, "Bolt of Linen Cloth", 2), "unknown")
+end)
+
+test("needs every reagent of a recipe for a check", function(world)
+    local ROUGH_DYNAMITE, ROUGH_BLASTING_POWDER = 3919, 4357
+    world.recipeNames[ROUGH_DYNAMITE] = "Rough Dynamite"
+    world.professions = { { skillLine = ENGINEERING } }
+    world:Fire("NEW_RECIPE_LEARNED", ROUGH_DYNAMITE)
+    world.shift = true
+    Carry(world, ROUGH_BLASTING_POWDER, 5)
+    equal(Section(Lines(world), ENGINEERING)[1], Marked(world, "SOME", "Rough Dynamite", 1), "no cloth")
+    Carry(world, LINEN_CLOTH, 1, 2)
+    equal(Section(Lines(world), ENGINEERING)[1], Marked(world, "ALL", "Rough Dynamite", 1), "both")
+end)
+
 test("records recipes learned with the window closed", function(world)
     Setup(world)
     LearnFirstAidAndTailoring(world)
