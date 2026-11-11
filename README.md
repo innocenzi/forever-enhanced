@@ -12,19 +12,18 @@ A lightweight utility addon for Forever. It keeps the default UI familiar while 
 
 ## Features
 
-- Item locking to protect items from being moved, sold, destroyed, mailed or traded, with an optional note in the tooltip to remember why
+- Item locking to protect items from being moved, sold, etc
 - Movable windows and bags
-- Automatic quest tracking by distance, so you always track what is closest to you, optionally sorted from closest to farthest
-- Quest objective announcements to your group
-- Item tooltips show the quests in your log that need the item, with your progress, so you don't sell or eat food a quest asks for
-- Hold Shift over a crafting reagent to see the recipes that use it, by profession, the ones you know first
-- Quest items you can loot always sparkle, even after picking a graphics preset
-- The nearest herb, ore vein or quest object glows as you approach it, one at a time and out of combat spells cast with no target may land on a nearby character)
-- Bank viewable from anywhere, including in profession UI tooltips
+- Automatic quest tracking by zone or distance, so you always track what is closest to you
+- Quest objective announcements to your group (or hide Questie's)
+- Show which quest an item belongs to in its tooltip
+- Show the crafting recipes of items' tooltips (press shift)
+- Show sparkles around interactable quest items in the world
+- Show what your bank contains from your inventory
 - Quick bank deposit and withdraw
 - Automatic junk selling and repairs at merchants, optionally with guild funds
 - Combo points on enemy nameplates
-- Ability swaps: show a spell in place of another on your action bars while you can cast it, so the same key casts it (Rogues start with Ambush on Backstab and Garrote on Sinister Strike, for Ghostly Strike)
+- Allow Rogues to replace Backstab with Ambush or Sinister Strike with Garrote when Ghostly Strike is active
 - Spell ranks on your action bars upgrade when you learn a new one
 - Support for TomTom's `/way` coordinates from guides
 - Show your friends on the world map (supports OpenMap too)
