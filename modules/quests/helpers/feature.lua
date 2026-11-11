@@ -12,8 +12,8 @@
 -- Files of this slice:
 --   feature.lua  registration, schema and lifecycle (this file)
 --   locales.lua  strings
---   ranking.lua  nearby: which quests should be tracked, closest first
---   watches.lua  nearby: the watch list: applying it, manual tracks, dismissals
+--   ranking.lua  nearby: which quests should be tracked, closest first, and their order
+--   watches.lua  nearby: the watch list: applying and ordering it, manual tracks, dismissals
 --   refresh.lua  nearby: events and ticker, coalesced into one evaluation per frame
 --   sparkle.lua  sparkles: the CVar behind the sparkle, set again after graphics changes
 --   needs.lua    objectives: the item objectives of the quest log, by item name
@@ -42,6 +42,7 @@ local Helpers = ns:RegisterFeature("quests", "helpers", {
             requires = { scope = "range" },
         },
         { key = "count", type = "slider", default = 5, min = 1, max = 25, step = 1, requires = { nearby = true } },
+        { key = "sort", type = "toggle", default = false, requires = { nearby = true } },
         { key = "keepManual", type = "toggle", default = false, requires = { nearby = true } },
         { key = "dungeons", type = "toggle", default = true, requires = { nearby = true } },
         { key = "sparkles", type = "toggle", default = true },

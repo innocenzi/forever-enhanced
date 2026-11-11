@@ -1,5 +1,6 @@
--- The quest watch list: makes it match the ranked quests, and tells the
--- player's own changes apart from ours and from Blizzard's.
+-- The quest watch list: makes it match the ranked quests (and their order,
+-- with "sort" on), and tells the player's own changes apart from ours and from
+-- Blizzard's.
 --
 -- Normal quest watches carry no "manual" flag, so a watch added by someone
 -- else is classified on the next evaluation: if the quest was accepted or made
@@ -110,9 +111,52 @@ local function GetKeptQuests()
     return kept
 end
 
+-- Makes the watch list follow the given order, which holds every watched
+-- quest. A quest tracked again lands at the top of the list: the longest end
+-- of the order already in place stays, the other quests are untracked and
+-- tracked again from the last to the first. The super-tracked quest stops
+-- being super-tracked when untracked: it is super-tracked again. The tracker
+-- updates on the next frame and still has the quests' blocks: re-tracked
+-- quests don't play the new quest animation.
+local function Reorder(order)
+    local watched = GetWatchedQuests()
+    local inPlace, inPlaceCount, position = {}, 0, #watched
+    for index = #order, 1, -1 do
+        while position > 0 and watched[position] ~= order[index] do
+            position = position - 1
+        end
+        if position == 0 then
+            break
+        end
+        inPlace[order[index]] = true
+        inPlaceCount = inPlaceCount + 1
+        position = position - 1
+    end
+    if inPlaceCount == #order then
+        return
+    end
+
+    local superTracked = C_SuperTrack.GetSuperTrackedQuestID()
+    for _, questID in ipairs(watched) do
+        if not inPlace[questID] then
+            C_QuestLog.RemoveQuestWatch(questID)
+        end
+    end
+    for index = #order, 1, -1 do
+        local questID = order[index]
+        if not inPlace[questID] then
+            C_QuestLog.AddQuestWatch(questID)
+        end
+    end
+    if superTracked and superTracked ~= 0 and C_SuperTrack.GetSuperTrackedQuestID() ~= superTracked then
+        C_SuperTrack.SetSuperTrackedQuestID(superTracked)
+    end
+end
+
 -- Untracks every quest that isn't ranked or kept, then tracks the ranked ones
--- (closest first) while there is room.
-function Watches:Apply(ranked)
+-- (closest first) while there is room. With "sort" on, orders the watch list
+-- by distance; otherwise the game sorts it.
+function Watches:Apply(ranked, distances)
     local wanted = GetKeptQuests()
     for _, questID in ipairs(ranked) do
         wanted[questID] = true
@@ -126,18 +170,25 @@ function Watches:Apply(ranked)
             changed = true
         end
     end
+    -- Closest first while there is room, then tracked from the farthest: each
+    -- lands at the top of the list, so the closest ends up first.
+    local added, room = {}, Constants.QuestWatchConsts.MAX_QUEST_WATCHES - C_QuestLog.GetNumQuestWatches()
     for _, questID in ipairs(ranked) do
-        if
-            not self:IsWatched(questID)
-            and C_QuestLog.GetNumQuestWatches() < Constants.QuestWatchConsts.MAX_QUEST_WATCHES
-        then
-            C_QuestLog.AddQuestWatch(questID)
-            changed = true
+        if #added < room and not self:IsWatched(questID) then
+            table.insert(added, questID)
         end
+    end
+    for index = #added, 1, -1 do
+        C_QuestLog.AddQuestWatch(added[index])
+        changed = true
+    end
+    local sort = Helpers:GetSetting("sort")
+    if sort then
+        Reorder(Helpers.Ranking:Order(GetWatchedQuests(), distances))
     end
     applying = false
 
-    if changed then
+    if changed and not sort then
         C_QuestLog.SortQuestWatches()
     end
 end

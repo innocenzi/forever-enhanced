@@ -14,7 +14,7 @@ A lightweight utility addon for Forever. It keeps the default UI familiar while 
 
 - Item locking to protect items from being moved, sold, destroyed, mailed or traded, with an optional note in the tooltip to remember why
 - Movable windows and bags
-- Automatic quest tracking by distance, so you always track what is closest to you
+- Automatic quest tracking by distance, so you always track what is closest to you, optionally sorted from closest to farthest
 - Quest objective announcements to your group
 - Item tooltips show the quests in your log that need the item, with your progress, so you don't sell or eat food a quest asks for
 - Quest items you can loot always sparkle, even after picking a graphics preset

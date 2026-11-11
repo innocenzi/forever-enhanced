@@ -28,9 +28,9 @@ local function Evaluate()
         return
     end
     waitingForCombatEnd = false
-    local ranked = Helpers.Ranking:GetQuests()
+    local ranked, distances = Helpers.Ranking:GetQuests()
     if ranked then
-        Helpers.Watches:Apply(ranked)
+        Helpers.Watches:Apply(ranked, distances)
     end
 end
 

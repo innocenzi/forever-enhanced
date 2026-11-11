@@ -2,6 +2,7 @@
 -- filtered by the chosen scope, closest first, capped at the chosen count.
 -- With "dungeons" off, dungeon and raid quests are tracked only inside their
 -- instance, ahead of every other quest there.
+-- With "sort" on, also the order the tracker shows them in.
 
 local _, ns = ...
 
@@ -10,9 +11,18 @@ local Helpers = ns:GetFeature("quests", "helpers")
 local Ranking = {}
 Helpers.Ranking = Ranking
 
--- Tracked quests count as this much closer, so two quests at similar
--- distances don't swap places on every update.
-local TRACKED_DISTANCE_FACTOR = 0.85
+-- A quest must be clearly closer than a tracked one to replace it, or than
+-- the one above it to move up in the tracker, so two quests at similar
+-- distances don't swap places on every update: closer by this factor and by
+-- this many yards (near objectives, distances are small and a step changes
+-- them by more than any factor).
+local CLOSER_FACTOR = 0.85
+local CLOSER_YARDS = 20
+
+-- The distance under which a quest is clearly closer than one at this distance.
+local function ClearlyCloserThan(distance)
+    return math.min(distance * CLOSER_FACTOR, distance - CLOSER_YARDS)
+end
 
 -- Tags of quests done inside an instance (the quest log shows "Dungeon",
 -- "Raid", ...).
@@ -83,9 +93,11 @@ local function GetCurrentInstanceQuests()
     return quests
 end
 
--- Returns the quest IDs to track, closest first, or nil when no quest has a
--- known location (quest data not loaded yet, or no map here): the tracker
--- should then be left alone rather than emptied.
+-- Returns the quest IDs to track, closest first, and the distance of every
+-- located quest ([questID] = yards, 0 for the quests of the current
+-- instance), or nil when no quest has a known location (quest data not loaded
+-- yet, or no map here): the tracker should then be left alone rather than
+-- emptied.
 function Ranking:GetQuests()
     local scope = Helpers:GetSetting("scope")
     local range = Helpers:GetSetting("range")
@@ -99,7 +111,7 @@ function Ranking:GetQuests()
     local instanceQuests = not Helpers:GetSetting("dungeons") and GetCurrentInstanceQuests()
     local Watches = Helpers.Watches
 
-    local quests, scores = {}, {}
+    local quests, scores, distances = {}, {}, {}
     local function Add(questID, score)
         table.insert(quests, questID)
         scores[questID] = score
@@ -113,13 +125,14 @@ function Ranking:GetQuests()
             if instanceQuests and IsInstanceQuest(questID) then
                 if instanceQuests[questID] then
                     anyLocated = true
+                    distances[questID] = 0
                     Add(questID, 0)
                 end
             else
                 local distance = GetDistance(questID)
                 anyLocated = anyLocated or distance ~= nil
-                local score = distance
-                    and (Watches:IsWatched(questID) and distance * TRACKED_DISTANCE_FACTOR or distance)
+                distances[questID] = distance
+                local score = distance and (Watches:IsWatched(questID) and ClearlyCloserThan(distance) or distance)
                 if score and (scope ~= "range" or score <= range) and (not inZone or inZone[questID]) then
                     Add(questID, score)
                 end
@@ -140,5 +153,35 @@ function Ranking:GetQuests()
     for index = #quests, Helpers:GetSetting("count") + 1, -1 do
         quests[index] = nil
     end
-    return quests
+    return quests, distances
+end
+
+-- The order the tracker should show the watched quests in (watch list order):
+-- the super-tracked quest first, then the located quests closest first, then
+-- the others as they are. A quest moves above another only when it is clearly
+-- closer, so quests at similar distances keep their places.
+function Ranking:Order(watched, distances)
+    local superTracked = C_SuperTrack.GetSuperTrackedQuestID()
+    local order, located, others = {}, {}, {}
+    for _, questID in ipairs(watched) do
+        local distance = distances[questID]
+        if questID == superTracked then
+            table.insert(order, questID)
+        elseif distance then
+            local position = #located + 1
+            while position > 1 and distance < ClearlyCloserThan(distances[located[position - 1]]) do
+                position = position - 1
+            end
+            table.insert(located, position, questID)
+        else
+            table.insert(others, questID)
+        end
+    end
+    for _, questID in ipairs(located) do
+        table.insert(order, questID)
+    end
+    for _, questID in ipairs(others) do
+        table.insert(order, questID)
+    end
+    return order
 end

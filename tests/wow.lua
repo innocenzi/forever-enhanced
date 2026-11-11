@@ -1390,17 +1390,24 @@ C_QuestLog = {
     GetQuestIDForQuestWatchIndex = function(index)
         return world.watches[index]
     end,
-    -- Like the client, watch changes fire QUEST_WATCH_LIST_CHANGED synchronously.
+    -- Like the client, watch changes fire QUEST_WATCH_LIST_CHANGED synchronously,
+    -- and a newly watched quest goes to the top of the list (measured in game).
     AddQuestWatch = function(questID)
         assert(not WatchIndex(questID), "quest already watched")
         assert(#world.watches < Constants.QuestWatchConsts.MAX_QUEST_WATCHES, "too many watches")
-        table.insert(world.watches, questID)
+        table.insert(world.watches, 1, questID)
         world:Fire("QUEST_WATCH_LIST_CHANGED", questID, true)
         return true
     end,
     RemoveQuestWatch = function(questID)
         table.remove(world.watches, assert(WatchIndex(questID), "quest not watched"))
         world:Fire("QUEST_WATCH_LIST_CHANGED", questID, false)
+        -- Blizzard's super tracking (Blizzard_QuestSuperTracking.lua) stops
+        -- super-tracking a quest when it is untracked.
+        if world.superTracked == questID then
+            world.superTracked = 0
+            world:Fire("SUPER_TRACKING_CHANGED")
+        end
         return true
     end,
     SortQuestWatches = function()
@@ -1696,6 +1703,10 @@ end
 C_SuperTrack = {
     GetSuperTrackedQuestID = function()
         return world.superTracked
+    end,
+    SetSuperTrackedQuestID = function(questID)
+        world.superTracked = questID
+        world:Fire("SUPER_TRACKING_CHANGED")
     end,
     SetSuperTrackedUserWaypoint = function(superTracked)
         world.superTrackingWaypoint = superTracked
@@ -2751,6 +2762,11 @@ function world:Watched()
     end
     table.sort(watched)
     return table.concat(watched, " ")
+end
+
+-- Watched quest IDs in watch list order, the order the tracker shows: "4 1 3".
+function world:WatchOrder()
+    return table.concat(self.watches, " ")
 end
 
 function world:Bag()

@@ -187,9 +187,21 @@ test("a tracked quest isn't replaced by one only slightly closer", function(worl
     world:Elapse(TICK_SECONDS)
     equal(world:Watched(), "1", "kept when the other is slightly closer")
 
-    world:MoveTo({ [2] = 80 })
+    world:MoveTo({ [2] = 50 })
     world:Elapse(TICK_SECONDS)
     equal(world:Watched(), "2", "replaced when the other is clearly closer")
+end)
+
+test("a tracked quest isn't replaced by one a few yards closer near objectives", function(world)
+    Enable(world)
+    world:SetQuests({ { questID = 1, distance = 0 }, { questID = 2, distance = 10 } })
+    Set(world, "count", 1)
+    world:NextFrame()
+    equal(world:Watched(), "1", "closest tracked")
+
+    world:MoveTo({ [1] = 15, [2] = 0 })
+    world:Elapse(TICK_SECONDS)
+    equal(world:Watched(), "1", "kept when the other is a few yards closer")
 end)
 
 test("never untracks the super-tracked quest", function(world)
@@ -199,6 +211,121 @@ test("never untracks the super-tracked quest", function(world)
     Set(world, "count", 1)
     world:NextFrame()
     equal(world:Watched(), "4 5", "watched")
+end)
+
+test("leaves the tracker order to the game by default", function(world)
+    Enable(world)
+    WithQuests(world)
+    Set(world, "count", 3)
+    world:NextFrame()
+    equal(world:WatchOrder(), "4 1 3", "order")
+
+    world:MoveTo({ [3] = 10 })
+    world:Elapse(TICK_SECONDS)
+    equal(world:WatchOrder(), "4 1 3", "order after moving")
+end)
+
+test("sorts tracked quests by distance when asked to", function(world)
+    Enable(world)
+    Set(world, "sort", true)
+    WithQuests(world)
+    world.watches = { 3, 5 }
+    Set(world, "count", 3)
+    world:NextFrame()
+    equal(world:WatchOrder(), "4 1 3", "closest first")
+
+    world:MoveTo({ [3] = 10 })
+    world:Elapse(TICK_SECONDS)
+    equal(world:WatchOrder(), "3 4 1", "order after moving")
+    equal(world.questSorts, 0, "tracker sorts by the game")
+end)
+
+test("sorting moves far quests below the closer ones, and keeps them there", function(world)
+    Enable(world)
+    Set(world, "sort", true)
+    -- Seen in game: two far quests at similar distances above three closer ones.
+    world:SetQuests({
+        { questID = 1, distance = 3668 },
+        { questID = 2, distance = 3278 },
+        { questID = 3, distance = 2699 },
+        { questID = 4, distance = 2422 },
+        { questID = 5, distance = 2311 },
+    })
+    world.watches = { 1, 2, 3, 4, 5 }
+    world:NextFrame()
+    equal(world:WatchOrder(), "3 4 5 1 2", "closer quests first")
+
+    for _ = 1, 3 do
+        world:Elapse(TICK_SECONDS)
+        equal(world:WatchOrder(), "3 4 5 1 2", "order kept on the next updates")
+    end
+end)
+
+test("sorted quests at similar distances keep their places", function(world)
+    Enable(world)
+    Set(world, "sort", true)
+    world:SetQuests({ { questID = 1, distance = 100 }, { questID = 2, distance = 120 } })
+    world:NextFrame()
+    equal(world:WatchOrder(), "1 2", "closest first")
+
+    world:MoveTo({ [2] = 90 })
+    world:Elapse(TICK_SECONDS)
+    equal(world:WatchOrder(), "1 2", "kept when the other is slightly closer")
+
+    world:MoveTo({ [2] = 50 })
+    world:Elapse(TICK_SECONDS)
+    equal(world:WatchOrder(), "2 1", "moved when the other is clearly closer")
+end)
+
+test("sorted quests near their objectives keep their places", function(world)
+    Enable(world)
+    Set(world, "sort", true)
+    world:SetQuests({ { questID = 1, distance = 0 }, { questID = 2, distance = 10 } })
+    world:NextFrame()
+    equal(world:WatchOrder(), "1 2", "closest first")
+
+    for _, distances in ipairs({ { [1] = 15, [2] = 0 }, { [1] = 0, [2] = 20 }, { [1] = 20, [2] = 5 } }) do
+        world:MoveTo(distances)
+        world:Elapse(TICK_SECONDS)
+        equal(world:WatchOrder(), "1 2", "kept while walking between objectives")
+    end
+end)
+
+test("sorting keeps the super-tracked quest first and super-tracked", function(world)
+    Enable(world)
+    Set(world, "sort", true)
+    WithQuests(world)
+    world.watches = { 1, 5 }
+    world.superTracked = 5
+    Set(world, "count", 2)
+    world:NextFrame()
+    equal(world:WatchOrder(), "5 4 1", "order")
+    equal(world.superTracked, 5, "super-tracked")
+end)
+
+test("sorting doesn't count as the player's tracking changes", function(world)
+    Enable(world)
+    Set(world, "sort", true)
+    Set(world, "keepManual", true)
+    WithQuests(world)
+    Set(world, "count", 2)
+    world:NextFrame()
+    world:TrackQuest(2)
+    world:NextFrame()
+    equal(world:WatchOrder(), "4 1 2", "manual track last")
+
+    world:MoveTo({ [2] = 10 })
+    world:Elapse(TICK_SECONDS)
+    equal(world:WatchOrder(), "2 4", "order after moving")
+    expect(Pins(world)[2], "manual track still kept")
+
+    world:Elapse(TICK_SECONDS)
+    equal(world:WatchOrder(), "2 4", "re-tracked quests aren't dismissed")
+
+    world:MoveTo({ [2] = 300 })
+    world:Elapse(TICK_SECONDS)
+    equal(world:WatchOrder(), "4 1 2", "manual track re-tracked last")
+    expect(Pins(world)[2], "re-tracked manual track still kept")
 end)
 
 test("untracks far quests the player tracked, by default", function(world)
