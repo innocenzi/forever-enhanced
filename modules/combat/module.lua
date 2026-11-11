@@ -1,6 +1,6 @@
 local _, ns = ...
 
-ns:RegisterModule("combat", { order = 3 })
+ns:RegisterModule("combat", { order = 4 })
 
 ns:RegisterLocale("enUS", {
     ["combat.title"] = "Combat",

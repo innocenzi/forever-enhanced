@@ -7,7 +7,7 @@ end
 test("builds the settings panel from the registered schemas", function(world)
     local root, inventory = world.categories[1], world.categories[2]
     expect(root.registered, "root category registered as an AddOn category")
-    equal(#world.categories, 6, "categories")
+    equal(#world.categories, 7, "categories")
     equal(inventory.name, world.L["inventory.title"], "module subcategory name")
 
     local dropdown -- Item Locking's indicator
@@ -135,7 +135,7 @@ test("the root page holds the general settings only", function(world)
 end)
 
 test("a feature without settings is one checkbox at the top of its page", function(world)
-    local combat = world.categories[4]
+    local combat = world.categories[5]
     equal(combat.name, world.L["combat.title"], "page")
 
     local ranks = combat.items[1]

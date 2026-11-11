@@ -70,6 +70,14 @@ modules\quests\announce\message.lua
 modules\quests\announce\objectives.lua
 modules\quests\announce\questie.lua
 
+# Professions
+modules\professions\module.lua
+modules\professions\reagents\feature.lua
+modules\professions\reagents\locales.lua
+modules\professions\reagents\data.lua
+modules\professions\reagents\known.lua
+modules\professions\reagents\tooltip.lua
+
 # Combat
 modules\combat\module.lua
 modules\combat\ranks\feature.lua

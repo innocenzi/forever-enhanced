@@ -2347,6 +2347,8 @@ TooltipDataProcessor = {
 }
 
 NORMAL_FONT_COLOR = CreateColor(1, 0.82, 0)
+GRAY_FONT_COLOR = CreateColor(0.5, 0.5, 0.5)
+HIGHLIGHT_FONT_COLOR = CreateColor(1, 1, 1)
 
 -- Blizzard frames ------------------------------------------------------------------------
 
@@ -2833,6 +2835,113 @@ function world:Slots(bagID)
         slots[slot] = guid and (count > 1 and ("%s(%d)"):format(guid, count) or guid) or "-"
     end
     return table.concat(slots, " ")
+end
+
+-- Professions the player has learned, by GetProfessions slot (1-2 primary, then
+-- First Aid, Fishing, Cooking...): { skillLine, rank }. Empty slots are nil.
+world.professions = {}
+-- The open profession window: the recipe IDs its list shows, and which of
+-- every recipe the player has learned.
+world.tradeSkillList = {}
+world.learnedRecipes = {}
+-- Names of profession recipe spells (game text, the same in every locale here).
+world.recipeNames = {}
+
+local PROFESSION_SLOTS = 7
+local PROFESSION_NAMES = {
+    enUS = {
+        [129] = "First Aid",
+        [164] = "Blacksmithing",
+        [165] = "Leatherworking",
+        [171] = "Alchemy",
+        [185] = "Cooking",
+        [186] = "Mining",
+        [197] = "Tailoring",
+        [202] = "Engineering",
+        [333] = "Enchanting",
+    },
+    frFR = {
+        [129] = "Secourisme",
+        [164] = "Forge",
+        [165] = "Travail du cuir",
+        [171] = "Alchimie",
+        [185] = "Cuisine",
+        [186] = "Minage",
+        [197] = "Couture",
+        [202] = "Ingénierie",
+        [333] = "Enchantement",
+    },
+}
+
+-- One index per slot, nil for empty ones, like the client.
+function GetProfessions()
+    local indices = {}
+    for slot = 1, PROFESSION_SLOTS do
+        indices[slot] = world.professions[slot] and slot or nil
+    end
+    return unpack(indices, 1, PROFESSION_SLOTS)
+end
+
+-- name, texture, rank, maxRank, numSpells, spellOffset, skillLine, ...
+function GetProfessionInfo(index)
+    local profession = assert(world.professions[index], "no profession at " .. tostring(index))
+    local name = PROFESSION_NAMES[TEST_LOCALE][profession.skillLine]
+    return name, 136240, profession.rank or 1, 300, 1, 0, profession.skillLine
+end
+
+C_TradeSkillUI = {
+    GetTradeSkillDisplayName = function(skillLineID)
+        return (assert(PROFESSION_NAMES[TEST_LOCALE][skillLineID], "no profession " .. tostring(skillLineID)))
+    end,
+    GetFilteredRecipeIDs = function()
+        return world.tradeSkillList
+    end,
+    GetRecipeInfo = function(recipeID)
+        return { recipeID = recipeID, learned = world.learnedRecipes[recipeID] == true }
+    end,
+}
+
+-- The profession window lists `recipeIDs` (learned per world.learnedRecipes).
+function world:ShowTradeSkillList(recipeIDs)
+    self.tradeSkillList = recipeIDs
+    self:Fire("TRADE_SKILL_LIST_UPDATE")
+end
+
+function world:SetShift(down)
+    self.shift = down
+    self:Fire("MODIFIER_STATE_CHANGED", "LSHIFT", down and 1 or 0)
+end
+
+-- Item tooltips as shown frames (GameTooltip, ItemRefTooltip): what they show,
+-- their owner, and how many times something rebuilt them (RefreshData).
+local function ModelItemTooltip(tooltip)
+    tooltip.refreshes = 0
+    tooltip.IsShown = function(self)
+        return self.shownData ~= nil
+    end
+    tooltip.IsTooltipType = function(self, tooltipType)
+        return self.shownData ~= nil and tooltipType == Enum.TooltipDataType.Item
+    end
+    tooltip.GetOwner = function(self)
+        return self.owner
+    end
+    tooltip.GetPrimaryTooltipData = function(self)
+        return self.shownData
+    end
+    tooltip.RefreshData = function(self)
+        self.refreshes = self.refreshes + 1
+    end
+end
+
+ModelItemTooltip(GameTooltip)
+ItemRefTooltip = {}
+ModelItemTooltip(ItemRefTooltip)
+
+-- `tooltip` shows item `data` ({ id }) for `owner` (a table; give it an
+-- UpdateTooltip function for owners that rebuild their tooltip themselves).
+function world:ShowItemOn(tooltip, data, owner)
+    tooltip.shownData = data
+    tooltip.owner = owner
 end
 
 -- Professions: the player opens the professions window for the first time,
@@ -3761,7 +3870,11 @@ end
 C_Spell = {
     GetSpellName = function(spellID)
         local base = BaseSpell(spellID)
-        return base and SPELL_NAMES[TEST_LOCALE][base]
+        if base then
+            return SPELL_NAMES[TEST_LOCALE][base]
+        end
+        -- Profession recipes, which the player never casts from the action bars.
+        return world.recipeNames[spellID]
     end,
     GetSpellTexture = function(spellID)
         local base = BaseSpell(spellID)

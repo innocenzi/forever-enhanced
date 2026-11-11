@@ -1,6 +1,6 @@
 local _, ns = ...
 
-ns:RegisterModule("map", { order = 5 })
+ns:RegisterModule("map", { order = 6 })
 
 ns:RegisterLocale("enUS", {
     ["map.title"] = "Map",

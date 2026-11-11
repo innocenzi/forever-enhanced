@@ -54,6 +54,7 @@ Forever Enhanced: a World of Warcraft Forever addon of small, independent qualit
 - `bun run format` / `bun run lint`: StyLua (Lua 5.1 syntax). Run both before committing.
 - `bun run test`: see Tests. `bun run typecheck`: the TypeScript in `tools/`.
 - Debugging in game: the `debugging` skill (`.claude/skills/debugging`) installs a temporary in-memory logger with a `/fedebug` window to copy the log from, and removes it once the bug is fixed.
+- `bun run professions`: regenerates `modules/professions/reagents/data.lua` (reagent item → recipes) from the latest Forever build's DB2 tables on wago.tools (`--build` to pin one); rerun after a content patch and commit the output.
 - `bun run icon`: renders `tools/icon/icon.svg` → `media/icon.tga` (TOC `## IconTexture`) and `tools/icon/logo.svg` → `tools/icon/logo.png`. Edit the SVGs, rerun, commit the outputs.
 - `bun run release` (bumps versions, regenerates `CHANGELOG.md` with git-cliff, commits, tags, pushes) is the maintainer's: don't run it unasked.
 

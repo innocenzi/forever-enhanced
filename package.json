@@ -5,6 +5,7 @@
     "format": "stylua core modules tests",
     "icon": "bun run tools/icon.ts",
     "lint": "stylua --check core modules tests",
+    "professions": "bun run tools/professions.ts",
     "release": "bumpp",
     "test": "lua tests/run.lua",
     "typecheck": "tsc --noEmit"

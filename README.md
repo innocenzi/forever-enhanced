@@ -17,6 +17,7 @@ A lightweight utility addon for Forever. It keeps the default UI familiar while 
 - Automatic quest tracking by distance, so you always track what is closest to you, optionally sorted from closest to farthest
 - Quest objective announcements to your group
 - Item tooltips show the quests in your log that need the item, with your progress, so you don't sell or eat food a quest asks for
+- Hold Shift over a crafting reagent to see the recipes that use it, by profession, the ones you know first
 - Quest items you can loot always sparkle, even after picking a graphics preset
 - The nearest herb, ore vein or quest object glows as you approach it, one at a time and out of combat spells cast with no target may land on a nearby character)
 - Bank viewable from anywhere, including in profession UI tooltips
