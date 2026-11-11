@@ -50,8 +50,9 @@ local function AddCheckbox(category, setting, tooltip)
     return AddControl(category, "checkbox", setting, nil, tooltip)
 end
 
-local function AddSectionHeader(layout, name, tooltip)
-    layout:AddInitializer(Settings.CreateElementInitializer(TEMPLATES.header, { name = name, tooltip = tooltip }))
+local function AddSectionHeader(category, name, tooltip)
+    local initializer = Settings.CreateElementInitializer(TEMPLATES.header, { name = name, tooltip = tooltip })
+    Settings.RegisterInitializer(category, initializer)
 end
 
 -- Text row: Blizzard's settings have no edit box control, so settings.xml
@@ -231,6 +232,18 @@ local function GetParentInitializer(entry, featureInitializer, entryInitializers
     return assert(entryInitializers[requiredKey], "required setting must come first: " .. requiredKey)
 end
 
+-- Nests `initializer` under `parent` (indented, re-evaluated when the parent's
+-- setting changes) without SetParentInitializer: the settings search reads its
+-- `parentInitializer` field outside the rows' secure calls, so one written by
+-- us taints the search and every frame it builds, e.g. the push-to-talk button
+-- on the Keybindings page, which Blizzard keeps for the session (its Discord
+-- check is then blocked). Rows read the parent through this getter.
+local function SetParent(initializer, parent)
+    initializer.GetParentInitializer = function()
+        return parent
+    end
+end
+
 local function AddSchemaEntry(category, feature, entry, parentInitializer)
     local control = assert(controls[entry.type], "unknown setting type: " .. tostring(entry.type))
     local labelKey = feature:GetLocaleKey(entry.key)
@@ -238,8 +251,9 @@ local function AddSchemaEntry(category, feature, entry, parentInitializer)
         RegisterSetting(category, labelKey, entry.key, feature.db, control.varType, L[labelKey], entry.default)
 
     local initializer = control.create(category, setting, OptionalText(labelKey .. ".tooltip"), entry, labelKey)
+    SetParent(initializer, parentInitializer)
     -- Predicates aren't inherited from grandparents: check the whole chain here.
-    initializer:SetParentInitializer(parentInitializer, function()
+    initializer:AddModifyPredicate(function()
         return feature.module.db.enabled and feature.db.enabled and RequirementMet(feature, entry)
     end)
 
@@ -251,12 +265,12 @@ local function AddSchemaEntry(category, feature, entry, parentInitializer)
     return initializer
 end
 
-local function AddFeature(category, layout, feature)
+local function AddFeature(category, feature)
     local module = feature.module
     local prefix = feature:GetLocaleKey()
     local description = L[prefix .. ".description"]
 
-    AddSectionHeader(layout, L[prefix .. ".title"], description)
+    AddSectionHeader(category, L[prefix .. ".title"], description)
 
     local enabledSetting = RegisterSetting(
         category,
@@ -299,9 +313,9 @@ local function AddModule(module)
         ns:RefreshModule(module)
     end)
 
-    local category, layout = Settings.RegisterVerticalLayoutSubcategory(rootCategory, title)
+    local category = Settings.RegisterVerticalLayoutSubcategory(rootCategory, title)
     for _, feature in ipairs(module.sortedFeatures) do
-        AddFeature(category, layout, feature)
+        AddFeature(category, feature)
     end
 end
 
@@ -376,14 +390,13 @@ local function AddPresets()
 end
 
 function SettingsPanel:Build()
-    local layout
-    rootCategory, layout = Settings.RegisterVerticalLayoutCategory(ns.title)
+    rootCategory = Settings.RegisterVerticalLayoutCategory(ns.title)
 
-    AddSectionHeader(layout, L["core.general"])
+    AddSectionHeader(rootCategory, L["core.general"])
     AddLanguage()
     AddPresets()
 
-    AddSectionHeader(layout, L["core.modules"], L["core.modules.tooltip"])
+    AddSectionHeader(rootCategory, L["core.modules"], L["core.modules.tooltip"])
 
     for _, module in ns:EnumerateModules() do
         AddModule(module)

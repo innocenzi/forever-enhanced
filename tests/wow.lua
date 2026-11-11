@@ -838,9 +838,18 @@ end
 local Initializer = {}
 Initializer.__index = Initializer
 
+-- Like Blizzard's, the parent is kept in `parentInitializer`, which the settings
+-- search reads outside the rows' secure calls (a value an addon wrote there
+-- taints it); rows read it through GetParentInitializer.
 function Initializer:SetParentInitializer(parent, predicate)
-    self.parent = parent
-    self.predicate = predicate
+    self.parentInitializer = parent
+    if predicate then
+        self:AddModifyPredicate(predicate)
+    end
+end
+
+function Initializer:GetParentInitializer()
+    return self.parentInitializer
 end
 
 function Initializer:AddModifyPredicate(predicate)
