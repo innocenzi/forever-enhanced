@@ -3335,14 +3335,12 @@ local SPELL_NAMES = {
         [8676] = "Ambush",
         [1752] = "Sinister Strike",
         [703] = "Garrote",
-        [2098] = "Eviscerate",
     },
     frFR = {
         [53] = "Attaque sournoise",
         [8676] = "Embuscade",
         [1752] = "Attaque pernicieuse",
         [703] = "Garrot",
-        [2098] = "Éviscération",
     },
 }
 world.spells = {
@@ -3351,7 +3349,6 @@ world.spells = {
     [8676] = { icon = 132282 },
     [1752] = { icon = 136189 },
     [703] = { icon = 132297 },
-    [2098] = { icon = 132292 },
 }
 
 local function BaseSpell(spellID)
@@ -3691,16 +3688,16 @@ C_Spell = {
     end,
 }
 
-ERR_SPELL_COOLDOWN = "Spell is not ready yet."
-SPELL_FAILED_NOT_READY = "Not yet recovered"
+local CAST_REFUSED = "%s: Not yet recovered"
+local CAST_ON_COOLDOWN = "Spell is not ready yet."
 
 function CastSpellByName(name)
     local spellID = assert(SpellByName(name), "unknown spell " .. tostring(name))
     local usable = C_Spell.IsSpellUsable(spellID)
     if not usable then
-        world:Fire("UI_ERROR_MESSAGE", 0, name .. ": " .. SPELL_FAILED_NOT_READY)
+        world:Fire("UI_ERROR_MESSAGE", 0, CAST_REFUSED:format(name))
     elseif world.now < world.gcdUntil then
-        world:Fire("UI_ERROR_MESSAGE", 0, ERR_SPELL_COOLDOWN)
+        world:Fire("UI_ERROR_MESSAGE", 0, CAST_ON_COOLDOWN)
     else
         table.insert(world.casts, name)
         world.gcdUntil = world.now + GLOBAL_COOLDOWN

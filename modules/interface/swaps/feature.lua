@@ -1,16 +1,18 @@
--- Ability Swaps: while a spell can be cast, its button shows it and casts it
--- on the button of the spell it replaces (e.g. Ambush on Backstab after
--- Ghostly Strike). Secure code, the only code allowed to change what a button
--- casts in combat, can't read auras, and a macro stops at its first failed
--- cast. So our secure button lies over Blizzard's and casts twice per press,
--- each its own hardware event: the replacement on key down (the game refuses
--- it when it can't be cast), the original on key up (refused on the global
--- cooldown when the replacement went off).
+-- Ability Swaps: while a spell can be cast, the buttons of the spell it
+-- replaces show it and cast it (e.g. Ambush on Backstab after Ghostly
+-- Strike). Secure code, the only code allowed to change what a button casts
+-- in combat, can't read auras, and a macro stops at its first failed cast. So
+-- our secure button lies over Blizzard's and casts twice per press, each its
+-- own hardware event: the replacement on key down (the game refuses it when it
+-- can't be cast), the original on key up (refused on the global cooldown when
+-- the replacement went off).
+--
+-- Adding a swap: an entry in SWAPS, and its label and tooltip in locales.lua.
 --
 -- Files of this slice:
 --   feature.lua   registration, the swaps, schema and lifecycle (this file)
 --   locales.lua   strings
---   buttons.lua   Blizzard's action buttons, their slots and the swaps they hold
+--   buttons.lua   Blizzard's action buttons: pages, slots, and standing in for them
 --   overlays.lua  our secure buttons over them, their keys and their pages
 --   display.lua   the replacement's icon and glow while it can be cast
 --   quiet.lua     mutes the error of the cast that is meant to fail

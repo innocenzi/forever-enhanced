@@ -1,5 +1,7 @@
--- Blizzard's action buttons, the slots they show and the swaps those hold.
--- We only read their fields (`action`, `bindingAction`), never write them.
+-- Blizzard's action buttons: their bars and pages, the swaps their slots hold,
+-- and what they do themselves for a key or click our overlay takes instead
+-- (pressed look, new spell highlight, drags). The only file that knows their
+-- fields and handlers; we never stamp fields onto them.
 
 local _, ns = ...
 
@@ -10,6 +12,8 @@ Swaps.Buttons = Buttons
 
 local NUM_BUTTONS = 12
 
+-- Bars and pages ---------------------------------------------------------------
+
 -- The main bar shows page 1 to 6, or the bonus bar of a stance (Stealth, Cat
 -- Form...) on page 1, as ActionBarController does; vehicles, possession and
 -- override bars replace it ("none": no swap).
@@ -17,7 +21,7 @@ local MAIN_PAGES = "[vehicleui][possessbar][overridebar][shapeshift] none; "
     .. "[actionbar:1,bonusbar:1] 7; [actionbar:1,bonusbar:2] 8; [actionbar:1,bonusbar:3] 9; "
     .. "[actionbar:1,bonusbar:4] 10; [actionbar:2] 2; [actionbar:3] 3; [actionbar:4] 4; "
     .. "[actionbar:5] 5; [actionbar:6] 6; 1"
-local MAIN_PAGE_IDS = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }
+local NUM_MAIN_PAGES = 10
 
 -- The other bars always show their own slot, hidden with the main bar's
 -- replacements.
@@ -59,11 +63,13 @@ function Buttons:GetSlots(entry)
         return { fixed = entry.button.action }
     end
     local slots = {}
-    for _, page in ipairs(MAIN_PAGE_IDS) do
+    for page = 1, NUM_MAIN_PAGES do
         slots[tostring(page)] = (page - 1) * NUM_BUTTONS + entry.index
     end
     return slots
 end
+
+-- What they hold -------------------------------------------------------------------
 
 -- The swap (from Swaps:GetSwaps()) of the spell in `slot`, or nil.
 function Buttons:GetSwapAt(slot)
@@ -83,10 +89,27 @@ function Buttons:GetShownSwap(button)
     return self:GetSwapAt(button.action)
 end
 
--- What Blizzard's key handlers (ActionButtonDown / ActionButtonUp) do for a
--- button whose key or click went to our overlay instead: show it pressed
--- while held, and clear the highlight of a spell newly put on a bar (`slot`)
--- once used.
+-- The keys bound to the button, through its binding or a click binding.
+function Buttons:GetKeys(button)
+    local keys = {}
+    for _, command in ipairs({ button.bindingAction or "", "CLICK " .. button:GetName() .. ":LeftButton" }) do
+        for _, key in ipairs({ GetBindingKey(command) }) do
+            table.insert(keys, key)
+        end
+    end
+    return keys
+end
+
+-- The button's icon texture, to lay the replacement's over.
+function Buttons:GetIcon(button)
+    return button.icon
+end
+
+-- Standing in for them ---------------------------------------------------------------
+
+-- What Blizzard's key handlers (ActionButtonDown / ActionButtonUp) do: show
+-- the button pressed while held, and clear the highlight of a spell newly put
+-- on a bar (`slot`) once used.
 function Buttons:MirrorClick(button, slot, down)
     if not down then
         self:ReleasePress(button)
@@ -111,13 +134,21 @@ function Buttons:ReleasePress(button)
     end
 end
 
--- The keys bound to the button, through its binding or a click binding.
-function Buttons:GetKeys(button)
-    local keys = {}
-    for _, command in ipairs({ button.bindingAction or "", "CLICK " .. button:GetName() .. ":LeftButton" }) do
-        for _, key in ipairs({ GetBindingKey(command) }) do
-            table.insert(keys, key)
-        end
+-- What Blizzard's button does when dragged, out of combat: picks up the spell
+-- in `slot` when the bars are unlocked or with the pick up modifier.
+function Buttons:MirrorDragStart(slot)
+    if InCombatLockdown() then
+        return
     end
-    return keys
+    if Settings.GetValue("lockActionBars") and not IsModifiedClick("PICKUPACTION") then
+        return
+    end
+    PickupAction(slot)
+end
+
+-- What Blizzard's button does when something is dropped on it, out of combat.
+function Buttons:MirrorReceiveDrag(slot)
+    if not InCombatLockdown() then
+        PlaceAction(slot)
+    end
 end

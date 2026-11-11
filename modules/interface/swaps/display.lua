@@ -1,6 +1,6 @@
--- While a replacement can be cast, the buttons showing its original show its
--- icon and a proc glow (our own frames over Blizzard's buttons). This follows
--- the same test as the cast itself, so it also works in combat.
+-- While a replacement can be cast (or only lacks power), the buttons showing
+-- its original show its icon and a proc glow: our own frames over Blizzard's
+-- buttons, following Swaps:CanCastReplacement, so it also works in combat.
 
 local _, ns = ...
 
@@ -19,7 +19,7 @@ local function GetVisual(button)
         return visual
     end
     visual = CreateFrame("Frame", nil, button)
-    visual:SetAllPoints(button.icon or button)
+    visual:SetAllPoints(Buttons:GetIcon(button))
     -- Under the button's cooldown swipe, over its icon.
     visual:SetFrameLevel(button:GetFrameLevel())
     visual.Icon = visual:CreateTexture(nil, "ARTWORK")

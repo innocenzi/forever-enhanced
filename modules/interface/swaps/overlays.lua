@@ -62,22 +62,19 @@ function Overlays:GetCurrentSwap(overlay)
     return current and current.swap
 end
 
--- Picking up and dropping spells, as Blizzard's button would (out of combat).
+-- Our overlay takes these from Blizzard's button under it: it does what that
+-- button would.
 local function OnDragStart(overlay)
     local current = GetCurrentPage(overlay)
-    if not current or InCombatLockdown() then
-        return
+    if current then
+        Buttons:MirrorDragStart(current.slot)
     end
-    if Settings.GetValue("lockActionBars") and not IsModifiedClick("PICKUPACTION") then
-        return
-    end
-    PickupAction(current.slot)
 end
 
 local function OnReceiveDrag(overlay)
     local current = GetCurrentPage(overlay)
-    if current and not InCombatLockdown() then
-        PlaceAction(current.slot)
+    if current then
+        Buttons:MirrorReceiveDrag(current.slot)
     end
 end
 
