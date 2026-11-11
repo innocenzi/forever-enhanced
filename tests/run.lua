@@ -22,6 +22,7 @@ local TEST_FILES = {
     "tests/combopoints_test.lua",
     "tests/glow_test.lua",
     "tests/swaps_test.lua",
+    "tests/ranks_test.lua",
     "tests/friends_test.lua",
 }
 

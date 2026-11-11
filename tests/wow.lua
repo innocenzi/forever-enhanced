@@ -1194,6 +1194,7 @@ end
 
 function ClearCursor()
     world.cursor = nil
+    world.cursorAction = nil
     world:Fire("CURSOR_CHANGED")
 end
 
@@ -3684,6 +3685,10 @@ C_Spell = {
         end
         return not world.unusableSpells[base], false
     end,
+    PickupSpell = function(spellID)
+        AssertAllowed("PickupSpell")
+        world.cursorAction = spellID
+    end,
 }
 
 ERR_SPELL_COOLDOWN = "Spell is not ready yet."
@@ -3806,6 +3811,11 @@ end
 function world:PlaceSpell(slot, spellID)
     self.actions[slot] = spellID
     self:Fire("ACTIONBAR_SLOT_CHANGED", slot)
+end
+
+-- A trainer teaching the spell (a new rank keeps its name).
+function world:LearnSpell(spellID)
+    self:Fire("LEARNED_SPELL_IN_SKILL_LINE", spellID, 1, false)
 end
 
 -- Like learning a new rank: the game marks the slot new, and its buttons show it.

@@ -92,6 +92,8 @@ modules\interface\swaps\buttons.lua
 modules\interface\swaps\quiet.lua
 modules\interface\swaps\overlays.lua
 modules\interface\swaps\display.lua
+modules\interface\ranks\feature.lua
+modules\interface\ranks\locales.lua
 
 # Map
 modules\map\module.lua
