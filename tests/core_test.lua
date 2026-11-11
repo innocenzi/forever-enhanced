@@ -143,9 +143,24 @@ test("a feature without settings is one checkbox at the top of its page", functi
     equal(ranks.setting.name, world.L["combat.ranks.title"], "named after the feature")
     equal(ranks.tooltip, world.L["combat.ranks.description"], "its description as tooltip")
     equal(combat.items[2].setting, world:Setting("combat.combopoints.enabled"), "second row")
+end)
 
-    equal(combat.items[3].header, world.L["combat.swaps.title"], "then the features with settings")
-    equal(combat.items[4].setting.name, world.L["core.enable"], "under their own header")
+test("a feature's action is a button beside its checkbox", function(world)
+    local row, category = world:SettingsButton(world.L["combat.swaps.title"])
+    equal(category.name, world.L["combat.title"], "on its module's page")
+    equal(row.template, "ForeverEnhancedSettingsCheckboxWithButtonControlTemplate", "our checkbox with button row")
+    expect(row.setting == world:Setting("combat.swaps.enabled"), "the feature's checkbox")
+    equal(row.tooltip, world.L["combat.swaps.description"], "its description as tooltip")
+    equal(row.data.buttonText, world.L["combat.swaps.edit"], "button text")
+    expect(row.data.clickRequiresSet, "the button is usable only while checked")
+
+    local swaps = world.ns:GetFeature("combat", "swaps")
+    local clicked
+    swaps.OnAction = function(_, key)
+        clicked = key
+    end
+    row.data.OnButtonClick()
+    equal(clicked, "edit", "calls OnAction with its key")
 end)
 
 test("settings of earlier versions are brought up to date", function(world)
@@ -157,7 +172,6 @@ test("settings of earlier versions are brought up to date", function(world)
 
     equal(modules.interface.features.swaps, nil, "moved features leave their old module")
     equal(modules.combat.features.swaps.enabled, true, "and keep their settings in the new one")
-    equal(modules.combat.features.swaps.ambush, false, "every setting")
     equal(modules.interface.features.windows.modifier, "alt", "features that stayed keep theirs")
 end, {
     savedVariables = function()
@@ -167,7 +181,7 @@ end, {
                 quests = { enabled = true, features = { helpers = { enabled = true } } },
                 interface = {
                     enabled = true,
-                    features = { swaps = { enabled = true, ambush = false }, windows = { modifier = "alt" } },
+                    features = { swaps = { enabled = true }, windows = { modifier = "alt" } },
                 },
             },
         }

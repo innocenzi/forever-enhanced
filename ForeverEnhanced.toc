@@ -83,6 +83,7 @@ modules\combat\swaps\buttons.lua
 modules\combat\swaps\quiet.lua
 modules\combat\swaps\overlays.lua
 modules\combat\swaps\display.lua
+modules\combat\swaps\editor.lua
 
 # Interface
 modules\interface\module.lua

@@ -23,7 +23,7 @@ A lightweight utility addon for Forever. It keeps the default UI familiar while 
 - Quick bank deposit and withdraw
 - Automatic junk selling and repairs at merchants, optionally with guild funds
 - Combo points on enemy nameplates
-- Ability swaps: Ambush shows on your Backstab button and Garrote on Sinister Strike whenever you can cast them, like after Ghostly Strike, so the same key casts them (the original spell then casts when you release the key)
+- Ability swaps: show a spell in place of another on your action bars while you can cast it, so the same key casts it (Rogues start with Ambush on Backstab and Garrote on Sinister Strike, for Ghostly Strike)
 - Spell ranks on your action bars upgrade when you learn a new one
 - Support for TomTom's `/way` coordinates from guides
 - Show your friends on the world map (supports OpenMap too)

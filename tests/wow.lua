@@ -227,6 +227,10 @@ for _, name in ipairs({
     "SetMaxLetters",
     "SetBlendMode",
     "SetIgnoreParentAlpha",
+    "SetWordWrap",
+    "SetFontObject",
+    "SetColorTexture",
+    "AddMaskTexture",
 }) do
     Region[name] = NoOp
 end
@@ -958,9 +962,23 @@ Settings = {
         end
         return setmetatable(initializer, Initializer)
     end,
+    CreateSettingInitializerData = function(setting, options, tooltip)
+        return { setting = setting, name = setting.name, options = options or {}, tooltip = tooltip }
+    end,
+    CreateSettingInitializer = function(template, data)
+        assert(template, "missing template")
+        return setmetatable(
+            { template = template, setting = data.setting, tooltip = data.tooltip, data = data },
+            Initializer
+        )
+    end,
+    -- A row without a setting (headers, buttons): `data` is what its template reads.
     CreateElementInitializer = function(template, data)
         assert(template, "missing template")
-        return { template = template, header = data.name, tooltip = data.tooltip }
+        return setmetatable(
+            { template = template, header = data.name, tooltip = data.tooltip, data = data },
+            Initializer
+        )
     end,
     RegisterInitializer = function(category, initializer)
         table.insert(category.items, initializer)
@@ -985,6 +1003,8 @@ end
 -- Items, bags and cursor ------------------------------------------------------------
 
 Enum = {
+    SpellBookSpellBank = { Player = 0, Pet = 1 },
+    SpellBookItemType = { None = 0, Spell = 1, FutureSpell = 2, PetAction = 3, Flyout = 4 },
     BagIndex = {
         Characterbanktab = -2,
         Backpack = 0,
@@ -2477,6 +2497,20 @@ function world:Setting(path)
     return assert(self.settings["ForeverEnhanced." .. path], "no setting " .. path)
 end
 
+-- The settings panel's button row labeled `label`: its initializer (`data.buttonClick`,
+-- `predicate`) and the category it's on.
+-- The checkbox labeled `label` that has a button beside it.
+function world:SettingsButton(label)
+    for _, category in ipairs(self.categories) do
+        for _, item in ipairs(category.items) do
+            if item.data and item.data.OnButtonClick and item.data.name == label then
+                return item, category
+            end
+        end
+    end
+    error("no settings button " .. tostring(label))
+end
+
 function world:SetAlt(down)
     self.alt = down
     self:Fire("MODIFIER_STATE_CHANGED", "LALT", down and 1 or 0)
@@ -3022,6 +3056,7 @@ local function NewMenuDescription()
     function description:SetEnabled(enabled)
         self.enabled = enabled
     end
+    description.SetScrollMode = NoOp
     return description
 end
 
@@ -3038,6 +3073,11 @@ function world:SavedBankMenu()
         return frame.template == "WowStyle1DropdownTemplate"
     end)
     return RunMenuGenerator(dropdown, dropdown.menuGenerator)
+end
+
+-- The entries of the last context menu opened.
+function world:ContextMenu()
+    return RunMenuGenerator(self.contextMenu.owner, self.contextMenu.generator)
 end
 
 -- Bank transfers: the Deposit or Withdraw button on the bank frame.
@@ -3344,6 +3384,7 @@ world.gcdUntil = -math.huge
 world.lockActionBars = true
 world.unusableSpells = { [8676] = true, [703] = true }
 world.noPowerSpells = {}
+world.cooldowns = {} -- spell (base) -> when its own cooldown ends
 
 local SPELL_NAMES = {
     enUS = {
@@ -3351,12 +3392,16 @@ local SPELL_NAMES = {
         [8676] = "Ambush",
         [1752] = "Sinister Strike",
         [703] = "Garrote",
+        [1766] = "Kick",
+        [674] = "Dual Wield",
     },
     frFR = {
         [53] = "Attaque sournoise",
         [8676] = "Embuscade",
         [1752] = "Attaque pernicieuse",
         [703] = "Garrot",
+        [1766] = "Coup de pied",
+        [674] = "Ambidextrie",
     },
 }
 world.spells = {
@@ -3365,6 +3410,20 @@ world.spells = {
     [8676] = { icon = 132282 },
     [1752] = { icon = 136189 },
     [703] = { icon = 132297 },
+    [1766] = { icon = 132219 },
+    [674] = { icon = 132147 },
+}
+
+-- The spellbook's tabs (skill lines), in order: { name, icon, hidden, spells }
+-- with spells { spellID, passive }.
+world.spellBook = {
+    { name = "General", icon = 136243, spells = { { spellID = 674, passive = true }, { spellID = 1766 } } },
+    {
+        name = "Combat",
+        icon = 132090,
+        spells = { { spellID = 53 }, { spellID = 8676 }, { spellID = 1752 }, { spellID = 703 } },
+    },
+    { name = "Hidden", icon = 134400, hidden = true, spells = { { spellID = 1752 } } },
 }
 
 local function BaseSpell(spellID)
@@ -3702,21 +3761,91 @@ C_Spell = {
         AssertAllowed("PickupSpell")
         world.cursorAction = spellID
     end,
+    -- Like the client, every spell shows the global cooldown (isOnGCD) after a
+    -- cast, unless it's on a longer cooldown of its own.
+    GetSpellCooldown = function(spellID)
+        local base = BaseSpell(spellID)
+        if not base then
+            return nil
+        end
+        local own = world.cooldowns[base]
+        if own and world.now < own then
+            return { isActive = true, isOnGCD = false }
+        end
+        return { isActive = world.now < world.gcdUntil, isOnGCD = world.now < world.gcdUntil }
+    end,
+}
+
+-- The spellbook's items are numbered across its tabs, in order.
+local function SpellBookItem(slot)
+    for _, line in ipairs(world.spellBook) do
+        if slot <= #line.spells then
+            return line.spells[slot]
+        end
+        slot = slot - #line.spells
+    end
+end
+
+C_SpellBook = {
+    GetNumSpellBookSkillLines = function()
+        return #world.spellBook
+    end,
+    GetSpellBookSkillLineInfo = function(index)
+        local line = world.spellBook[index]
+        if not line then
+            return nil
+        end
+        local offset = 0
+        for previous = 1, index - 1 do
+            offset = offset + #world.spellBook[previous].spells
+        end
+        return {
+            name = line.name,
+            iconID = line.icon,
+            itemIndexOffset = offset,
+            numSpellBookItems = #line.spells,
+            isGuild = false,
+            shouldHide = line.hidden == true,
+        }
+    end,
+    GetSpellBookItemInfo = function(slot, bank)
+        assert(bank == Enum.SpellBookSpellBank.Player, "unmodelled spell bank")
+        local spell = SpellBookItem(slot)
+        if not spell then
+            return nil
+        end
+        return {
+            actionID = spell.spellID,
+            spellID = spell.spellID,
+            itemType = Enum.SpellBookItemType.Spell,
+            name = C_Spell.GetSpellName(spell.spellID),
+            iconID = C_Spell.GetSpellTexture(spell.spellID),
+            isPassive = spell.passive == true,
+            isOffSpec = false,
+        }
+    end,
 }
 
 local CAST_REFUSED = "%s: Not yet recovered"
 local CAST_ON_COOLDOWN = "Spell is not ready yet."
+
+local function OnOwnCooldown(spellID)
+    local own = world.cooldowns[BaseSpell(spellID)]
+    return own ~= nil and world.now < own
+end
 
 function CastSpellByName(name)
     local spellID = assert(SpellByName(name), "unknown spell " .. tostring(name))
     local usable = C_Spell.IsSpellUsable(spellID)
     if not usable then
         world:Fire("UI_ERROR_MESSAGE", 0, CAST_REFUSED:format(name))
-    elseif world.now < world.gcdUntil then
+    elseif world.now < world.gcdUntil or OnOwnCooldown(spellID) then
         world:Fire("UI_ERROR_MESSAGE", 0, CAST_ON_COOLDOWN)
     else
         table.insert(world.casts, name)
         world.gcdUntil = world.now + GLOBAL_COOLDOWN
+        -- The global cooldown starts.
+        world:Fire("SPELL_UPDATE_COOLDOWN")
     end
 end
 
@@ -3974,5 +4103,54 @@ function world:Overlay(button)
         end
     end
 end
+
+-- Spell cooldowns, the cursor and the settings panel -----------------------------------
+
+-- Puts the spell on its own cooldown for `seconds`. Like the client,
+-- SPELL_UPDATE_COOLDOWN fires when it starts and when it ends.
+function world:SetCooldown(spellID, seconds)
+    self.cooldowns[BaseSpell(spellID)] = self.now + seconds
+    self:Fire("SPELL_UPDATE_COOLDOWN")
+    C_Timer.NewTimer(seconds, function()
+        world:Fire("SPELL_UPDATE_COOLDOWN")
+    end)
+end
+
+-- Like the client's: a spell on the cursor reports its ID fourth.
+function GetCursorInfo()
+    if world.cursorAction then
+        return "spell", 1, "spell", world.cursorAction
+    elseif world.cursor then
+        return "item", world.cursor
+    end
+end
+
+-- Picks a spell up, as from the spellbook.
+function world:PickupSpell(spellID)
+    C_Spell.PickupSpell(spellID)
+end
+
+SettingsPanel = CreateFrame("Frame", "SettingsPanel")
+
+function GameTooltip:SetSpellByID(spellID)
+    world.tooltip = spellID
+end
+
+templates.UIMenuButtonStretchTemplate = NoOp
+-- TooltipBackdropTemplateMixin
+templates.TooltipBackdropTemplate = function(frame)
+    frame.SetBackdropColor = NoOp
+    frame.SetBackdropBorderColor = NoOp
+end
+
+function Region:CreateMaskTexture()
+    return NewRegion({ owner = self })
+end
+
+-- Wraps nothing: one line.
+function Region:GetStringHeight()
+    return 12
+end
+Region.SetFrameStrata = NoOp
 
 return world

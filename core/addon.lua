@@ -27,6 +27,8 @@ local FeatureMixin = {
     OnEnable = NoOp,
     OnDisable = NoOp,
     OnSettingChanged = NoOp,
+    -- OnAction(key): the button of the feature's `action` was clicked in the settings panel.
+    OnAction = NoOp,
 }
 
 function FeatureMixin:IsActive()
@@ -94,6 +96,7 @@ end
 
 -- `definition` becomes the feature object:
 -- { order, enabledByDefault (true when omitted), settings = { schema entries },
+--   action = key (a button beside the feature's checkbox, see OnAction),
 --   presets = { [presetId] = { enabled = boolean, [settingKey] = value } } }.
 function ns:RegisterFeature(moduleId, id, definition)
     local module = assert(modules[moduleId], "unknown module: " .. moduleId)

@@ -10,6 +10,7 @@
     <Frame name="ForeverEnhancedSettingsCheckboxControlTemplate" inherits="SettingsCheckboxControlTemplate" virtual="true"/>
     <Frame name="ForeverEnhancedSettingsDropdownControlTemplate" inherits="SettingsDropdownControlTemplate" virtual="true"/>
     <Frame name="ForeverEnhancedSettingsSliderControlTemplate" inherits="SettingsSliderControlTemplate" virtual="true"/>
+    <Frame name="ForeverEnhancedSettingsCheckboxWithButtonControlTemplate" inherits="SettingsCheckboxWithButtonControlTemplate" virtual="true"/>
 
     <!-- Text setting row (the `text` schema type): see TextControlMixin in settings.lua. -->
     <Frame name="ForeverEnhancedSettingsTextControlTemplate" inherits="SettingsListElementTemplate" virtual="true">

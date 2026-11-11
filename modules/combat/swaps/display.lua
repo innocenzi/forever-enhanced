@@ -87,6 +87,8 @@ end
 
 local listener = ns:CreateEventListener({
     SPELL_UPDATE_USABLE = ScheduleUpdate,
+    -- A replacement on its own cooldown is hidden (Swaps:CanCastReplacement).
+    SPELL_UPDATE_COOLDOWN = ScheduleUpdate,
     ACTION_USABLE_CHANGED = ScheduleUpdate,
     UNIT_AURA = function(_, unit)
         if unit == "player" then

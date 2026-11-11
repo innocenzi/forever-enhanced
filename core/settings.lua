@@ -3,8 +3,9 @@
 -- Root page: language and preset picker (core/presets.lua).
 -- Module page: first the features without settings, each a single checkbox
 -- named after the feature; then per feature with settings, a section header,
--- an "Enable" toggle, and the feature's schema entries as children of that
--- toggle.
+-- an "Enable" checkbox, and the feature's schema entries as its children. A
+-- feature's action is a button beside its checkbox, usable while checked,
+-- that calls feature:OnAction(key).
 --
 -- Labels come from locale keys by convention:
 --   <module>.title, <module>.description
@@ -13,6 +14,7 @@
 --   <module>.<feature>.<key>.<option> for each dropdown option
 --   <module>.<feature>.<key>.format for a slider's value label (optional)
 --   <module>.<feature>.<key>.default for an entry without a `default`
+--   <module>.<feature>.<key> is also an action's button text
 --
 -- An entry with `requires = { key = value }` sits under that earlier entry and
 -- is greyed out unless it has that value (and that entry is editable).
@@ -33,6 +35,7 @@ local TEMPLATES = {
     dropdown = "ForeverEnhancedSettingsDropdownControlTemplate",
     slider = "ForeverEnhancedSettingsSliderControlTemplate",
     text = "ForeverEnhancedSettingsTextControlTemplate",
+    checkboxWithButton = "ForeverEnhancedSettingsCheckboxWithButtonControlTemplate",
 }
 local TEXT_MAX_LETTERS = 200
 
@@ -267,12 +270,13 @@ local function AddSchemaEntry(category, feature, entry, parentInitializer)
     return initializer
 end
 
--- The feature's on/off checkbox, labeled `label`, with its description as tooltip.
+-- The feature's on/off checkbox, labeled `label`, with its description as
+-- tooltip, and the button of its action beside it if it has one (usable
+-- while checked).
 local function AddFeatureToggle(category, feature, label)
-    local key = feature:GetLocaleKey()
     local setting = RegisterSetting(
         category,
-        key .. ".enabled",
+        feature:GetLocaleKey("enabled"),
         "enabled",
         feature.db,
         Settings.VarType.Boolean,
@@ -282,7 +286,20 @@ local function AddFeatureToggle(category, feature, label)
     setting:SetValueChangedCallback(function()
         ns:RefreshFeature(feature)
     end)
-    return AddCheckbox(category, setting, L[key .. ".description"])
+
+    local tooltip = L[feature:GetLocaleKey("description")]
+    if not feature.action then
+        return AddCheckbox(category, setting, tooltip)
+    end
+    local data = Settings.CreateSettingInitializerData(setting, nil, tooltip)
+    data.buttonText = L[feature:GetLocaleKey(feature.action)]
+    data.OnButtonClick = function()
+        feature:OnAction(feature.action)
+    end
+    data.clickRequiresSet = true
+    local initializer = Settings.CreateSettingInitializer(TEMPLATES.checkboxWithButton, data)
+    Settings.RegisterInitializer(category, initializer)
+    return initializer
 end
 
 local function AddFeature(category, feature)

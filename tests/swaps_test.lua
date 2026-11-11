@@ -225,15 +225,217 @@ test("lets the player drag the spell away", function(world)
     expect(not overlay:IsShown(), "overlay hidden")
 end)
 
-test("turning a swap off gives its buttons back", function(world)
+-- The editor ------------------------------------------------------------------------
+
+local KICK, KICK_ICON = 1766, 132219
+
+-- Opens the swaps editor with its button in the settings panel.
+local function OpenEditor(world)
+    world:SettingsButton(world.L["combat.swaps.title"]).data.OnButtonClick()
+    return ForeverEnhancedSwapsEditor
+end
+
+-- Drags the spell from the spellbook onto `side` ("original" or "replacement")
+-- of the editor's row `index`.
+local function Drop(world, editor, index, side, spellID)
+    world:PickupSpell(spellID)
+    editor.Rows[index][side]:RunScript("OnReceiveDrag")
+end
+
+-- The editor's rows, "Original > Replacement" each ("?" for an empty slot).
+local function Rows(editor)
+    local shown = {}
+    for _, row in ipairs(editor.Rows) do
+        if row:IsShown() then
+            local original, replacement = row.original.spellID, row.replacement.spellID
+            table.insert(
+                shown,
+                (original and Name(original) or "?") .. " > " .. (replacement and Name(replacement) or "?")
+            )
+        end
+    end
+    return table.concat(shown, "; ")
+end
+
+-- A menu entry's text without its icon.
+local function MenuText(entry)
+    return (entry.text:gsub("^|T.-|t ", ""))
+end
+
+-- Clicks `side` of the editor's row `index` with nothing on the cursor: the
+-- spell menu it opens, "Tab: Spell, Spell; Tab: ...".
+local function SpellMenu(world, editor, index, side)
+    editor.Rows[index][side]:RunScript("OnClick", "LeftButton")
+    local tabs = {}
+    for _, tab in ipairs(world:ContextMenu()) do
+        local spells = {}
+        for _, spell in ipairs(tab.children) do
+            table.insert(spells, MenuText(spell))
+        end
+        table.insert(tabs, MenuText(tab) .. ": " .. table.concat(spells, ", "))
+    end
+    return table.concat(tabs, "; ")
+end
+
+-- Picks the spell from the spell menu of `side` of the editor's row `index`.
+local function Pick(world, editor, index, side, spellID)
+    editor.Rows[index][side]:RunScript("OnClick", "LeftButton")
+    for _, tab in ipairs(world:ContextMenu()) do
+        for _, spell in ipairs(tab.children) do
+            if MenuText(spell) == Name(spellID) then
+                return spell.callback()
+            end
+        end
+    end
+    error("not in the spell menu: " .. Name(spellID))
+end
+
+local function SavedSwaps(world)
+    local store = world.env.ForeverEnhancedCharacterDB.combat
+    return store and store.swaps and store.swaps.swaps
+end
+
+-- A Mage with Sinister Strike on the main bar's first button (key 1).
+local function Mage(world)
+    world.player.class = "MAGE"
+    world:PlaceSpell(1, SINISTER_STRIKE)
+    world:Bind("1", "ACTIONBUTTON1")
+    Enable(world)
+end
+
+test("starts a Rogue with the Ghostly Strike swaps, saved only once edited", function(world)
+    Rogue(world)
+    Enable(world)
+    local editor = OpenEditor(world)
+    expect(editor:IsShown(), "editor opened")
+    equal(
+        Rows(editor),
+        ("%s > %s; %s > %s; ? > ?"):format(Name(BACKSTAB), Name(AMBUSH), Name(SINISTER_STRIKE), Name(GARROTE)),
+        "rows, then one to add a swap"
+    )
+    equal(SavedSwaps(world), nil, "defaults not saved")
+
+    OpenEditor(world)
+    expect(not editor:IsShown(), "the button closes it again")
+end)
+
+test("removing a swap gives its buttons back", function(world)
     Rogue(world)
     Enable(world)
     world:SetSpellUsable(AMBUSH, true)
-    world:Setting("combat.swaps.ambush"):SetValue(false)
+    local editor = OpenEditor(world)
+    editor.Rows[1].Remove:RunScript("OnClick")
     world:NextFrame()
+
+    equal(Rows(editor), ("%s > %s; ? > ?"):format(Name(SINISTER_STRIKE), Name(GARROTE)), "rows")
+    equal(#SavedSwaps(world), 1, "saved")
     equal(world:SwapShown(ActionButton1), nil, "replacement shown")
     Press(world, "1")
     equal(Casts(world), Name(BACKSTAB), "casts")
+end)
+
+test("adds a swap dragged onto the editor, for any class", function(world)
+    Mage(world)
+    local editor = OpenEditor(world)
+    equal(Rows(editor), "? > ?", "no swaps")
+
+    Drop(world, editor, 1, "original", SINISTER_STRIKE)
+    equal(world.cursorAction, nil, "cursor emptied")
+    equal(SavedSwaps(world), nil, "not saved with one spell")
+    Drop(world, editor, 1, "replacement", KICK)
+    equal(Rows(editor), ("%s > %s; ? > ?"):format(Name(SINISTER_STRIKE), Name(KICK)), "rows")
+    equal(SavedSwaps(world)[1].replacement, KICK, "saved once both are in")
+
+    world:NextFrame()
+    equal(world:SwapShown(ActionButton1), KICK_ICON, "shown on the bar")
+    Press(world, "1")
+    equal(Casts(world), Name(KICK), "casts")
+
+    Drop(world, editor, 1, "replacement", AMBUSH)
+    equal(SavedSwaps(world)[1].replacement, AMBUSH, "a saved swap changes at once")
+end)
+
+test("picks spells from the spellbook's tabs", function(world)
+    Mage(world)
+    local editor = OpenEditor(world)
+    equal(
+        SpellMenu(world, editor, 1, "original"),
+        ("General: %s; Combat: %s, %s, %s, %s"):format(
+            Name(KICK),
+            Name(BACKSTAB),
+            Name(AMBUSH),
+            Name(SINISTER_STRIKE),
+            Name(GARROTE)
+        ),
+        "the shown tabs and their spells, without passives"
+    )
+
+    Pick(world, editor, 1, "original", SINISTER_STRIKE)
+    Pick(world, editor, 1, "replacement", KICK)
+    equal(Rows(editor), ("%s > %s; ? > ?"):format(Name(SINISTER_STRIKE), Name(KICK)), "rows")
+    equal(SavedSwaps(world)[1].replacement, KICK, "saved")
+
+    Pick(world, editor, 2, "original", SINISTER_STRIKE)
+    equal(world.errors[#world.errors], world.L["combat.swaps.editor.alreadySwapped"], "checked like a drop")
+end)
+
+test("refuses what can't be swapped", function(world)
+    Rogue(world)
+    Enable(world)
+    local editor = OpenEditor(world)
+
+    Drop(world, editor, 3, "original", BACKSTAB_RANK_2)
+    equal(world.errors[#world.errors], world.L["combat.swaps.editor.alreadySwapped"], "any rank of a replaced spell")
+    Drop(world, editor, 3, "original", KICK)
+    Drop(world, editor, 3, "replacement", KICK)
+    equal(world.errors[#world.errors], world.L["combat.swaps.editor.sameSpell"], "a spell for itself")
+    world.cursor = "G1"
+    editor.Rows[3].replacement:RunScript("OnReceiveDrag")
+    equal(world.errors[#world.errors], world.L["combat.swaps.editor.notSpell"], "an item")
+    equal(world.cursor, nil, "cursor emptied")
+
+    equal(#world.errors, 3, "errors")
+    equal(SavedSwaps(world), nil, "nothing saved")
+    equal(Rows(editor):match("[^;]+$"), (" %s > ?"):format(Name(KICK)), "the swap being added keeps its spell")
+end)
+
+test("uses the character's saved swaps", function(world)
+    world.env.ForeverEnhancedCharacterDB.combat =
+        { swaps = { swaps = { { original = BACKSTAB, replacement = KICK } } } }
+    Rogue(world)
+    Enable(world)
+    world:NextFrame()
+    equal(world:SwapShown(ActionButton1), KICK_ICON, "saved swap")
+    equal(Rows(OpenEditor(world)), ("%s > %s; ? > ?"):format(Name(BACKSTAB), Name(KICK)), "instead of the defaults")
+end)
+
+test("hides a replacement on its own cooldown, and casts the original meanwhile", function(world)
+    Mage(world)
+    local editor = OpenEditor(world)
+    Drop(world, editor, 1, "original", SINISTER_STRIKE)
+    Drop(world, editor, 1, "replacement", KICK)
+    world:NextFrame()
+
+    world:SetCooldown(KICK, 10)
+    world:NextFrame()
+    equal(world:SwapShown(ActionButton1), nil, "hidden on cooldown")
+    world:PressKey("1")
+    equal(Casts(world), Name(SINISTER_STRIKE), "the original")
+    equal(#world.uiErrors, 0, "Kick's refusal muted")
+
+    world:Elapse(10)
+    equal(world:SwapShown(ActionButton1), KICK_ICON, "back once ready")
+    world:PressKey("1")
+    world:NextFrame()
+    equal(world:SwapShown(ActionButton1), KICK_ICON, "kept through the global cooldown")
+end)
+
+test("the editor closes with the settings panel", function(world)
+    Rogue(world)
+    Enable(world)
+    local editor = OpenEditor(world)
+    SettingsPanel:Hide()
+    expect(not editor:IsVisible(), "hidden with the panel")
 end)
 
 test("turning it off restores the buttons", function(world)
