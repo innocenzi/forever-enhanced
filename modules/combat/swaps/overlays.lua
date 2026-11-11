@@ -49,11 +49,12 @@ local count = 0
 local pending = false
 local scheduled = false
 
--- The swap and slot of the overlay's current page, or nil.
+-- The swap and slot of the overlay's current page, or nil. The state driver
+-- turns numeric pages into numbers; our pages are named by strings.
 local function GetCurrentPage(overlay)
     local config = configs[overlay]
     local page = overlay:GetAttribute("state-page")
-    return config and page and config.pages[page]
+    return config and page and config.pages[tostring(page)]
 end
 
 -- The swap the overlay casts on its current page, or nil.

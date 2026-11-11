@@ -42,6 +42,7 @@ local world = {
     fontStrings = {},
     timers = {},
     nextFrameCallbacks = {},
+    pendingErrors = {},
     settings = {},
     categories = {},
     eventRegistry = {},
@@ -3653,9 +3654,15 @@ function SecureCmdOptionParse(text)
     return nil
 end
 
--- State drivers: like the client, registering one sets its state at once.
+-- State drivers: like the client, registering one sets its state at once,
+-- and numeric states arrive as numbers ("nil" as nil).
 local function SetDriverState(frame, state, driver)
     local value = SecureCmdOptionParse(driver)
+    if value == "nil" then
+        value = nil
+    else
+        value = tonumber(value) or value
+    end
     if frame:GetAttribute("state-" .. state) ~= value then
         world.restricted = world.restricted + 1
         frame:SetAttribute("state-" .. state, value)
@@ -3834,13 +3841,27 @@ local function OnOwnCooldown(spellID)
     return own ~= nil and world.now < own
 end
 
+-- Measured in game: the error of a refused cast (UI_ERROR_MESSAGE) arrives
+-- after the click or key press that cast it, later in the same frame.
+local function ReportError(message)
+    table.insert(world.pendingErrors, message)
+end
+
+local function DeliverErrors()
+    local errors = world.pendingErrors
+    world.pendingErrors = {}
+    for _, message in ipairs(errors) do
+        world:Fire("UI_ERROR_MESSAGE", 0, message)
+    end
+end
+
 function CastSpellByName(name)
     local spellID = assert(SpellByName(name), "unknown spell " .. tostring(name))
     local usable = C_Spell.IsSpellUsable(spellID)
     if not usable then
-        world:Fire("UI_ERROR_MESSAGE", 0, CAST_REFUSED:format(name))
+        ReportError(CAST_REFUSED:format(name))
     elseif world.now < world.gcdUntil or OnOwnCooldown(spellID) then
-        world:Fire("UI_ERROR_MESSAGE", 0, CAST_ON_COOLDOWN)
+        ReportError(CAST_ON_COOLDOWN)
     else
         table.insert(world.casts, name)
         world.gcdUntil = world.now + GLOBAL_COOLDOWN
@@ -4002,11 +4023,13 @@ function world:SetShortOfPower(spellID, short)
     self:Fire("UNIT_POWER_FREQUENT", "player", "ENERGY")
 end
 
--- One click of a frame (the mouse, or a click binding), with its pre and post clicks.
+-- One click of a frame (the mouse, or a click binding), with its pre and post
+-- clicks, then the errors of the casts it made.
 local function ClickFrame(frame, button, down)
     frame:RunScript("PreClick", button, down)
     frame:RunScript("OnClick", button, down)
     frame:RunScript("PostClick", button, down)
+    DeliverErrors()
 end
 
 -- What the key runs now: "CLICK <frame>" for an override click binding, the
@@ -4024,7 +4047,7 @@ end
 -- the new one.
 world.heldKeys = {}
 
-local function SendKey(key, down)
+local function RunKey(key, down)
     local target = KeyTarget(key)
     if down then
         world.heldKeys[key] = target
@@ -4056,6 +4079,12 @@ local function SendKey(key, down)
     end
 end
 
+-- The key, then the errors of the casts it made.
+local function SendKey(key, down)
+    RunKey(key, down)
+    DeliverErrors()
+end
+
 function world:KeyDown(key)
     SendKey(key, true)
 end
@@ -4064,8 +4093,10 @@ function world:KeyUp(key)
     SendKey(key, false)
 end
 
+-- A key press spans frames: the release comes a frame after the press.
 function world:PressKey(key)
     SendKey(key, true)
+    self:NextFrame()
     SendKey(key, false)
 end
 
@@ -4079,10 +4110,13 @@ function world:ClickButton(button)
     end
     if target == button then
         UseActionButton(button)
-    else
-        ClickFrame(target, "LeftButton", true)
-        ClickFrame(target, "LeftButton", false)
+        DeliverErrors()
+        return
     end
+    -- Like a key press, the release comes a frame after the press.
+    ClickFrame(target, "LeftButton", true)
+    self:NextFrame()
+    ClickFrame(target, "LeftButton", false)
 end
 
 -- The replacement shown on the button: its icon, whether its glow played and

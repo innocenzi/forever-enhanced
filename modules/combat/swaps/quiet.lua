@@ -2,8 +2,9 @@
 -- fail: the replacement on key down when it can't be cast, or else the
 -- original on key up, still on the global cooldown. This hides the error (red
 -- text and voice) of that one click, and only that one: the other cast's
--- errors (out of range, not enough energy) still show. The client reports a
--- refused cast at once, inside the click.
+-- errors (out of range, not enough energy) still show. The client reports
+-- the error after the click, later in the same frame: it stays muted until
+-- the next frame, long before the key's other click.
 
 local _, ns = ...
 
@@ -47,7 +48,13 @@ local function PreClick(overlay, _, down)
     end
 end
 
+local function PostClick()
+    if muted then
+        C_Timer.After(0, Unmute)
+    end
+end
+
 function Quiet:Attach(overlay)
     overlay:HookScript("PreClick", PreClick)
-    overlay:HookScript("PostClick", Unmute)
+    overlay:HookScript("PostClick", PostClick)
 end
