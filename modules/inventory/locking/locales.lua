@@ -2,7 +2,7 @@ local _, ns = ...
 
 ns:RegisterLocale("enUS", {
     ["inventory.locking.title"] = "Item locking",
-    ["inventory.locking.description"] = "Alt Left Click an item in your bags or bank to lock it. Locked items can't be moved, sold, destroyed, mailed, traded or auctioned, but can still be used or equipped. Alt Right Click to add a note.",
+    ["inventory.locking.description"] = "Locks an item in your bags or bank with Alt Left Click: it can't be moved, sold, destroyed, mailed, traded or auctioned, but can still be used or equipped. Alt Right Click adds a note.",
     ["inventory.locking.indicator"] = "Lock indicator",
     ["inventory.locking.indicator.tooltip"] = "Controls how locked items are marked.",
     ["inventory.locking.indicator.padlock"] = "Small padlock",
@@ -31,7 +31,7 @@ ns:RegisterLocale("enUS", {
 
 ns:RegisterLocale("frFR", {
     ["inventory.locking.title"] = "Verrouillage d’objets",
-    ["inventory.locking.description"] = "Alt-clic gauche sur un objet de vos sacs ou de votre banque pour le verrouiller. Un objet verrouillé ne peut pas être déplacé, vendu, détruit, envoyé, échangé ni mis aux enchères, mais peut toujours être utilisé ou équipé. Alt-clic droit pour ajouter une note.",
+    ["inventory.locking.description"] = "Verrouille un objet de vos sacs ou de votre banque d’un Alt-clic gauche : il ne peut plus être déplacé, vendu, détruit, envoyé, échangé ni mis aux enchères, mais peut toujours être utilisé ou équipé. Un Alt-clic droit ajoute une note.",
     ["inventory.locking.indicator"] = "Indicateur de verrouillage",
     ["inventory.locking.indicator.tooltip"] = "Contrôle comment les objets verrouillés sont signalés.",
     ["inventory.locking.indicator.padlock"] = "Petit cadenas",

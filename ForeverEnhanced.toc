@@ -3,7 +3,7 @@
 ## Notes: Lightweight improvements for a better experience while keeping the default UI familiar.
 ## Notes-frFR: Améliorations légères de l’interface pour une meilleure expérience de jeu, tout en gardant l’interface par défaut.
 ## Author: Hylmew
-## Version: 0.2.0
+## Version: 0.3.0
 ## Category: User Interface
 ## Category-frFR: Interface utilisateur
 ## IconTexture: Interface\AddOns\ForeverEnhanced\media\icon

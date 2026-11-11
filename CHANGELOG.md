@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.3.0 - 2026-11-11
+
+
+### Features
+- **quests:** optionally track dungeon quests only inside their dungeon
+- **interface:** optionally cast a spell from the button of the spell it replaces while it can be cast
+- **interface:** replace spells on action bars with their new rank when learned
+- **quests:** optionally sort tracked quests by distance
+- **core:** reorganize the options into clearer pages
+- **combat:** let players choose their own ability swaps
+- **professions:** list the recipes that use a reagent while Shift is held
+
+
+### Fixes
+- **map:** name and color friends on the map who were never met nearby
+- **core:** keep the settings search from blocking the push-to-talk keybinding
+- **interface:** stop action buttons staying pressed after Ambush breaks Stealth
+- **combat:** hide the errors of ability swaps' failed casts and let their spells be dragged
+
 ## 0.2.0 - 2026-11-10
 
 
