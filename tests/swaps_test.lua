@@ -137,12 +137,26 @@ test("releases Blizzard's button when Stealth ends during a press", function(wor
     world:EnterCombat()
 
     -- Ambush from Stealth: the press goes to Blizzard's button, Stealth ends
-    -- with the key held, and the release comes to our button.
+    -- with the key held, our overlay takes the key, and the release is lost.
     world:KeyDown("1")
     equal(ActionButton1:GetButtonState(), "PUSHED", "held")
     world:SetBonusBar(0)
     world:KeyUp("1")
     equal(Casts(world), Name(AMBUSH), "casts")
+    equal(ActionButton1:GetButtonState(), "NORMAL", "released")
+end)
+
+test("releases Blizzard's button when Stealth starts during a press", function(world)
+    Rogue(world)
+    Enable(world)
+    world:EnterCombat()
+
+    -- The press goes to our overlay, Stealth starts with the key held, our
+    -- overlay gives the key back, and the release is lost.
+    world:KeyDown("1")
+    equal(ActionButton1:GetButtonState(), "PUSHED", "held")
+    world:SetBonusBar(STEALTH_BAR)
+    world:KeyUp("1")
     equal(ActionButton1:GetButtonState(), "NORMAL", "released")
 end)
 

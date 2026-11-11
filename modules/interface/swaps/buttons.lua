@@ -86,14 +86,10 @@ end
 -- What Blizzard's key handlers (ActionButtonDown / ActionButtonUp) do for a
 -- button whose key or click went to our overlay instead: show it pressed
 -- while held, and clear the highlight of a spell newly put on a bar (`slot`)
--- once used. The release can follow a press Blizzard's button took: Ambush
--- from Stealth leaves the Stealth bar while the key is held, and the key
--- comes back to us before it's released.
+-- once used.
 function Buttons:MirrorClick(button, slot, down)
     if not down then
-        if button:GetButtonState() == "PUSHED" then
-            button:SetButtonState("NORMAL")
-        end
+        self:ReleasePress(button)
         return
     end
     if button:GetButtonState() == "NORMAL" then
@@ -102,6 +98,16 @@ function Buttons:MirrorClick(button, slot, down)
     if slot and GetNewActionHighlightMark(slot) then
         ClearNewActionHighlight(slot)
         button:UpdateHighlightMark()
+    end
+end
+
+-- Shows the button released. Also for a key changing hands while held (Ambush
+-- breaks Stealth, and the main bar's key goes from Blizzard's button to our
+-- overlay): the game drops that key's release, so whichever side took the
+-- press would show it pressed for good.
+function Buttons:ReleasePress(button)
+    if button:GetButtonState() == "PUSHED" then
+        button:SetButtonState("NORMAL")
     end
 end
 

@@ -86,6 +86,12 @@ local function OnPostClick(overlay, _, down)
     Buttons:MirrorClick(overlay:GetParent(), current and current.slot, down)
 end
 
+-- The overlay shows when it takes the keys and hides when it gives them back,
+-- maybe while one is held.
+local function OnKeysHandedOver(overlay)
+    Buttons:ReleasePress(overlay:GetParent())
+end
+
 local function CreateOverlay(button)
     count = count + 1
     -- Click bindings need a global name.
@@ -104,6 +110,8 @@ local function CreateOverlay(button)
     overlay:SetScript("OnDragStart", OnDragStart)
     overlay:SetScript("OnReceiveDrag", OnReceiveDrag)
     overlay:HookScript("PostClick", OnPostClick)
+    overlay:HookScript("OnShow", OnKeysHandedOver)
+    overlay:HookScript("OnHide", OnKeysHandedOver)
     Swaps.Quiet:Attach(overlay)
     overlay:SetAttribute("pressAndHoldAction", true)
     overlay:SetAttribute("downbutton", "swap")

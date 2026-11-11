@@ -3867,20 +3867,39 @@ local function ClickFrame(frame, button, down)
     frame:RunScript("PostClick", button, down)
 end
 
--- A key going down or up, sent to whatever the key is bound to at that moment
--- (like the client: a binding change while the key is held sends the release
--- elsewhere). An override click binding clicks its frame; a Blizzard action
--- button binding runs ActionButtonDown / ActionButtonUp: the button shows
--- pushed while held and casts its slot's spell on the press
--- (ActionButtonUseKeyDown).
+-- What the key runs now: "CLICK <frame>" for an override click binding, the
+-- binding command otherwise (nil when unbound).
+local function KeyTarget(key)
+    local override = OverrideFor(key)
+    return override and "CLICK " .. override.name or world.bindings[key]
+end
+
+-- A key going down or up. An override click binding clicks its frame; a
+-- Blizzard action button binding runs ActionButtonDown / ActionButtonUp: the
+-- button shows pushed while held and casts its slot's spell on the press
+-- (ActionButtonUseKeyDown). Measured in game: when the key's binding changes
+-- while it's held, the release goes nowhere, neither to the old binding nor to
+-- the new one.
+world.heldKeys = {}
+
 local function SendKey(key, down)
+    local target = KeyTarget(key)
+    if down then
+        world.heldKeys[key] = target
+    else
+        local held = world.heldKeys[key]
+        world.heldKeys[key] = nil
+        if held ~= target then
+            return
+        end
+    end
     local override = OverrideFor(key)
     if override then
         ClickFrame(assert(_G[override.name], "no frame " .. override.name), override.button, down)
         return
     end
     for _, frame in ipairs(world.frames) do
-        if world.bindings[key] and frame.bindingAction == world.bindings[key] then
+        if target and frame.bindingAction == target then
             if down then
                 if frame:GetButtonState() == "NORMAL" then
                     frame:SetButtonState("PUSHED")
