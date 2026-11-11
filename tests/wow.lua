@@ -1861,11 +1861,14 @@ function InCombatLockdown()
 end
 
 -- Friends and addon messages -------------------------------------------------------------
--- world.friends: character friends { guid, name, connected } (name without the
--- realm for the player's realm, like the client). world.bnetFriends: Battle.net
+-- world.friends: character friends { guid, name, className, connected } (name
+-- without the realm for the player's realm, like the client; className
+-- localized, as LocalizedClassList gives it). world.bnetFriends: Battle.net
 -- friends, each a list of game accounts { gameAccountID, playerGuid, isOnline,
--- clientProgram, wowProjectID }. world.players[guid] = { name, realm, class }
--- answers GetPlayerInfoByGUID, and world.groupGUIDs[guid] puts one in the group.
+-- clientProgram, wowProjectID, characterName, classFilename }.
+-- world.players[guid] = { name, realm, class } answers GetPlayerInfoByGUID (the
+-- client's cache of players met this session), and world.groupGUIDs[guid] puts
+-- one in the group.
 --
 -- Sent addon messages go to world.sentAddon ({ prefix, message, chatType,
 -- target } for whispers, { prefix, message, gameAccountID } for Battle.net).
@@ -1958,7 +1961,12 @@ C_FriendList = {
     GetFriendInfoByIndex = function(index)
         local friend = world.friends[index]
         if friend then
-            return { name = friend.name, guid = friend.guid, connected = friend.connected ~= false }
+            return {
+                name = friend.name,
+                guid = friend.guid,
+                className = friend.className,
+                connected = friend.connected ~= false,
+            }
         end
     end,
 }
@@ -1989,6 +1997,8 @@ C_BattleNet = {
                 isOnline = account.isOnline ~= false,
                 clientProgram = account.clientProgram or BNET_CLIENT_WOW,
                 wowProjectID = account.wowProjectID or WOW_PROJECT_ID,
+                characterName = account.characterName,
+                classFilename = account.classFilename,
             }
         end
     end,
@@ -2002,6 +2012,13 @@ C_PartyInfo = {
         return world.groupGUIDs[guid] == true
     end,
 }
+
+function LocalizedClassList(isFemale)
+    if isFemale then
+        return { MAGE = "Magicienne", WARRIOR = "Guerrière" }
+    end
+    return { MAGE = "Mage", WARRIOR = "Guerrier" }
+end
 
 function GetPlayerInfoByGUID(guid)
     local player = world.players[guid]

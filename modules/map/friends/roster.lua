@@ -11,15 +11,34 @@ local Friends = ns:GetFeature("map", "friends")
 local Roster = {}
 Friends.Roster = Roster
 
--- guid -> { guid, name = whisper target or nil, fullName = "Name-Realm" or nil, gameAccountID = number or nil }
+-- guid -> { guid, name = whisper target or nil, fullName = "Name-Realm" or nil, gameAccountID = number or nil,
+--          displayName = character name or nil, classFile = "WARRIOR" or nil }
 local friends = {}
 local dirty = true
+-- localized class name (male and female forms) -> class file, built on first use
+local classFiles
 
 local function FullName(name)
     if name:find("-", 1, true) then
         return name
     end
     return name .. "-" .. GetNormalizedRealmName()
+end
+
+-- The class file for a localized class name, which is all the friend list gives.
+local function ClassFile(className)
+    if not className then
+        return nil
+    end
+    if not classFiles then
+        classFiles = {}
+        for _, isFemale in ipairs({ false, true }) do
+            for classFile, name in pairs(LocalizedClassList(isFemale)) do
+                classFiles[name] = classFile
+            end
+        end
+    end
+    return classFiles[className]
 end
 
 local function Entry(list, guid)
@@ -34,6 +53,8 @@ local function AddCharacterFriends(list)
             local entry = Entry(list, info.guid)
             entry.name = info.name
             entry.fullName = FullName(info.name)
+            entry.displayName = info.name
+            entry.classFile = ClassFile(info.className)
         end
     end
 end
@@ -51,7 +72,10 @@ local function AddBattleNetFriends(list)
                 and account.playerGuid
                 and account.playerGuid ~= playerGUID
             then
-                Entry(list, account.playerGuid).gameAccountID = account.gameAccountID
+                local entry = Entry(list, account.playerGuid)
+                entry.gameAccountID = account.gameAccountID
+                entry.displayName = entry.displayName or account.characterName
+                entry.classFile = entry.classFile or account.classFilename
             end
         end
     end
@@ -84,6 +108,19 @@ local listener = ns:CreateEventListener({
 function Roster:Get(guid)
     Rebuild()
     return friends[guid]
+end
+
+-- The name and class file of the friend `guid`, either of which may be nil:
+-- from the client's cache of players met this session, else from the friend
+-- lists (a friend never met nearby isn't cached).
+function Roster:Describe(guid)
+    local _, classFile, _, _, _, name = GetPlayerInfoByGUID(guid)
+    local entry = self:Get(guid)
+    if entry then
+        name = name or entry.displayName
+        classFile = classFile or entry.classFile
+    end
+    return name, classFile
 end
 
 -- Iterates guid, entry over online friends.

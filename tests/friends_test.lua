@@ -244,6 +244,24 @@ test("names the friend and their zone in the pin's tooltip", function(world)
     equal(world.tooltipLines[1], "Elwynn Forest", "zone")
 end)
 
+test("names a friend never met nearby from the friend lists", function(world)
+    Setup(world)
+    world.friends[1].className = "Guerrière"
+    world.bnetFriends[1][1].characterName = "Bob"
+    world.bnetFriends[1][1].classFilename = "MAGE"
+    world.players = {}
+    world:OpenMap(1)
+    world:ReceiveWhisperAddon("1P:1:0.2500:0.5000", "Alice-Forever")
+    world:ReceiveGameData("1P:1:0.2500:0.5000", 7)
+
+    local alice, bob = world:FriendPins()[1], world:FriendPins()[2]
+    alice.frame:OnMouseEnter()
+    equal(world.tooltip, RAID_CLASS_COLORS.WARRIOR:WrapTextInColorCode("Alice"), "character friend")
+    equal(world.tooltipLines[1], "Elwynn Forest", "character friend's zone")
+    bob.frame:OnMouseEnter()
+    equal(world.tooltip, RAID_CLASS_COLORS.MAGE:WrapTextInColorCode("Bob"), "Battle.net friend")
+end)
+
 test("asks many friends without hitting the addon message throttle", function(world)
     world.friends = {}
     for index = 1, 25 do

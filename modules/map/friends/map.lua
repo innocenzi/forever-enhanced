@@ -200,7 +200,7 @@ function PinMixin:OnAcquired(guid, mapID, x, y)
     self.guid = guid
     self.mapID = mapID
     self:SetPosition(x, y)
-    local _, classFile = GetPlayerInfoByGUID(guid)
+    local _, classFile = Roster:Describe(guid)
     local color = classFile and RAID_CLASS_COLORS[classFile]
     if color then
         self.Dot:SetVertexColor(color:GetRGB())
@@ -210,13 +210,20 @@ function PinMixin:OnAcquired(guid, mapID, x, y)
 end
 
 function PinMixin:OnMouseEnter()
-    local _, classFile, _, _, _, name = GetPlayerInfoByGUID(self.guid)
+    local name, classFile = Roster:Describe(self.guid)
     local color = classFile and RAID_CLASS_COLORS[classFile]
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetText(name and color and color:WrapTextInColorCode(name) or name or "")
     local mapInfo = C_Map.GetMapInfo(self.mapID)
-    if mapInfo then
-        GameTooltip:AddLine(mapInfo.name, 1, 1, 1)
+    if not name and not mapInfo then
+        return
+    end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    if name then
+        GameTooltip:SetText(color and color:WrapTextInColorCode(name) or name)
+        if mapInfo then
+            GameTooltip:AddLine(mapInfo.name, 1, 1, 1)
+        end
+    else
+        GameTooltip:SetText(mapInfo.name, 1, 1, 1)
     end
     GameTooltip:Show()
 end
