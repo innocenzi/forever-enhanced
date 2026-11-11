@@ -6,7 +6,10 @@
 -- cast. So our secure button lies over Blizzard's and casts twice per press,
 -- each its own hardware event: the replacement on key down (the game refuses
 -- it when it can't be cast), the original on key up (refused on the global
--- cooldown when the replacement went off).
+-- cooldown when the replacement went off). So the original goes out later
+-- than from Blizzard's buttons, which cast on key down, by as long as the key
+-- is held (about 0.1 s, measured); the key down can't try it too, since a
+-- refused cast uses up its key event.
 --
 -- Files of this slice:
 --   feature.lua   registration, the character's swaps and lifecycle (this file)
