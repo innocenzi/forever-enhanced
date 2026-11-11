@@ -1,8 +1,10 @@
 -- Builds the Options > AddOns panel from the registered modules and features.
 --
--- Root page: language, preset picker (core/presets.lua), one toggle per module.
--- Module page: per feature, a section header, an "Enable" toggle, then the
--- feature's schema entries as children of that toggle.
+-- Root page: language and preset picker (core/presets.lua).
+-- Module page: first the features without settings, each a single checkbox
+-- named after the feature; then per feature with settings, a section header,
+-- an "Enable" toggle, and the feature's schema entries as children of that
+-- toggle.
 --
 -- Labels come from locale keys by convention:
 --   <module>.title, <module>.description
@@ -184,7 +186,7 @@ local controls = {
 }
 
 local rootCategory
--- Registered settings by path ("<module>.enabled", "<module>.<feature>.<key>"):
+-- Registered settings by path ("<module>.<feature>.<key>"):
 -- presets change values through them, so controls and callbacks follow.
 local settingsByPath = {}
 
@@ -254,7 +256,7 @@ local function AddSchemaEntry(category, feature, entry, parentInitializer)
     SetParent(initializer, parentInitializer)
     -- Predicates aren't inherited from grandparents: check the whole chain here.
     initializer:AddModifyPredicate(function()
-        return feature.module.db.enabled and feature.db.enabled and RequirementMet(feature, entry)
+        return feature.db.enabled and RequirementMet(feature, entry)
     end)
 
     setting:SetValueChangedCallback(function(_, value)
@@ -265,29 +267,28 @@ local function AddSchemaEntry(category, feature, entry, parentInitializer)
     return initializer
 end
 
-local function AddFeature(category, feature)
-    local module = feature.module
-    local prefix = feature:GetLocaleKey()
-    local description = L[prefix .. ".description"]
-
-    AddSectionHeader(category, L[prefix .. ".title"], description)
-
-    local enabledSetting = RegisterSetting(
+-- The feature's on/off checkbox, labeled `label`, with its description as tooltip.
+local function AddFeatureToggle(category, feature, label)
+    local key = feature:GetLocaleKey()
+    local setting = RegisterSetting(
         category,
-        prefix .. ".enabled",
+        key .. ".enabled",
         "enabled",
         feature.db,
         Settings.VarType.Boolean,
-        L["core.enable"],
+        label,
         feature.enabledByDefault
     )
-    local enabledInitializer = AddCheckbox(category, enabledSetting, description)
-    enabledInitializer:AddModifyPredicate(function()
-        return module.db.enabled
-    end)
-    enabledSetting:SetValueChangedCallback(function()
+    setting:SetValueChangedCallback(function()
         ns:RefreshFeature(feature)
     end)
+    return AddCheckbox(category, setting, L[key .. ".description"])
+end
+
+local function AddFeature(category, feature)
+    local key = feature:GetLocaleKey()
+    AddSectionHeader(category, L[key .. ".title"], L[key .. ".description"])
+    local enabledInitializer = AddFeatureToggle(category, feature, L["core.enable"])
 
     local entryInitializers = {}
     for _, entry in ipairs(feature.settings) do
@@ -296,26 +297,19 @@ local function AddFeature(category, feature)
     end
 end
 
+-- Features without settings come first, outside any section: under a header
+-- they would read as settings of that header's feature.
 local function AddModule(module)
-    local title = L[module.id .. ".title"]
-
-    local moduleSetting = RegisterSetting(
-        rootCategory,
-        module.id .. ".enabled",
-        "enabled",
-        module.db,
-        Settings.VarType.Boolean,
-        title,
-        ns.Database.ENABLED_DEFAULT
-    )
-    AddCheckbox(rootCategory, moduleSetting, L[module.id .. ".description"])
-    moduleSetting:SetValueChangedCallback(function()
-        ns:RefreshModule(module)
-    end)
-
-    local category = Settings.RegisterVerticalLayoutSubcategory(rootCategory, title)
+    local category = Settings.RegisterVerticalLayoutSubcategory(rootCategory, L[module.id .. ".title"])
     for _, feature in ipairs(module.sortedFeatures) do
-        AddFeature(category, feature)
+        if #feature.settings == 0 then
+            AddFeatureToggle(category, feature, L[feature:GetLocaleKey("title")])
+        end
+    end
+    for _, feature in ipairs(module.sortedFeatures) do
+        if #feature.settings > 0 then
+            AddFeature(category, feature)
+        end
     end
 end
 
@@ -395,8 +389,6 @@ function SettingsPanel:Build()
     AddSectionHeader(rootCategory, L["core.general"])
     AddLanguage()
     AddPresets()
-
-    AddSectionHeader(rootCategory, L["core.modules"], L["core.modules.tooltip"])
 
     for _, module in ns:EnumerateModules() do
         AddModule(module)

@@ -24,7 +24,10 @@ local _, ns = ...
 local Helpers = ns:RegisterFeature("quests", "helpers", {
     order = 1,
     settings = {
+        { key = "objectives", type = "toggle", default = true },
+        { key = "sparkles", type = "toggle", default = true },
         { key = "nearby", type = "toggle", default = false },
+        { key = "count", type = "slider", default = 5, min = 1, max = 25, step = 1, requires = { nearby = true } },
         {
             key = "scope",
             type = "dropdown",
@@ -41,12 +44,9 @@ local Helpers = ns:RegisterFeature("quests", "helpers", {
             step = 50,
             requires = { scope = "range" },
         },
-        { key = "count", type = "slider", default = 5, min = 1, max = 25, step = 1, requires = { nearby = true } },
         { key = "sort", type = "toggle", default = false, requires = { nearby = true } },
-        { key = "keepManual", type = "toggle", default = false, requires = { nearby = true } },
         { key = "dungeons", type = "toggle", default = true, requires = { nearby = true } },
-        { key = "sparkles", type = "toggle", default = true },
-        { key = "objectives", type = "toggle", default = true },
+        { key = "keepManual", type = "toggle", default = false, requires = { nearby = true } },
     },
     presets = {
         minimal = { enabled = true, nearby = false },

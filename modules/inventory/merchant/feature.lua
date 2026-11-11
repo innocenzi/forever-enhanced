@@ -11,7 +11,7 @@
 local _, ns = ...
 
 local Merchant = ns:RegisterFeature("inventory", "merchant", {
-    order = 4,
+    order = 2,
     enabledByDefault = false,
     settings = {
         { key = "autoSellJunk", type = "toggle", default = true },

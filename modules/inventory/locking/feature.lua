@@ -18,7 +18,7 @@
 local _, ns = ...
 
 local Locking = ns:RegisterFeature("inventory", "locking", {
-    order = 1,
+    order = 3,
     settings = {
         {
             key = "indicator",

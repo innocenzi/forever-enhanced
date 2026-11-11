@@ -5,7 +5,7 @@
 
 local _, ns = ...
 
-local Swaps = ns:GetFeature("interface", "swaps")
+local Swaps = ns:GetFeature("combat", "swaps")
 
 local Buttons = {}
 Swaps.Buttons = Buttons

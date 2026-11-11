@@ -15,8 +15,6 @@ ns:RegisterLocale("enUS", {
     ["core.presets.enhanced"] = "Enhanced",
     ["core.presets.enhanced.tooltip"] = "Turns on every feature, including group announcements, object glow and sharing your position with friends.",
     ["core.presets.confirm"] = "Are you sure you want to apply the %s preset? It changes options in every module.",
-    ["core.modules"] = "Modules",
-    ["core.modules.tooltip"] = "Turns modules on or off. Each module has its own options page.",
 })
 
 ns:RegisterLocale("frFR", {
@@ -34,6 +32,4 @@ ns:RegisterLocale("frFR", {
     ["core.presets.enhanced"] = "Amélioré",
     ["core.presets.enhanced.tooltip"] = "Active toutes les fonctionnalités, y compris les annonces au groupe, la lueur sur les objets et le partage de votre position avec vos amis.",
     ["core.presets.confirm"] = "Voulez-vous vraiment appliquer le préréglage « %s » ? Il modifie des options dans tous les modules.",
-    ["core.modules"] = "Modules",
-    ["core.modules.tooltip"] = "Active ou désactive les modules. Chaque module a sa propre page d’options.",
 })

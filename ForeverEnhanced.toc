@@ -70,6 +70,20 @@ modules\quests\announce\message.lua
 modules\quests\announce\objectives.lua
 modules\quests\announce\questie.lua
 
+# Combat
+modules\combat\module.lua
+modules\combat\ranks\feature.lua
+modules\combat\ranks\locales.lua
+modules\combat\combopoints\feature.lua
+modules\combat\combopoints\locales.lua
+modules\combat\combopoints\bar.lua
+modules\combat\swaps\feature.lua
+modules\combat\swaps\locales.lua
+modules\combat\swaps\buttons.lua
+modules\combat\swaps\quiet.lua
+modules\combat\swaps\overlays.lua
+modules\combat\swaps\display.lua
+
 # Interface
 modules\interface\module.lua
 modules\interface\windows\feature.lua
@@ -78,22 +92,11 @@ modules\interface\windows\store.lua
 modules\interface\windows\placement.lua
 modules\interface\windows\handles.lua
 modules\interface\windows\tracking.lua
-modules\interface\combopoints\feature.lua
-modules\interface\combopoints\locales.lua
-modules\interface\combopoints\bar.lua
 modules\interface\glow\feature.lua
 modules\interface\glow\locales.lua
 modules\interface\glow\cvars.lua
 modules\interface\glow\effect.lua
 modules\interface\glow\target.lua
-modules\interface\swaps\feature.lua
-modules\interface\swaps\locales.lua
-modules\interface\swaps\buttons.lua
-modules\interface\swaps\quiet.lua
-modules\interface\swaps\overlays.lua
-modules\interface\swaps\display.lua
-modules\interface\ranks\feature.lua
-modules\interface\ranks\locales.lua
 
 # Map
 modules\map\module.lua

@@ -46,7 +46,7 @@ table.insert(settings, { key = "icon", type = "toggle", default = true })
 table.insert(settings, { key = "range", type = "slider", default = 15, min = 5, max = 15, step = 1 })
 
 local ObjectGlow = ns:RegisterFeature("interface", "glow", {
-    order = 3,
+    order = 2,
     -- It changes the game's targeting (see above): the player opts in.
     enabledByDefault = false,
     settings = settings,

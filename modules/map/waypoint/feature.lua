@@ -10,7 +10,7 @@
 local _, ns = ...
 
 local Waypoint = ns:RegisterFeature("map", "waypoint", {
-    order = 1,
+    order = 2,
     settings = {
         { key = "range", type = "slider", default = 30, min = 5, max = 100, step = 5 },
         { key = "announce", type = "toggle", default = true },

@@ -215,13 +215,13 @@ test("disabling hides every bar and leaves the plates", function(world)
     world:Target("OTHER")
     world:SetComboPoints(2)
 
-    world:Setting("interface.combopoints.enabled"):SetValue(false)
+    world:Setting("combat.combopoints.enabled"):SetValue(false)
     equal(world:ComboPointBarCount(), 0, "no bar left")
 
     world:SetComboPoints(4)
     equal(world:ComboPointBarCount(), 0, "ignores points while disabled")
 
-    world:Setting("interface.combopoints.enabled"):SetValue(true)
+    world:Setting("combat.combopoints.enabled"):SetValue(true)
     equal(world:ComboPoints(mobPlate).active, 3, "first unit back")
     equal(world:ComboPoints(otherPlate).active, 4, "second unit back")
 end)
@@ -289,22 +289,22 @@ end)
 test("doesn't check out of combat", function(world)
     PointsOnAnotherUnit(world)
     local withFeature = world:TickerCount()
-    world:Setting("interface.combopoints.enabled"):SetValue(false)
+    world:Setting("combat.combopoints.enabled"):SetValue(false)
     equal(world:TickerCount(), withFeature, "no ticker of ours out of combat")
 end)
 
 test("checks when enabled in combat, and stops when disabled", function(world)
     local plate = PointsOnAnotherUnit(world)
-    world:Setting("interface.combopoints.enabled"):SetValue(false)
+    world:Setting("combat.combopoints.enabled"):SetValue(false)
     local others = world:TickerCount()
     world.inCombat = true
-    world:Setting("interface.combopoints.enabled"):SetValue(true)
+    world:Setting("combat.combopoints.enabled"):SetValue(true)
     equal(world:TickerCount(), others + 1, "checking in combat")
 
     world.comboPoints.MOB = nil
     world:Elapse(COMBAT_TICK_SECONDS)
     equal(world:ComboPoints(plate), nil, "updated on the next tick")
 
-    world:Setting("interface.combopoints.enabled"):SetValue(false)
+    world:Setting("combat.combopoints.enabled"):SetValue(false)
     equal(world:TickerCount(), others, "stopped when disabled")
 end)

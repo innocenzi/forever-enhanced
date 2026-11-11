@@ -11,7 +11,7 @@
 local _, ns = ...
 
 local Way = ns:RegisterFeature("map", "way", {
-    order = 2,
+    order = 1,
     settings = {
         { key = "track", type = "toggle", default = true },
     },

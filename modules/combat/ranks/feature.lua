@@ -9,8 +9,8 @@
 
 local _, ns = ...
 
-local Ranks = ns:RegisterFeature("interface", "ranks", {
-    order = 5,
+local Ranks = ns:RegisterFeature("combat", "ranks", {
+    order = 1,
     presets = {
         minimal = { enabled = true },
         enhanced = { enabled = true },

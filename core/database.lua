@@ -2,7 +2,7 @@
 --
 -- ForeverEnhancedDB (account):
 --   language = "auto" (the client's) or one of ns.LANGUAGES
---   modules[moduleId] = { enabled, features = { [featureId] = { enabled, <schema keys> } } }
+--   modules[moduleId] = { features = { [featureId] = { enabled, <schema keys> } } }
 --   stores[moduleId][featureId] = feature-owned table, shared by every character
 -- ForeverEnhancedCharacterDB (character):
 --   [moduleId][featureId] = feature-owned table
@@ -14,8 +14,6 @@
 local _, ns = ...
 
 local Database = {
-    -- Modules are enabled by default; features unless they say otherwise.
-    ENABLED_DEFAULT = true,
     -- The addon speaks the client's language unless the player picks another.
     LANGUAGE_DEFAULT = "auto",
 }
@@ -121,8 +119,7 @@ local function InitializeModule(savedModules, module)
     local savedFeatures = GetOrCreateTable(moduleDb, "features")
     local knownFeatures = {}
 
-    ApplyDefault(moduleDb, "enabled", Database.ENABLED_DEFAULT)
-    KeepOnly(moduleDb, { enabled = true, features = true })
+    KeepOnly(moduleDb, { features = true })
 
     for _, feature in ipairs(module.sortedFeatures) do
         knownFeatures[feature.id] = true
@@ -130,7 +127,43 @@ local function InitializeModule(savedModules, module)
     end
 
     KeepOnly(savedFeatures, knownFeatures)
-    module.db = moduleDb
+end
+
+-- Features that moved to another module: their settings follow them (these
+-- slices keep no stores).
+local MOVED_FEATURES = {
+    { id = "ranks", from = "interface", to = "combat" },
+    { id = "combopoints", from = "interface", to = "combat" },
+    { id = "swaps", from = "interface", to = "combat" },
+}
+
+-- The saved features of a module, if any.
+local function SavedFeatures(savedModules, moduleId)
+    local moduleDb = savedModules[moduleId]
+    return type(moduleDb) == "table" and type(moduleDb.features) == "table" and moduleDb.features or nil
+end
+
+-- Brings settings saved by earlier versions up to date, before the schemas apply.
+local function Migrate(savedModules)
+    -- Modules had their own toggle: one turned off turns off its features.
+    for moduleId, moduleDb in pairs(savedModules) do
+        if type(moduleDb) == "table" and moduleDb.enabled == false then
+            for _, featureDb in pairs(SavedFeatures(savedModules, moduleId) or {}) do
+                if type(featureDb) == "table" then
+                    featureDb.enabled = false
+                end
+            end
+        end
+    end
+
+    for _, move in ipairs(MOVED_FEATURES) do
+        local from = SavedFeatures(savedModules, move.from)
+        if from and from[move.id] ~= nil then
+            local to = GetOrCreateTable(GetOrCreateTable(savedModules, move.to), "features")
+            to[move.id] = to[move.id] or from[move.id]
+            from[move.id] = nil
+        end
+    end
 end
 
 function Database:Initialize()
@@ -143,6 +176,7 @@ function Database:Initialize()
 
     local savedModules = GetOrCreateTable(ForeverEnhancedDB, "modules")
     local knownModules = {}
+    Migrate(savedModules)
 
     for _, module in ns:EnumerateModules() do
         knownModules[module.id] = true

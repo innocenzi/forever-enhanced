@@ -29,11 +29,11 @@
 local _, ns = ...
 
 local Bank = ns:RegisterFeature("inventory", "bank", {
-    order = 2,
+    order = 1,
     settings = {
         { key = "savedBank", type = "toggle", default = true },
-        { key = "openWithBags", type = "toggle", default = false, requires = { savedBank = true } },
         { key = "tooltipCount", type = "toggle", default = true, requires = { savedBank = true } },
+        { key = "openWithBags", type = "toggle", default = false, requires = { savedBank = true } },
         {
             key = "reagentMark",
             type = "dropdown",

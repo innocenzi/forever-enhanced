@@ -2,7 +2,7 @@
 --
 -- A module groups features (one settings subcategory per module).
 -- A feature is a self-contained vertical slice. It is active only when the
--- addon is ready, its module is enabled and the feature itself is enabled.
+-- addon is ready and the feature is enabled.
 -- Core calls feature:OnEnable() / feature:OnDisable() on every transition.
 
 local addonName, ns = ...
@@ -124,7 +124,7 @@ function ns:EnumerateModules()
 end
 
 local function ShouldBeActive(feature)
-    return ns.ready and feature.module.db.enabled and feature.db.enabled
+    return ns.ready and feature.db.enabled
 end
 
 function ns:RefreshFeature(feature)
@@ -141,15 +141,11 @@ function ns:RefreshFeature(feature)
     end
 end
 
-function ns:RefreshModule(module)
-    for _, feature in ipairs(module.sortedFeatures) do
-        self:RefreshFeature(feature)
-    end
-end
-
 function ns:RefreshAll()
     for _, module in ipairs(sortedModules) do
-        self:RefreshModule(module)
+        for _, feature in ipairs(module.sortedFeatures) do
+            self:RefreshFeature(feature)
+        end
     end
 end
 

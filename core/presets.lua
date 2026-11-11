@@ -3,9 +3,9 @@
 -- Each feature declares its values per preset in RegisterFeature:
 --   presets = { minimal = { enabled = true, announce = false }, ... }
 -- Applying a preset copies those values over the current settings; whatever a
--- preset doesn't list stays as it is. A feature it turns on also turns its
--- module on. Values go through the registered settings, so the panel's
--- controls and the features' callbacks follow as if the player clicked.
+-- preset doesn't list stays as it is. Values go through the registered
+-- settings, so the panel's controls and the features' callbacks follow as if
+-- the player clicked.
 
 local _, ns = ...
 
@@ -35,16 +35,11 @@ end
 function ns:ApplyPreset(presetId)
     assert(tContains(self.PRESETS, presetId), "unknown preset: " .. tostring(presetId))
     for _, module in self:EnumerateModules() do
-        local enablesModule = false
         for _, feature in ipairs(module.sortedFeatures) do
             local values = feature.presets[presetId]
             if values then
                 ApplyToFeature(feature, values)
-                enablesModule = enablesModule or values.enabled == true
             end
-        end
-        if enablesModule then
-            Set(module.db, "enabled", module.id .. ".enabled", true)
         end
     end
 end

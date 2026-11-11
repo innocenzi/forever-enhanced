@@ -32,7 +32,7 @@ end)
 
 test("leaves the bars alone while disabled", function(world)
     Bars(world)
-    world:Setting("interface.ranks.enabled"):SetValue(false)
+    world:Setting("combat.ranks.enabled"):SetValue(false)
     world:NextFrame()
     world:LearnSpell(BACKSTAB_RANK_2)
     equal(world.actions[1], BACKSTAB)

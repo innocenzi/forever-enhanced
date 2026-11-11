@@ -9,7 +9,7 @@
 
 local _, ns = ...
 
-local ComboPoints = ns:RegisterFeature("interface", "combopoints", {
+local ComboPoints = ns:RegisterFeature("combat", "combopoints", {
     order = 2,
     presets = {
         minimal = { enabled = true },

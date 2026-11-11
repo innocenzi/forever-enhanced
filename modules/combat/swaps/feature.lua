@@ -31,8 +31,8 @@ for _, swap in ipairs(SWAPS) do
     table.insert(settings, { key = swap.key, type = "toggle", default = true })
 end
 
-local Swaps = ns:RegisterFeature("interface", "swaps", {
-    order = 4,
+local Swaps = ns:RegisterFeature("combat", "swaps", {
+    order = 3,
     -- It takes over the keys of the buttons it swaps: the player opts in.
     enabledByDefault = false,
     settings = settings,

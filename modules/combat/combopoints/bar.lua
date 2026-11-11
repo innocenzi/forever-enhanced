@@ -16,7 +16,7 @@
 
 local _, ns = ...
 
-local ComboPoints = ns:GetFeature("interface", "combopoints")
+local ComboPoints = ns:GetFeature("combat", "combopoints")
 
 local Bars = {}
 ComboPoints.Bars = Bars

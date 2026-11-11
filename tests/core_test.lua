@@ -7,12 +7,12 @@ end
 test("builds the settings panel from the registered schemas", function(world)
     local root, inventory = world.categories[1], world.categories[2]
     expect(root.registered, "root category registered as an AddOn category")
-    equal(#world.categories, 5, "categories")
+    equal(#world.categories, 6, "categories")
     equal(inventory.name, world.L["inventory.title"], "module subcategory name")
 
-    local dropdown -- the first one: Item Locking's indicator
+    local dropdown -- Item Locking's indicator
     for _, initializer in ipairs(inventory.items) do
-        if initializer.options and not dropdown then
+        if initializer.setting == world:Setting("inventory.locking.indicator") then
             dropdown = initializer
         end
     end
@@ -34,7 +34,6 @@ end)
 
 test("fills schema defaults", function(world)
     local db = world.env.ForeverEnhancedDB.modules.inventory
-    equal(db.enabled, true, "module enabled by default")
     equal(db.features.locking.enabled, true, "feature enabled by default")
     equal(world.env.ForeverEnhancedDB.modules.quests.features.announce.enabled, false, "unless it opts out")
     equal(world:Setting("quests.announce.enabled").default, false, "the panel's default too")
@@ -127,25 +126,53 @@ test("feature toggle runs the lifecycle", function(world)
     expect(Locking(world):IsActive(), "active after enabling")
 end)
 
-test("module toggle runs the lifecycle of its features", function(world)
-    world:Setting("inventory.enabled"):SetValue(false)
-    expect(not Locking(world):IsActive(), "inactive with the module off")
-    world:Setting("inventory.enabled"):SetValue(true)
-    expect(Locking(world):IsActive(), "active with the module back on")
+test("the root page holds the general settings only", function(world)
+    local root = world.categories[1]
+    equal(#root.items, 3, "rows")
+    equal(root.items[1].header, world.L["core.general"], "header")
+    equal(root.items[2].setting, world:Setting("language"), "language")
+    equal(root.items[3].setting, world:Setting("preset"), "preset")
 end)
 
-test("feature settings grey out with their module", function(world)
-    local announce = world:Setting("inventory.locking.announce")
-    local row
-    for _, item in ipairs(world.categories[2].items) do
-        if item.setting == announce then
-            row = item
-        end
-    end
-    expect(row.predicate(), "editable by default")
-    world.env.ForeverEnhancedDB.modules.inventory.enabled = false
-    expect(not row.predicate(), "greyed out with the module off")
+test("a feature without settings is one checkbox at the top of its page", function(world)
+    local combat = world.categories[4]
+    equal(combat.name, world.L["combat.title"], "page")
+
+    local ranks = combat.items[1]
+    equal(ranks.setting, world:Setting("combat.ranks.enabled"), "first row")
+    equal(ranks.setting.name, world.L["combat.ranks.title"], "named after the feature")
+    equal(ranks.tooltip, world.L["combat.ranks.description"], "its description as tooltip")
+    equal(combat.items[2].setting, world:Setting("combat.combopoints.enabled"), "second row")
+
+    equal(combat.items[3].header, world.L["combat.swaps.title"], "then the features with settings")
+    equal(combat.items[4].setting.name, world.L["core.enable"], "under their own header")
 end)
+
+test("settings of earlier versions are brought up to date", function(world)
+    local modules = world.env.ForeverEnhancedDB.modules
+    equal(modules.inventory.enabled, nil, "module toggles dropped")
+    equal(modules.inventory.features.locking.enabled, false, "a module turned off turned its features off")
+    expect(not Locking(world):IsActive(), "and they stay inactive")
+    equal(modules.quests.features.helpers.enabled, true, "features of other modules kept")
+
+    equal(modules.interface.features.swaps, nil, "moved features leave their old module")
+    equal(modules.combat.features.swaps.enabled, true, "and keep their settings in the new one")
+    equal(modules.combat.features.swaps.ambush, false, "every setting")
+    equal(modules.interface.features.windows.modifier, "alt", "features that stayed keep theirs")
+end, {
+    savedVariables = function()
+        return {
+            modules = {
+                inventory = { enabled = false, features = { locking = { enabled = true } } },
+                quests = { enabled = true, features = { helpers = { enabled = true } } },
+                interface = {
+                    enabled = true,
+                    features = { swaps = { enabled = true, ambush = false }, windows = { modifier = "alt" } },
+                },
+            },
+        }
+    end,
+})
 
 local ENABLE = { enUS = "Enable", frFR = "Activer" }
 
@@ -264,8 +291,8 @@ test("picking a preset asks first and keeps the placeholder", function(world)
     equal(#world.popups, count, "the placeholder asks nothing")
 end)
 
-test("the enhanced preset turns every feature on, with their modules", function(world)
-    world:Setting("interface.enabled"):SetValue(false)
+test("the enhanced preset turns every feature on", function(world)
+    world:Setting("interface.windows.enabled"):SetValue(false)
     ApplyPreset(world, "enhanced")
 
     for _, module in world.ns:EnumerateModules() do
@@ -274,7 +301,6 @@ test("the enhanced preset turns every feature on, with their modules", function(
         end
     end
     local modules = world.env.ForeverEnhancedDB.modules
-    equal(modules.interface.enabled, true, "module turned back on")
     equal(modules.inventory.features.bank.openWithBags, true, "bank opens with bags")
     equal(modules.quests.features.helpers.nearby, true, "nearby tracking")
 end)
@@ -295,7 +321,6 @@ test("the minimal preset turns chatty features off and keeps what it doesn't lis
     equal(modules.map.features.waypoint.announce, false, "waypoint quiet")
     equal(modules.interface.features.windows.modifier, "alt", "unlisted setting kept")
     equal(modules.inventory.features.bank.openWithBags, true, "unlisted setting kept")
-    equal(modules.interface.enabled, true, "modules stay on")
 end)
 
 test("preset values are checked against the schemas", function(world)
