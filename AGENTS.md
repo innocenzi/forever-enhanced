@@ -81,4 +81,4 @@ Conventional commits. Types: `feat`, `perf`, `fix`, `refactor`, `chore` only. Sc
 
 ## Docs
 
-`README.md` is for players: update it when player-visible behavior changes. Implementation notes go here.
+Never update `README.md`: the maintainer writes it. Implementation notes go here.

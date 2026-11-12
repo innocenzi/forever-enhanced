@@ -12,8 +12,7 @@ A lightweight utility addon for Forever. It keeps the default UI familiar while 
 
 ## Features
 
-- Item locking to protect items from being moved, sold, etc, with notes shown in their tooltip
-- Mark any item as junk from its Alt Right Click menu, so every copy of it is sold with your junk
+- Item locking to protect items from being moved, sold, etc
 - Movable windows and bags
 - Automatic quest tracking by zone or distance, so you always track what is closest to you
 - Quest objective announcements to your group (or hide Questie's)
