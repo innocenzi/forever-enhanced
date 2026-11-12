@@ -136,6 +136,47 @@ test("disabling item marks hides the icons and the entries", function(world)
     expect(world:AuctionMark(1) and world:BankMark(2), "icons back")
 end)
 
+test("auction house marks glow while the auction house is open", function(world)
+    world.itemIDs.G1, world.itemIDs.G2 = "CLOTH", "CLOTH"
+    Toggle(world, 1, "auction")
+    Toggle(world, 4, "junk")
+    expect(not world:AuctionGlow(1), "no glow before the auction house opens")
+
+    world:OpenAuctionHouse()
+    expect(world:AuctionGlow(1) and world:AuctionGlow(2), "every marked copy glows")
+    expect(not world:AuctionGlow(4), "no glow on other items")
+
+    world:CloseAuctionHouse()
+    expect(not world:AuctionGlow(1) and not world:AuctionGlow(2), "gone once closed")
+end)
+
+test("auction house glow follows the mark, locking and its settings", function(world)
+    Toggle(world, 1, "auction")
+    world:OpenAuctionHouse()
+    expect(world:AuctionGlow(1), "glows")
+
+    world:AltClick(1)
+    expect(not world:AuctionGlow(1), "no glow while locked")
+    world:AltClick(1)
+    expect(world:AuctionGlow(1), "back once unlocked")
+
+    world:Setting("inventory.marks.auctionGlow"):SetValue(false)
+    expect(not world:AuctionGlow(1), "its toggle hides it")
+    world:Setting("inventory.marks.auctionGlow"):SetValue(true)
+    expect(world:AuctionGlow(1), "back with its toggle")
+
+    world:Setting("inventory.marks.auction"):SetValue(false)
+    expect(not world:AuctionGlow(1), "the auction house mark's toggle hides it")
+    world:Setting("inventory.marks.auction"):SetValue(true)
+
+    world:Setting("inventory.marks.enabled"):SetValue(false)
+    expect(not world:AuctionGlow(1), "disabling item marks hides it")
+    world:Setting("inventory.marks.enabled"):SetValue(true)
+
+    Toggle(world, 1, "auction")
+    expect(not world:AuctionGlow(1), "unmarking hides it")
+end)
+
 test("the item menu lists junk, then the auction house, then the bank", function(world)
     world:Setting("inventory.merchant.enabled"):SetValue(true)
     local menu = world:AltRightClick(1)

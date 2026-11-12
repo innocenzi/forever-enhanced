@@ -9,6 +9,11 @@
 -- poor items only at merchants: with junkCoin "merchant", marked items follow
 -- it; with "always", every junk item shows ours, Blizzard's landing on top of
 -- it at merchants. The other icons hide on locked items too.
+--
+-- While the auction house is open, bag items showing the auction house icon
+-- also glow ("auctionGlow"), with Blizzard's new item glow and pulse
+-- (NewItemTexture and newitemglowAnim, ContainerFrameItemButtonTemplate) in
+-- a color of their own.
 
 local _, ns = ...
 
@@ -131,9 +136,67 @@ local function ShowsIcon(destination, itemLocation, guid)
     return Marks:IsMarked(C_Item.GetItemID(itemLocation), destination)
 end
 
+-- Per Blizzard item button: our auction house glow, { frame, pulse }.
+local glows = setmetatable({}, { __mode = "k" })
+
+local GLOW_ATLAS = "bags-glow-orange"
+local PULSE_SECONDS = 0.5
+local PULSE_LOW_ALPHA = 0.2
+
+local function CreateGlow(button)
+    local frame = CreateFrame("Frame", nil, button)
+    frame:SetAllPoints()
+    frame:SetFrameLevel(button:GetFrameLevel() + 1)
+    local texture = frame:CreateTexture(nil, "OVERLAY", nil, 2)
+    texture:SetAtlas(GLOW_ATLAS, TextureKitConstants.UseAtlasSize)
+    texture:SetBlendMode("ADD")
+    texture:SetPoint("CENTER")
+    local pulse = frame:CreateAnimationGroup()
+    pulse:SetLooping("REPEAT")
+    for order, alphas in ipairs({ { 1, PULSE_LOW_ALPHA }, { PULSE_LOW_ALPHA, 1 } }) do
+        local fade = pulse:CreateAnimation("Alpha")
+        fade:SetTarget(texture)
+        fade:SetFromAlpha(alphas[1])
+        fade:SetToAlpha(alphas[2])
+        fade:SetDuration(PULSE_SECONDS)
+        fade:SetOrder(order)
+    end
+    return { frame = frame, pulse = pulse }
+end
+
+local function ShowGlow(button, shown)
+    local glow = glows[button]
+    if shown and not glow then
+        glow = CreateGlow(button)
+        glows[button] = glow
+    end
+    if not glow then
+        return
+    end
+    glow.frame:SetShown(shown)
+    if shown and not glow.pulse:IsPlaying() then
+        glow.pulse:Play()
+    end
+end
+
+-- Bag items showing the auction house icon, while the auction house is open
+-- (AuctionHouseFrame is load-on-demand); bank items can't be posted.
+local function ShowsGlow(itemLocation, guid)
+    return Marks:GetSetting("auctionGlow")
+        and AuctionHouseFrame ~= nil
+        and AuctionHouseFrame:IsShown()
+        and isBag[itemLocation:GetBagAndSlot()]
+        and ShowsIcon("auction", itemLocation, guid)
+end
+
 function Buttons:HideAll(destination)
     for _, holder in pairs(holders[destination]) do
         holder:Hide()
+    end
+    if destination == "auction" then
+        for _, glow in pairs(glows) do
+            glow.frame:Hide()
+        end
     end
 end
 
@@ -188,3 +251,10 @@ for _, destination in ipairs(Marks.DESTINATIONS) do
         end,
     })
 end
+
+ns:AddItemButtonHandler(Marks, {
+    part = "auction",
+    Update = function(button, itemLocation, guid)
+        ShowGlow(button, ShowsGlow(itemLocation, guid))
+    end,
+})

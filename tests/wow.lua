@@ -611,6 +611,43 @@ function Region:CreateTexture()
     return texture
 end
 
+-- Animation groups: only whether they play is observed (`playing`).
+local AnimationGroup = {}
+AnimationGroup.__index = AnimationGroup
+
+local Animation = {}
+Animation.__index = Animation
+for _, name in ipairs({ "SetTarget", "SetFromAlpha", "SetToAlpha", "SetDuration", "SetOrder", "SetSmoothing" }) do
+    Animation[name] = NoOp
+end
+
+function AnimationGroup:CreateAnimation()
+    return setmetatable({}, Animation)
+end
+
+function AnimationGroup:SetLooping(looping)
+    self.looping = looping
+end
+
+function AnimationGroup:Play()
+    self.playing = true
+end
+
+function AnimationGroup:Stop()
+    self.playing = false
+end
+
+function AnimationGroup:IsPlaying()
+    return self.playing
+end
+
+function Region:CreateAnimationGroup()
+    self.animationGroups = self.animationGroups or {}
+    local group = setmetatable({ playing = false }, AnimationGroup)
+    table.insert(self.animationGroups, group)
+    return group
+end
+
 -- Item buttons.
 function Region:GetNormalTexture()
     self.normalTexture = self.normalTexture or self:CreateTexture()
@@ -3318,6 +3355,12 @@ function world:AuctionMark(slot)
     return holder ~= nil and holder.shown
 end
 
+-- Whether a bag button shows our auction house glow, pulsing.
+function world:AuctionGlow(slot)
+    local holder = OverlayWith(slot, { ["bags-glow-orange"] = true })
+    return holder ~= nil and holder.shown and holder.animationGroups[1].playing
+end
+
 -- Whether a bag button shows our bank mark.
 function world:BankMark(slot)
     local holder = OverlayWith(slot, { banker = true })
@@ -3381,6 +3424,19 @@ end
 function world:CloseMerchant()
     MerchantFrame.shown = false
     self:Fire("MERCHANT_CLOSED")
+end
+
+-- The auction house UI is load-on-demand: AuctionHouseFrame exists once opened.
+-- The game shows the frame before addons see AUCTION_HOUSE_SHOW.
+function world:OpenAuctionHouse()
+    AuctionHouseFrame = AuctionHouseFrame or CreateFrame("Frame")
+    AuctionHouseFrame.shown = true
+    self:Fire("AUCTION_HOUSE_SHOW")
+end
+
+function world:CloseAuctionHouse()
+    AuctionHouseFrame.shown = false
+    self:Fire("AUCTION_HOUSE_CLOSED")
 end
 
 -- Clicks the merchant's Sell All Junk button: Blizzard shows its confirmation, then notifies.

@@ -5,6 +5,8 @@
 --              selling sell it (locked copies are kept); the junk coin, at
 --              merchants like Blizzard's on poor items, or always ("junkCoin");
 --   "auction": Mark for auction house, the auctioneer's icon in bags and bank;
+--              marked bag items glow while the auction house is open
+--              ("auctionGlow");
 --   "bank":    Mark for bank, the banker's icon in the bags; Deposit moves them
 --              to the bank (bank feature, "marked" transfer).
 -- An item has one destination at most: marking one removes the others. Locked
@@ -35,12 +37,13 @@ local Marks = ns:RegisterFeature("inventory", "marks", {
             requires = { junk = true },
         },
         { key = "auction", type = "toggle", default = true },
+        { key = "auctionGlow", type = "toggle", default = true, requires = { auction = true } },
         { key = "bank", type = "toggle", default = true },
         { key = "altClick", type = "dropdown", default = "lock", options = { "lock", "junk", "auction", "bank" } },
     },
     presets = {
-        minimal = { enabled = true, junkCoin = "merchant" },
-        enhanced = { enabled = true, junkCoin = "always" },
+        minimal = { enabled = true, junkCoin = "merchant", auctionGlow = true },
+        enhanced = { enabled = true, junkCoin = "always", auctionGlow = true },
     },
 })
 
@@ -81,7 +84,7 @@ end
 
 function Marks:OnSettingChanged(key)
     self:SyncParts()
-    if key == "junkCoin" then
+    if key == "junkCoin" or key == "auctionGlow" then
         ns:RefreshItemButtons()
     end
 end
