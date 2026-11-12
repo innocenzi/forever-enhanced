@@ -391,6 +391,11 @@ function Region:IsShown()
     return self.shown
 end
 
+-- Forbidden frames (the store, secure dialogs) aren't modelled.
+function Region:IsForbidden()
+    return false
+end
+
 function Region:GetFrameLevel()
     return 1
 end
@@ -1166,6 +1171,7 @@ Enum = {
     TooltipDataType = { Item = 0 },
     PowerType = { ComboPoints = 4 },
     CraftingReagentType = { Optional = 0, Basic = 1, Finishing = 2 },
+    TradeskillRelativeDifficulty = { Optimal = 0, Medium = 1, Easy = 2, Trivial = 3 },
     QuestTag = { Group = 1, PvP = 41, Raid = 62, Dungeon = 81, Heroic = 85, Raid10 = 88, Raid25 = 89 },
     UIMapType = { Cosmic = 0, World = 1, Continent = 2, Zone = 3, Dungeon = 4, Micro = 5, Orphan = 6 },
     ItemClass = { Questitem = 12, Miscellaneous = 15 },
@@ -3099,6 +3105,10 @@ GameTooltip = {
 }
 GameTooltip_Hide = NoOp
 
+function GameTooltip_AddNormalLine(tooltip, text)
+    tooltip:AddLine(text)
+end
+
 function GameTooltip_AddErrorLine(tooltip, text)
     tooltip:AddLine(text)
 end
@@ -3955,7 +3965,18 @@ C_TradeSkillUI = {
     GetRecipeInfo = function(recipeID)
         return { recipeID = recipeID, learned = world.learnedRecipes[recipeID] == true }
     end,
+    -- The profession of every recipe: world.professionSkill.
+    GetProfessionInfoByRecipeID = function()
+        return {
+            skillLevel = world.professionSkill.level,
+            skillModifier = world.professionSkill.modifier,
+            maxSkillLevel = 300,
+        }
+    end,
 }
+
+-- The skill of the profession window's profession, and its bonuses (racial).
+world.professionSkill = { level = 1, modifier = 0 }
 
 -- The profession window lists `recipeIDs` (learned per world.learnedRecipes).
 function world:ShowTradeSkillList(recipeIDs)
@@ -4019,8 +4040,39 @@ function world:LoadProfessions()
             return slot.reagentSlotSchematic
         end,
     }
+    -- Recipe ranks aren't modelled: a recipe is its only rank.
+    Professions = {
+        GetHighestLearnedRecipe = function(recipeInfo)
+            return recipeInfo.learned and recipeInfo or nil
+        end,
+    }
     self.loadedAddOns.Blizzard_ProfessionsTemplates = true
     self:Fire("ADDON_LOADED", "Blizzard_ProfessionsTemplates")
+end
+
+-- The player points at the skill-up arrow of a recipe in the profession
+-- window's list (recipeInfo: { recipeID, relativeDifficulty }): the lines of
+-- GameTooltip. Like ProfessionsRecipeListRecipeMixin, the arrow (row.SkillUps)
+-- owns the tooltip, which gets Blizzard's line through GameTooltip_AddNormalLine.
+function world:HoverSkillUpArrow(recipeInfo)
+    if not Professions then
+        self:LoadProfessions()
+    end
+    local row = CreateFrame("Button")
+    row.SkillUps = CreateFrame("Button", nil, row)
+    local node = {
+        GetData = function()
+            return { recipeInfo = recipeInfo }
+        end,
+    }
+    row.GetElementData = function()
+        return node
+    end
+    GameTooltip.owner = row.SkillUps
+    self.tooltipLines = {}
+    GameTooltip_AddNormalLine(GameTooltip, "High chance of gaining skill")
+    GameTooltip.owner = nil
+    return self.tooltipLines
 end
 
 -- A basic reagent: { reagents = { { itemID } }, quantityRequired, reagentType }.

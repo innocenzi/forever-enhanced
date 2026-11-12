@@ -88,6 +88,11 @@ modules\professions\reagents\data.lua
 modules\professions\reagents\known.lua
 modules\professions\reagents\stock.lua
 modules\professions\reagents\tooltip.lua
+modules\professions\skillups\feature.lua
+modules\professions\skillups\locales.lua
+modules\professions\skillups\data.lua
+modules\professions\skillups\chance.lua
+modules\professions\skillups\tooltip.lua
 
 # Combat
 modules\combat\module.lua
