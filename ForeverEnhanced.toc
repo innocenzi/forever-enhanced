@@ -55,8 +55,11 @@ modules\inventory\merchant\feature.lua
 modules\inventory\merchant\locales.lua
 modules\inventory\merchant\junk.lua
 modules\inventory\merchant\repair.lua
-modules\inventory\merchant\marks.lua
-modules\inventory\merchant\buttons.lua
+modules\inventory\marks\feature.lua
+modules\inventory\marks\locales.lua
+modules\inventory\marks\store.lua
+modules\inventory\marks\junk.lua
+modules\inventory\marks\buttons.lua
 
 # Quests
 modules\quests\module.lua

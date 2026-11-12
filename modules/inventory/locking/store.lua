@@ -38,6 +38,17 @@ function Locking:GetGUIDNote(guid)
     end
 end
 
+-- Whether Alt Left Click locks: unless Item marks (loaded after this slice)
+-- gives it to a mark.
+function Locking:AltClickLocks()
+    return ns:GetFeature("inventory", "marks"):GetAltClickDestination() == nil
+end
+
+-- The error shown when a locked item is touched: how to unlock it.
+function Locking:GetIsLockedMessage()
+    return self:AltClickLocks() and L["inventory.locking.isLocked"] or L["inventory.locking.isLockedMenu"]
+end
+
 -- A note belongs to its lock: unlocking removes it.
 local function SetLocked(guid, link, locked)
     local store = GetStore()

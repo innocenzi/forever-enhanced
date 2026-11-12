@@ -15,13 +15,22 @@ local MODES = { "stacks", "all" }
 
 local buttons
 
+local function AddEntry(rootDescription, direction, mode)
+    local entry = rootDescription:CreateButton(L["inventory.bank.transfers." .. mode], function()
+        Transfers:Run(direction, mode)
+    end)
+    entry:SetEnabled(not Transfers:IsRunning())
+end
+
+-- Deposit also moves the items marked for the bank, while that mark is on
+-- (Item marks, loaded after this slice).
 local function GenerateMenu(direction)
     return function(_, rootDescription)
         for _, mode in ipairs(MODES) do
-            local entry = rootDescription:CreateButton(L["inventory.bank.transfers." .. mode], function()
-                Transfers:Run(direction, mode)
-            end)
-            entry:SetEnabled(not Transfers:IsRunning())
+            AddEntry(rootDescription, direction, mode)
+        end
+        if direction == "deposit" and ns:GetFeature("inventory", "marks"):IsPartActive("bank") then
+            AddEntry(rootDescription, direction, "marked")
         end
     end
 end

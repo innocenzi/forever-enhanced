@@ -21,8 +21,14 @@ end
 -- Picks a mode in the Deposit or Withdraw menu and lets the transfer finish.
 local function Transfer(world, direction, mode)
     local menu = world:TransferMenu(direction)
-    menu[mode == "stacks" and 1 or 2].callback()
+    assert(world:MenuEntry(menu, world.L["inventory.bank.transfers." .. mode]), mode .. " entry").callback()
     world:Elapse(5)
+end
+
+-- Marks the bag item at `slot` for the bank, from the item menu.
+local function MarkForBank(world, slot)
+    local menu = assert(world:AltRightClick(slot), "item menu opened")
+    assert(world:MenuEntry(menu, world.L["inventory.marks.markForBank"]), "bank entry").select()
 end
 
 test("deposit onto existing stacks only tops off the bank's partial stacks", function(world)
@@ -174,6 +180,47 @@ test("menus offer both modes, disabled while a transfer runs", function(world)
     expect(not menu[1].enabled and not menu[2].enabled, "disabled while running")
     world:Elapse(5)
     expect(world:TransferMenu("deposit")[1].enabled, "enabled again")
+end)
+
+test("deposit marked items moves the items marked for the bank", function(world)
+    Setup(world, { "L1", "W1", "P1", "L2" }, { "L3", nil, "L4" }, {}, {
+        L1 = { "linen", 15 },
+        W1 = { "wool", 5 },
+        P1 = { "potion", 3 },
+        L2 = { "linen", 4 },
+        L3 = { "linen", 12 },
+        L4 = { "linen", 20 },
+    })
+    MarkForBank(world, 1)
+    MarkForBank(world, 2)
+    Transfer(world, "deposit", "marked")
+    equal(world:Slots(6), "L3(16) L1(15) L4(20) W1(5)", "smallest stack onto the partial one, then empty slots")
+    equal(world:Slots(0), "- - P1(3) -", "unmarked items stay")
+end)
+
+test("deposit marked items leaves locked items", function(world)
+    Setup(world, { "W1", "W2" }, {}, {}, {
+        W1 = { "wool", 5 },
+        W2 = { "wool", 6 },
+    })
+    MarkForBank(world, 1)
+    world:AltClick(2)
+    Transfer(world, "deposit", "marked")
+    equal(world:Slots(0), "- W2(6) - -", "locked stack stays")
+    equal(world:Slots(6), "W1(5) - - -", "bank")
+end)
+
+test("marked items are only offered by Deposit, while the bank mark is on", function(world)
+    Setup(world, { "L1" }, { "L3" }, {}, {
+        L1 = { "linen", 15 },
+        L3 = { "linen", 12 },
+    })
+    local marked = world.L["inventory.bank.transfers.marked"]
+    equal(world:TransferMenu("deposit")[3].text, marked, "third deposit entry")
+    expect(not world:MenuEntry(world:TransferMenu("withdraw"), marked), "not in withdraw")
+
+    world:Setting("inventory.marks.bank"):SetValue(false)
+    expect(not world:MenuEntry(world:TransferMenu("deposit"), marked), "gone with the bank mark")
 end)
 
 test("does nothing away from the bank", function(world)

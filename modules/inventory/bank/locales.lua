@@ -22,13 +22,14 @@ ns:RegisterLocale("enUS", {
     ["inventory.bank.forget"] = "Forget",
     ["inventory.bank.forgetConfirm"] = "Are you sure you want to forget %s's saved bank?",
     ["inventory.bank.transfers"] = "Deposit and Withdraw buttons",
-    ["inventory.bank.transfers.tooltip"] = "Fills existing stacks between your bags and your bank, or moves every item the other side already holds. Locked items stay in place.",
+    ["inventory.bank.transfers.tooltip"] = "Fills existing stacks between your bags and your bank, moves every item the other side already holds, or deposits the items marked for the bank. Locked items stay in place.",
     ["inventory.bank.transfers.deposit"] = "Deposit",
     ["inventory.bank.transfers.withdraw"] = "Withdraw",
     ["inventory.bank.transfers.deposit.tooltip"] = "Moves items from your bags to your bank.",
     ["inventory.bank.transfers.withdraw.tooltip"] = "Moves items from your bank to your bags.",
     ["inventory.bank.transfers.stacks"] = "Fill existing stacks",
     ["inventory.bank.transfers.all"] = "All matching items",
+    ["inventory.bank.transfers.marked"] = "Items marked for the bank",
 })
 
 ns:RegisterLocale("frFR", {
@@ -52,12 +53,13 @@ ns:RegisterLocale("frFR", {
     ["inventory.bank.empty"] = "Rendez-vous chez un banquier avec ce personnage pour enregistrer sa banque.",
     ["inventory.bank.forget"] = "Oublier",
     ["inventory.bank.transfers"] = "Boutons Dépôt et Retrait",
-    ["inventory.bank.transfers.tooltip"] = "Complète les piles existantes entre vos sacs et votre banque, ou déplace tous les objets que l’autre côté contient déjà. Les objets verrouillés restent en place.",
+    ["inventory.bank.transfers.tooltip"] = "Complète les piles existantes entre vos sacs et votre banque, déplace tous les objets que l’autre côté contient déjà, ou dépose les objets marqués pour la banque. Les objets verrouillés restent en place.",
     ["inventory.bank.transfers.deposit"] = "Dépôt",
     ["inventory.bank.transfers.withdraw"] = "Retrait",
     ["inventory.bank.transfers.deposit.tooltip"] = "Déplace des objets de vos sacs vers votre banque.",
     ["inventory.bank.transfers.withdraw.tooltip"] = "Déplace des objets de votre banque vers vos sacs.",
     ["inventory.bank.transfers.stacks"] = "Compléter les piles existantes",
     ["inventory.bank.transfers.all"] = "Tous les objets correspondants",
+    ["inventory.bank.transfers.marked"] = "Objets marqués pour la banque",
     ["inventory.bank.forgetConfirm"] = "Voulez-vous vraiment oublier la banque enregistrée de %s ?",
 })

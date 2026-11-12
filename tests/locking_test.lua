@@ -178,7 +178,7 @@ test("the item menu lists the note, then the checkboxes", function(world)
     local menu = world:AltRightClick(1)
     equal(menu[2].text, world.L["inventory.locking.addNote"], "note second")
     equal(menu[3].text, world.L["inventory.locking.lock"], "lock third")
-    equal(menu[4].text, world.L["inventory.merchant.markAsJunk"], "junk last")
+    equal(menu[4].text, world.L["inventory.marks.markAsJunk"], "junk last")
 end)
 
 test("the item menu locks and unlocks", function(world)
@@ -212,8 +212,9 @@ end)
 
 test("no item menu without a feature or part adding entries", function(world)
     world:Setting("inventory.locking.enabled"):SetValue(false)
-    world:Setting("inventory.merchant.enabled"):SetValue(true)
-    world:Setting("inventory.merchant.markJunk"):SetValue(false)
+    for _, mark in ipairs({ "junk", "auction", "bank" }) do
+        world:Setting("inventory.marks." .. mark):SetValue(false)
+    end
     world:SetAlt(true)
     expect(not world:IsShielded(1), "no shield")
     world:SetAlt(false)

@@ -10,7 +10,8 @@
 -- "transfers": at a banker, Deposit and Withdraw buttons move items between
 -- the bags and the bank, either onto the other side's partial stacks only, or
 -- every item the other side already holds (partial stacks first, then empty
--- slots). Locked items (Item Locking) never move.
+-- slots). Deposit also moves the items marked for the bank (Item marks). Locked
+-- items (Item Locking) never move.
 --
 -- Files of this slice:
 --   feature.lua    registration, schema and lifecycle (this file)

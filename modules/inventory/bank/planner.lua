@@ -6,6 +6,8 @@
 --             stacks of the same item. Empty slots are never used.
 --   "all":    the same, then the remaining source stacks of items the
 --             destination holds go to empty slots that accept them.
+--   "marked": (deposit) like "all", for the bag items marked for the bank
+--             (Item marks), whether or not the bank holds them.
 -- Locked items (Item Locking) never move, but their stacks are filled like any
 -- other: a merge keeps the receiving stack (and its lock) in place.
 
@@ -98,32 +100,53 @@ local function Move(stack, to)
     return { from = stack.location, to = to, key = stack.guid }
 end
 
+-- Plans the moves of one item: its movable source stacks onto the destination's
+-- partial stacks, then, with `useEmptySlots`, into empty slots.
+local function PlanItem(moves, itemID, sources, destinations, emptySlots, useEmptySlots)
+    local candidates = GetMovableStacks(sources[itemID])
+    local nextCandidate = 1
+    for _, stack in ipairs(destinations[itemID] or {}) do
+        local candidate = candidates[nextCandidate]
+        if candidate and stack.count < stack.maxCount then
+            table.insert(moves, Move(candidate, stack.location))
+            nextCandidate = nextCandidate + 1
+        end
+    end
+    if useEmptySlots then
+        while candidates[nextCandidate] do
+            local emptySlot = TakeEmptySlot(emptySlots, itemID)
+            if not emptySlot then
+                break
+            end
+            table.insert(moves, Move(candidates[nextCandidate], emptySlot))
+            nextCandidate = nextCandidate + 1
+        end
+    end
+end
+
+-- The item IDs a mode moves: the ones the destination holds, or for "marked"
+-- the source's items marked for the bank (Item marks, loaded after this slice).
+local function GetItemIDs(mode, sources, destinations)
+    if mode ~= "marked" then
+        return destinations.itemIDs
+    end
+    local Marks = ns:GetFeature("inventory", "marks")
+    local itemIDs = {}
+    for _, itemID in ipairs(sources.itemIDs) do
+        if Marks:IsMarked(itemID, "bank") then
+            table.insert(itemIDs, itemID)
+        end
+    end
+    return itemIDs
+end
+
 function Planner:Plan(direction, mode)
     local sourceIDs, destinationIDs = GetSides(direction)
     local sources = Scan(sourceIDs)
     local destinations, emptySlots = Scan(destinationIDs)
     local moves = {}
-
-    for _, itemID in ipairs(destinations.itemIDs) do
-        local candidates = GetMovableStacks(sources[itemID])
-        local nextCandidate = 1
-        for _, stack in ipairs(destinations[itemID]) do
-            local candidate = candidates[nextCandidate]
-            if candidate and stack.count < stack.maxCount then
-                table.insert(moves, Move(candidate, stack.location))
-                nextCandidate = nextCandidate + 1
-            end
-        end
-        if mode == "all" then
-            while candidates[nextCandidate] do
-                local emptySlot = TakeEmptySlot(emptySlots, itemID)
-                if not emptySlot then
-                    break
-                end
-                table.insert(moves, Move(candidates[nextCandidate], emptySlot))
-                nextCandidate = nextCandidate + 1
-            end
-        end
+    for _, itemID in ipairs(GetItemIDs(mode, sources, destinations)) do
+        PlanItem(moves, itemID, sources, destinations, emptySlots, mode ~= "stacks")
     end
     return moves
 end

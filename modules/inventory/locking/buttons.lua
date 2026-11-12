@@ -1,5 +1,6 @@
 -- Item buttons (core/itembuttons.lua): the lock indicator (see indicators.lua),
--- Alt Left Click to toggle the lock, the lock and note entries of the item
+-- Alt Left Click to toggle the lock (unless Item marks' "altClick" gives it to
+-- a mark), the lock and note entries of the item
 -- menu, and the click shield over locked items:
 --   * while the cursor holds an item: no swapping them out;
 --   * while a merchant, mail, trade or auction window is open: no right-click
@@ -13,7 +14,7 @@ local Locking = ns:GetFeature("inventory", "locking")
 local function OnLockedItemTouched(itemLocation, mouseButton)
     if Locking:IsLocked(itemLocation) then
         local isSelling = mouseButton == "RightButton" and MerchantFrame:IsShown()
-        ns:Error(isSelling and L["inventory.locking.cannotSell"] or L["inventory.locking.isLocked"])
+        ns:Error(isSelling and L["inventory.locking.cannotSell"] or Locking:GetIsLockedMessage())
     end
 end
 
@@ -28,7 +29,9 @@ ns:AddItemButtonHandler(Locking, {
     OnGuardedClick = OnLockedItemTouched,
     OnGuardedDrag = OnLockedItemTouched,
     OnAltClick = function(itemLocation)
-        Locking:ToggleLock(itemLocation)
+        if Locking:AltClickLocks() then
+            Locking:ToggleLock(itemLocation)
+        end
     end,
     -- Entries act only while the item the menu was opened on is still in its slot.
     -- The lock checkbox comes last, next to the other features' checkboxes.

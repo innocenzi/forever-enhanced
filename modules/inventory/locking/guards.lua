@@ -4,7 +4,6 @@
 
 local _, ns = ...
 
-local L = ns.L
 local Locking = ns:GetFeature("inventory", "locking")
 
 local Guards = {}
@@ -18,7 +17,7 @@ local function ReturnLockedCursorItem()
     local itemLocation = C_Cursor.GetCursorItem()
     if itemLocation and Locking:IsLocked(itemLocation) then
         ClearCursor()
-        ns:Error(L["inventory.locking.isLocked"])
+        ns:Error(Locking:GetIsLockedMessage())
     end
 end
 

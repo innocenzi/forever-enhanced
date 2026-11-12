@@ -325,7 +325,7 @@ test("the minimal preset turns chatty features off and keeps what it doesn't lis
     ApplyPreset(world, "minimal")
 
     local merchant = Feature(world, "inventory", "merchant")
-    expect(merchant:IsPartActive("markJunk"), "junk marking on")
+    expect(Feature(world, "inventory", "marks"):IsPartActive("junk"), "junk marking on")
     expect(not merchant:GetSetting("autoSellJunk") and not merchant:GetSetting("autoRepair"), "merchant automation off")
     expect(not Feature(world, "quests", "announce"):IsActive(), "announcements off")
     expect(not Feature(world, "interface", "glow"):IsActive(), "glow off")

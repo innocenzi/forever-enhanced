@@ -1,8 +1,9 @@
--- Item Locking: Alt+Left-click a bag or bank item to lock that exact item
--- (by GUID). A locked item can't be picked up, right-click is blocked wherever
--- it would sell, mail, trade or auction the item, Sell All Junk keeps it, and
--- sorting leaves it in place. "Add note" in the item menu (Alt+Right-click)
--- writes a note on the item.
+-- Item Locking: Alt Left Click (unless Item marks gives it to a mark) or "Lock"
+-- in the item menu (Alt Right Click) locks that exact bag or bank item (by
+-- GUID). A locked item can't be picked up, right-click is blocked wherever it
+-- would sell, mail, trade or auction the item, Sell All Junk keeps it, and
+-- sorting leaves it in place. "Add note" in the item menu writes a note on the
+-- item.
 --
 -- Files of this slice:
 --   feature.lua     registration, schema and lifecycle (this file)
@@ -19,7 +20,7 @@
 local _, ns = ...
 
 local Locking = ns:RegisterFeature("inventory", "locking", {
-    order = 3,
+    order = 2,
     settings = {
         {
             key = "indicator",
