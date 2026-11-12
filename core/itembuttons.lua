@@ -7,7 +7,8 @@
 -- would taint it:
 --   * while Alt is held, over every item, when an active feature takes Alt
 --     clicks: Alt Left Click goes to OnAltClick, Alt Right Click opens the
---     item menu (each active feature's AddMenuEntries);
+--     item menu (each active feature's AddMenuEntries), whose shield stays up
+--     until it closes;
 --   * over items an active feature guards (IsGuarded), e.g. locked items while
 --     the cursor holds an item or a merchant, mail, trade or auction window is
 --     open: no swapping them out, no right-click selling, attaching or posting.
@@ -59,6 +60,8 @@ local sources = {
 }
 
 -- { feature, handler } in registration order. Handler fields, all optional:
+--   part                                the feature's part (toggle key) the handler
+--                                       belongs to: it runs only while that part does
 --   Update(button, itemLocation, guid)  draws the feature's marks on the button
 --                                       (guid is nil for an empty slot)
 --   IsGuarded(guid, context)            shields the item without Alt; context.protect:
@@ -81,7 +84,7 @@ end
 local function GetActive(field)
     local methods = {}
     for _, entry in ipairs(handlers) do
-        if entry.handler[field] and entry.feature:IsActive() then
+        if entry.handler[field] and entry.feature:IsHandlerActive(entry.handler.part) then
             table.insert(methods, entry.handler[field])
         end
     end
@@ -95,6 +98,9 @@ local decorations = setmetatable({}, { __mode = "k" })
 local hooksInstalled = false
 local listening = false
 local lastContext
+-- The shield the item menu is open on: kept up until the menu closes, since
+-- Blizzard closes a menu whose owner hides (releasing Alt would).
+local menuShield
 
 local function IsSinkOpen()
     for _, frameName in ipairs(SINK_FRAMES) do
@@ -137,8 +143,8 @@ local function GetItemGUID(itemLocation)
 end
 
 -- The item menu: the item's name as a title, in Blizzard's gold title color to
--- stand apart from the entries, then each active feature's entries.
--- Returns false when no active feature adds entries.
+-- stand apart from the entries, then each active feature's entries. Its shield
+-- stays up while it's open. Returns false when no active feature adds entries.
 local function OpenMenu(shield, itemLocation)
     local addEntries = GetActive("AddMenuEntries")
     local guid = GetItemGUID(itemLocation)
@@ -147,11 +153,19 @@ local function OpenMenu(shield, itemLocation)
     end
 
     MenuUtil.CreateContextMenu(shield, function(_, rootDescription)
+        -- Only the latest menu's release drops its shield.
+        rootDescription:AddMenuReleasedCallback(function()
+            if menuShield == shield then
+                menuShield = nil
+                ns:RefreshItemButtons()
+            end
+        end)
         rootDescription:CreateTitle(C_Item.GetItemName(itemLocation))
         for _, AddMenuEntries in ipairs(addEntries) do
             AddMenuEntries(rootDescription, itemLocation, guid)
         end
     end)
+    menuShield = shield
     return true
 end
 
@@ -177,12 +191,18 @@ function ShieldMixin:OnClick(mouseButton)
         end
     end
 
+    if not decorations[self.itemButton].guarded then
+        return -- kept up only for Alt or its menu
+    end
     for _, OnGuardedClick in ipairs(GetActive("OnGuardedClick")) do
         OnGuardedClick(itemLocation, mouseButton)
     end
 end
 
 function ShieldMixin:OnReceiveDrag()
+    if not decorations[self.itemButton].guarded then
+        return
+    end
     local itemLocation = GetItemLocation(self.itemButton)
     for _, OnGuardedDrag in ipairs(GetActive("OnGuardedDrag")) do
         OnGuardedDrag(itemLocation)
@@ -249,7 +269,9 @@ local function UpdateButton(button, source, context)
         Update(button, itemLocation, guid)
     end
 
-    local showShield = guid ~= nil and ((context.alt and context.takesAlt) or IsGuarded(guid, context))
+    decoration.guarded = guid ~= nil and IsGuarded(guid, context)
+    local hasMenu = decoration.shield ~= nil and decoration.shield == menuShield
+    local showShield = guid ~= nil and ((context.alt and context.takesAlt) or decoration.guarded or hasMenu)
     if showShield and not decoration.shield then
         decoration.shield = CreateShield(button)
     end
@@ -266,7 +288,7 @@ end
 
 local function HasActiveHandler()
     for _, entry in ipairs(handlers) do
-        if entry.feature:IsActive() then
+        if entry.feature:IsHandlerActive(entry.handler.part) then
             return true
         end
     end

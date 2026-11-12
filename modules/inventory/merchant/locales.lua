@@ -2,7 +2,14 @@ local _, ns = ...
 
 ns:RegisterLocale("enUS", {
     ["inventory.merchant.title"] = "Merchant",
-    ["inventory.merchant.description"] = "Sells your junk and repairs your items at merchants.",
+    ["inventory.merchant.description"] = "Marks items as junk, sells your junk and repairs your items at merchants.",
+    ["inventory.merchant.markJunk"] = "Mark items as junk",
+    ["inventory.merchant.markJunk.tooltip"] = 'Adds "Mark as junk" to the item menu (Alt Right Click): every copy of a marked item is sold with your junk.',
+    ["inventory.merchant.markAsJunk"] = "Mark as junk",
+    ["inventory.merchant.junkCoin"] = "Junk coin",
+    ["inventory.merchant.junkCoin.tooltip"] = "Controls when your junk shows a coin in your bags.",
+    ["inventory.merchant.junkCoin.merchant"] = "At merchants",
+    ["inventory.merchant.junkCoin.always"] = "Always",
     ["inventory.merchant.autoSellJunk"] = "Auto sell junk",
     ["inventory.merchant.autoSellJunk.tooltip"] = "Sells your junk, including items marked as junk, when you visit a merchant. Locked items are kept.",
     ["inventory.merchant.autoRepair"] = "Auto repair",
@@ -21,7 +28,14 @@ ns:RegisterLocale("enUS", {
 
 ns:RegisterLocale("frFR", {
     ["inventory.merchant.title"] = "Marchand",
-    ["inventory.merchant.description"] = "Vend votre camelote et répare vos objets chez les marchands.",
+    ["inventory.merchant.description"] = "Marque des objets comme camelote, vend votre camelote et répare vos objets chez les marchands.",
+    ["inventory.merchant.markJunk"] = "Marquer la camelote",
+    ["inventory.merchant.markJunk.tooltip"] = "Ajoute « Marquer comme camelote » au menu des objets (Alt-clic droit) : chaque exemplaire d’un objet marqué est vendu avec votre camelote.",
+    ["inventory.merchant.markAsJunk"] = "Marquer comme camelote",
+    ["inventory.merchant.junkCoin"] = "Pièce de camelote",
+    ["inventory.merchant.junkCoin.tooltip"] = "Contrôle quand votre camelote affiche une pièce dans vos sacs.",
+    ["inventory.merchant.junkCoin.merchant"] = "Chez les marchands",
+    ["inventory.merchant.junkCoin.always"] = "Toujours",
     ["inventory.merchant.autoSellJunk"] = "Vendre la camelote",
     ["inventory.merchant.autoSellJunk.tooltip"] = "Vend votre camelote, y compris les objets marqués comme camelote, quand vous parlez à un marchand. Les objets verrouillés sont conservés.",
     ["inventory.merchant.autoRepair"] = "Réparer l’équipement",

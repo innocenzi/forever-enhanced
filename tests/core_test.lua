@@ -324,7 +324,9 @@ test("the minimal preset turns chatty features off and keeps what it doesn't lis
     world:Setting("interface.windows.modifier"):SetValue("alt")
     ApplyPreset(world, "minimal")
 
-    expect(not Feature(world, "inventory", "merchant"):IsActive(), "merchant off")
+    local merchant = Feature(world, "inventory", "merchant")
+    expect(merchant:IsPartActive("markJunk"), "junk marking on")
+    expect(not merchant:GetSetting("autoSellJunk") and not merchant:GetSetting("autoRepair"), "merchant automation off")
     expect(not Feature(world, "quests", "announce"):IsActive(), "announcements off")
     expect(not Feature(world, "interface", "glow"):IsActive(), "glow off")
     expect(Feature(world, "inventory", "locking"):IsActive(), "locking on")

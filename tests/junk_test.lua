@@ -1,9 +1,17 @@
--- Junk marking: the item menu entry, the junk coin, Sell All Junk and auto selling.
+-- Junk marking (Merchant's markJunk part): the item menu entry, the junk coin,
+-- Sell All Junk and auto selling. Merchant is on, coins always shown, auto
+-- selling off unless a test turns it on.
 -- The fake bag starts as: G1 G2 - GJUNK (GJUNK is poor quality); items are their own IDs.
+
+local function Enable(world)
+    world:Setting("inventory.merchant.autoSellJunk"):SetValue(false)
+    world:Setting("inventory.merchant.junkCoin"):SetValue("always")
+    world:Setting("inventory.merchant.enabled"):SetValue(true)
+end
 
 local function MarkEntry(world, slot)
     local menu = assert(world:AltRightClick(slot), "item menu opened")
-    return world:MenuEntry(menu, world.L["inventory.junk.mark"])
+    return world:MenuEntry(menu, world.L["inventory.merchant.markAsJunk"])
 end
 
 local function ToggleMark(world, slot)
@@ -11,6 +19,7 @@ local function ToggleMark(world, slot)
 end
 
 test("marks every copy of an item as junk", function(world)
+    Enable(world)
     world.itemIDs.G1, world.itemIDs.G2 = "CLOTH", "CLOTH"
     local entry = MarkEntry(world, 1)
     expect(entry.enabled, "entry enabled")
@@ -19,15 +28,50 @@ test("marks every copy of an item as junk", function(world)
     entry.select()
     expect(MarkEntry(world, 2).isSelected(), "the other copy is marked")
     expect(world:JunkCoin(1) and world:JunkCoin(2), "coin on both copies")
-    expect(not world:JunkCoin(4), "no coin on poor items")
-    equal(world.env.ForeverEnhancedCharacterDB.inventory.junk.items.CLOTH, true, "saved per character")
+    equal(world.env.ForeverEnhancedCharacterDB.inventory.merchant.junk.CLOTH, true, "saved per character")
 
     ToggleMark(world, 2)
     expect(not MarkEntry(world, 1).isSelected(), "unmarked")
     expect(not world:JunkCoin(1) and not world:JunkCoin(2), "coins hidden")
 end)
 
+test("the junk coin shows on the junk Sell All Junk would sell", function(world)
+    Enable(world)
+    world.bags[0][3] = "GREY"
+    world.quality.GREY = 0
+    world.noValue.GREY = true
+    expect(world:JunkCoin(4), "coin on poor items")
+    expect(not world:JunkCoin(3), "no coin on unsellable poor items")
+    expect(not world:JunkCoin(1), "no coin on other items")
+
+    world:AltClick(4)
+    expect(not world:JunkCoin(4), "no coin on locked poor items")
+
+    ToggleMark(world, 1)
+    world.excludedFromJunkSell[0] = true
+    world:Fire("BAG_UPDATE_DELAYED")
+    expect(not world:JunkCoin(1), "no coin in bags excluded from Sell All Junk")
+end)
+
+test("the junk coin shows only at merchants by default, like Blizzard's", function(world)
+    Enable(world)
+    world:Setting("inventory.merchant.junkCoin"):SetValue("merchant")
+    ToggleMark(world, 1)
+    expect(not world:JunkCoin(1), "no coin away from merchants")
+
+    world:OpenMerchant()
+    expect(world:JunkCoin(1), "coin on marked items at a merchant")
+    expect(not world:JunkCoin(4), "poor items left to Blizzard's coin")
+
+    world:CloseMerchant()
+    expect(not world:JunkCoin(1), "coin hidden once the merchant closes")
+
+    world:Setting("inventory.merchant.junkCoin"):SetValue("always")
+    expect(world:JunkCoin(1) and world:JunkCoin(4), "coins once always shown")
+end)
+
 test("poor and unsellable items can't be marked", function(world)
+    Enable(world)
     local poor = MarkEntry(world, 4)
     expect(poor.isSelected(), "poor items show as junk")
     expect(not poor.enabled, "poor entry disabled")
@@ -37,6 +81,7 @@ test("poor and unsellable items can't be marked", function(world)
 end)
 
 test("Sell All Junk sells marked items with the poor ones", function(world)
+    Enable(world)
     ToggleMark(world, 1)
     world:OpenMerchant()
     world:ClickSellAllJunk()
@@ -51,6 +96,7 @@ test("Sell All Junk sells marked items with the poor ones", function(world)
 end)
 
 test("keeps locked copies of marked items", function(world)
+    Enable(world)
     world.itemIDs.G1, world.itemIDs.G2 = "CLOTH", "CLOTH"
     ToggleMark(world, 1)
     world:AltClick(1)
@@ -68,6 +114,7 @@ test("keeps locked copies of marked items", function(world)
 end)
 
 test("enables Sell All Junk with only marked junk", function(world)
+    Enable(world)
     world.bags[0][4] = nil
     world:OpenMerchant()
     expect(not world:IsSellAllJunkEnabled(), "disabled without junk")
@@ -84,6 +131,7 @@ test("enables Sell All Junk with only marked junk", function(world)
 end)
 
 test("leaves junk in bags excluded from Sell All Junk", function(world)
+    Enable(world)
     ToggleMark(world, 1)
     world.excludedFromJunkSell[0] = true
     world:OpenMerchant()
@@ -93,7 +141,8 @@ test("leaves junk in bags excluded from Sell All Junk", function(world)
 end)
 
 test("auto selling sells marked items", function(world)
-    world:Setting("inventory.merchant.enabled"):SetValue(true)
+    Enable(world)
+    world:Setting("inventory.merchant.autoSellJunk"):SetValue(true)
     world.sellPrices.G1, world.sellPrices.GJUNK = 10, 5
     ToggleMark(world, 1)
     world:OpenMerchant()
@@ -103,16 +152,19 @@ test("auto selling sells marked items", function(world)
     expect(world.prints[#world.prints]:find(message, 1, true), "announced")
 end)
 
-test("turning the feature off hides coins and stops selling, and keeps marks", function(world)
-    ToggleMark(world, 1)
-    world:Setting("inventory.junk.enabled"):SetValue(false)
-    expect(not world:JunkCoin(1), "coin hidden")
-    equal(MarkEntry(world, 1), nil, "no menu entry")
+for _, key in ipairs({ "markJunk", "enabled" }) do
+    test("turning " .. key .. " off hides coins and stops selling, and keeps marks", function(world)
+        Enable(world)
+        ToggleMark(world, 1)
+        world:Setting("inventory.merchant." .. key):SetValue(false)
+        expect(not world:JunkCoin(1), "coin hidden")
+        equal(MarkEntry(world, 1), nil, "no menu entry")
 
-    world:OpenMerchant()
-    world:ClickSellAllJunk()
-    equal(#world.hiddenPopups, 0, "Sell All Junk left to Blizzard")
+        world:OpenMerchant()
+        world:ClickSellAllJunk()
+        equal(#world.hiddenPopups, 0, "Sell All Junk left to Blizzard")
 
-    world:Setting("inventory.junk.enabled"):SetValue(true)
-    expect(world:JunkCoin(1), "mark kept")
-end)
+        world:Setting("inventory.merchant." .. key):SetValue(true)
+        expect(world:JunkCoin(1), "mark kept")
+    end)
+end

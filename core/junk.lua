@@ -18,6 +18,7 @@ local L = ns.L
 local SELL_ALL_JUNK_CLICKED = "MerchantFrame.SellAllJunkButtonClicked"
 
 -- { feature, handler } in registration order. Handler fields, all optional:
+--   part                        the feature's part (toggle key) the handler belongs to
 --   IsJunk(itemLocation, info)  true adds a sellable item that isn't poor quality
 --   IsKept(itemLocation)        true keeps a junk item
 --   CanSellAroundKept()         false cancels Sell All Junk when an item is kept
@@ -32,7 +33,7 @@ end
 local function AnyActive(field, ...)
     for _, entry in ipairs(handlers) do
         local method = entry.handler[field]
-        if method and entry.feature:IsActive() and method(...) then
+        if method and entry.feature:IsHandlerActive(entry.handler.part) and method(...) then
             return true
         end
     end
@@ -42,7 +43,7 @@ end
 local function CanSellAroundKept()
     for _, entry in ipairs(handlers) do
         local method = entry.handler.CanSellAroundKept
-        if method and entry.feature:IsActive() and not method() then
+        if method and entry.feature:IsHandlerActive(entry.handler.part) and not method() then
             return false
         end
     end
@@ -57,6 +58,33 @@ local function IsBagExcluded(bagID)
     return C_Container.GetBagSlotFlag(bagID, Enum.BagSlotFlags.ExcludeJunkSell)
 end
 
+-- What Sell All Junk does with the item of a bag slot not excluded from it:
+-- "sold", "kept" (junk a feature keeps) or nil (not junk). info: the slot's
+-- C_Container.GetContainerItemInfo, nil when empty.
+local function GetJunkState(bagID, slot, info)
+    if not info or info.hasNoValue then
+        return nil
+    end
+    local itemLocation = ItemLocation:CreateFromBagAndSlot(bagID, slot)
+    if info.quality ~= Enum.ItemQuality.Poor and not AnyActive("IsJunk", itemLocation, info) then
+        return nil
+    end
+    return AnyActive("IsKept", itemLocation) and "kept" or "sold"
+end
+
+local isBag = {}
+for _, bagID in ipairs(ns.Containers.BAG_IDS) do
+    isBag[bagID] = true
+end
+
+-- Whether Sell All Junk would sell the item at this slot (never in the bank).
+function ns:IsSoldAsJunk(bagID, slot)
+    if not isBag[bagID] or IsBagExcluded(bagID) then
+        return false
+    end
+    return GetJunkState(bagID, slot, C_Container.GetContainerItemInfo(bagID, slot)) == "sold"
+end
+
 -- Returns the junk to sell, { { bagID, slot, info } ... }, then how many junk
 -- items features keep and how many of those to sell they add.
 function ns:CollectJunk()
@@ -65,17 +93,12 @@ function ns:CollectJunk()
         if not IsBagExcluded(bagID) then
             for slot = 1, C_Container.GetContainerNumSlots(bagID) do
                 local info = C_Container.GetContainerItemInfo(bagID, slot)
-                if info and not info.hasNoValue then
-                    local itemLocation = ItemLocation:CreateFromBagAndSlot(bagID, slot)
-                    local isPoor = info.quality == Enum.ItemQuality.Poor
-                    if isPoor or AnyActive("IsJunk", itemLocation, info) then
-                        if AnyActive("IsKept", itemLocation) then
-                            keptCount = keptCount + 1
-                        else
-                            addedCount = addedCount + (isPoor and 0 or 1)
-                            table.insert(junk, { bagID = bagID, slot = slot, info = info })
-                        end
-                    end
+                local state = GetJunkState(bagID, slot, info)
+                if state == "kept" then
+                    keptCount = keptCount + 1
+                elseif state == "sold" then
+                    addedCount = addedCount + (info.quality == Enum.ItemQuality.Poor and 0 or 1)
+                    table.insert(junk, { bagID = bagID, slot = slot, info = info })
                 end
             end
         end

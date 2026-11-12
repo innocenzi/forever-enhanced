@@ -638,12 +638,78 @@ end
 
 TextureKitConstants = { UseAtlasSize = true, IgnoreAtlasSize = false }
 
--- Records the last context menu opened: world.contextMenu = { owner, generator }.
+-- Menu descriptions record their entries: { kind = "radio" | "button" | "checkbox" |
+-- "title" | "divider", text, color, isSelected(), select(), callback(), enabled, children,
+-- releasedCallbacks }.
+local function NewMenuDescription()
+    local description = { children = {}, enabled = true, releasedCallbacks = {} }
+    function description:CreateRadio(text, isSelected, setSelected)
+        local entry = { kind = "radio", text = text, isSelected = isSelected, select = setSelected }
+        table.insert(self.children, entry)
+        return entry
+    end
+    function description:CreateButton(text, callback)
+        local entry = NewMenuDescription()
+        entry.kind, entry.text, entry.callback = "button", text, callback
+        table.insert(self.children, entry)
+        return entry
+    end
+    function description:CreateCheckbox(text, isSelected, setSelected)
+        local entry = NewMenuDescription()
+        entry.kind, entry.text, entry.isSelected, entry.select = "checkbox", text, isSelected, setSelected
+        table.insert(self.children, entry)
+        return entry
+    end
+    function description:CreateTitle(text, color)
+        table.insert(self.children, { kind = "title", text = text, color = color })
+    end
+    function description:CreateDivider()
+        table.insert(self.children, { kind = "divider" })
+    end
+    function description:SetEnabled(enabled)
+        self.enabled = enabled
+    end
+    function description:AddMenuReleasedCallback(callback)
+        table.insert(self.releasedCallbacks, callback)
+    end
+    description.SetScrollMode = NoOp
+    return description
+end
+
+-- Context menus, like Blizzard_Menu: opening one closes the last (running its
+-- released callbacks), and a menu closes once its owner isn't visible (checked
+-- every frame in game, when asked here).
+-- world.contextMenu = { owner, generator, root }.
+local function CloseContextMenu()
+    local menu = world.contextMenu
+    world.contextMenu = nil
+    if menu then
+        for _, callback in ipairs(menu.root.releasedCallbacks) do
+            callback()
+        end
+    end
+end
+
 MenuUtil = {
     CreateContextMenu = function(owner, generator)
-        world.contextMenu = { owner = owner, generator = generator }
+        CloseContextMenu()
+        local root = NewMenuDescription()
+        generator(owner, root)
+        world.contextMenu = { owner = owner, generator = generator, root = root }
     end,
 }
+
+function world:CloseContextMenu()
+    CloseContextMenu()
+end
+
+function world:IsContextMenuOpen()
+    if self.contextMenu and not self.contextMenu.owner:IsVisible() then
+        CloseContextMenu()
+    end
+    return self.contextMenu ~= nil
+end
+
 NineSliceUtil = { ApplyLayoutByName = NoOp }
 
 -- The Blizzard templates the addon uses: the parts it touches.
@@ -2397,9 +2463,12 @@ HIGHLIGHT_FONT_COLOR = CreateColor(1, 1, 1)
 
 -- Blizzard frames ------------------------------------------------------------------------
 
+ContainerFrameCombinedBags = CreateFrame("Frame", "ContainerFrameCombinedBags")
+ContainerFrameCombinedBags:SetSize(400, 300)
+
 world.buttons = {}
 for slot = 1, BAG_SIZE do
-    local button = CreateFrame("Button")
+    local button = CreateFrame("Button", nil, ContainerFrameCombinedBags)
     button.id = slot
     function button:GetBagID()
         return 0
@@ -2407,8 +2476,6 @@ for slot = 1, BAG_SIZE do
     world.buttons[slot] = button
 end
 
-ContainerFrameCombinedBags = CreateFrame("Frame", "ContainerFrameCombinedBags")
-ContainerFrameCombinedBags:SetSize(400, 300)
 function ContainerFrameCombinedBags:EnumerateValidItems()
     return ipairs(world.buttons)
 end
@@ -3130,10 +3197,12 @@ function world:ItemTooltip(data)
 end
 
 -- Bags: the combined bags frame fires Blizzard's OpenBag / CloseBag callbacks.
+-- Like the client: ContainerFrame_GenerateFrame shows the frame, then updates its items.
 function world:OpenBags()
     if not ContainerFrameCombinedBags:IsShown() then
         ContainerFrameCombinedBags:Show()
         UpdateContainerFrameAnchors()
+        ContainerFrameCombinedBags:UpdateItems()
         EventRegistry:TriggerEvent("ContainerFrame.OpenBag", ContainerFrameCombinedBags)
     end
 end
@@ -3246,40 +3315,6 @@ function world:SavedBankBags()
         table.insert(slots, FindTexture(button, "bankslot-icon-lock").shown and "x" or slot)
     end
     return table.concat(slots, " ")
-end
-
--- Menu descriptions record their entries: { kind = "radio" | "button" | "checkbox" |
--- "title" | "divider", text, color, isSelected(), select(), callback(), enabled, children }.
-local function NewMenuDescription()
-    local description = { children = {}, enabled = true }
-    function description:CreateRadio(text, isSelected, setSelected)
-        local entry = { kind = "radio", text = text, isSelected = isSelected, select = setSelected }
-        table.insert(self.children, entry)
-        return entry
-    end
-    function description:CreateButton(text, callback)
-        local entry = NewMenuDescription()
-        entry.kind, entry.text, entry.callback = "button", text, callback
-        table.insert(self.children, entry)
-        return entry
-    end
-    function description:CreateCheckbox(text, isSelected, setSelected)
-        local entry = NewMenuDescription()
-        entry.kind, entry.text, entry.isSelected, entry.select = "checkbox", text, isSelected, setSelected
-        table.insert(self.children, entry)
-        return entry
-    end
-    function description:CreateTitle(text, color)
-        table.insert(self.children, { kind = "title", text = text, color = color })
-    end
-    function description:CreateDivider()
-        table.insert(self.children, { kind = "divider" })
-    end
-    function description:SetEnabled(enabled)
-        self.enabled = enabled
-    end
-    description.SetScrollMode = NoOp
-    return description
 end
 
 -- Runs a menu generator: the list of its top-level entries.

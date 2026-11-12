@@ -62,6 +62,15 @@ function FeatureMixin:IsPartActive(key)
     return self.activeParts[key] == true
 end
 
+-- Whether a handler registered in core runs: the feature is active, or for the
+-- handler of a part (its `part` field, the part's toggle key), the part is.
+function FeatureMixin:IsHandlerActive(part)
+    if part then
+        return self:IsPartActive(part)
+    end
+    return self.active == true
+end
+
 -- "<module>.<feature>", or "<module>.<feature>.<suffix>": the locale keys of
 -- the feature and of its settings.
 function FeatureMixin:GetLocaleKey(suffix)
