@@ -18,7 +18,6 @@ local Announce = ns:RegisterFeature("quests", "announce", {
         -- Default from the locale (quests.announce.template.default).
         { key = "template", type = "text" },
         { key = "channel", type = "dropdown", default = "instance", options = { "instance", "party" } },
-        { key = "solo", type = "toggle", default = false },
     },
     presets = {
         minimal = { enabled = false },

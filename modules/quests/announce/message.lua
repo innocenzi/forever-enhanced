@@ -87,17 +87,9 @@ local function GetChannel()
     end
 end
 
-local function IsSolo()
-    return not IsInGroup(LE_PARTY_CATEGORY_HOME) and not IsInGroup(LE_PARTY_CATEGORY_INSTANCE)
-end
-
 function Message:Announce(questID, objective)
-    local message = self:Build(questID, objective)
     local channel = GetChannel()
     if channel then
-        C_ChatInfo.SendChatMessage(message, channel)
-    elseif IsSolo() and Announce:GetSetting("solo") then
-        -- Shown as the group would see it, raid target icons included.
-        DEFAULT_CHAT_FRAME:AddMessage(C_ChatInfo.ReplaceIconAndGroupExpressions(message))
+        C_ChatInfo.SendChatMessage(self:Build(questID, objective), channel)
     end
 end

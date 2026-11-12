@@ -1614,9 +1614,6 @@ C_ChatInfo = {
         assert(not message:find("|4"), "chat refuses grammar codes")
         table.insert(world.sentChat, { message = message, chatType = chatType })
     end,
-    ReplaceIconAndGroupExpressions = function(message)
-        return message
-    end,
 }
 
 -- Bubbles shown with the player's chat bubble options.

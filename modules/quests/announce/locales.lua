@@ -10,8 +10,6 @@ ns:RegisterLocale("enUS", {
     ["quests.announce.channel.tooltip"] = "Controls where the message is sent.",
     ["quests.announce.channel.instance"] = "Instance or party",
     ["quests.announce.channel.party"] = "Party only",
-    ["quests.announce.solo"] = "Show when solo",
-    ["quests.announce.solo.tooltip"] = "Shows the message in your chat when you are not in a group.",
 })
 
 ns:RegisterLocale("frFR", {
@@ -24,6 +22,4 @@ ns:RegisterLocale("frFR", {
     ["quests.announce.channel.tooltip"] = "Contrôle où le message est envoyé.",
     ["quests.announce.channel.instance"] = "Instance ou groupe",
     ["quests.announce.channel.party"] = "Groupe uniquement",
-    ["quests.announce.solo"] = "Afficher hors groupe",
-    ["quests.announce.solo.tooltip"] = "Affiche le message dans votre fenêtre de discussion lorsque vous n’êtes pas en groupe.",
 })

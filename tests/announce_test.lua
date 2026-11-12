@@ -1,5 +1,5 @@
--- Objective Announcements: completion detection, template, channels, solo
--- preview and lifecycle. The feature is off by default; every test but the
+-- Objective Announcements: completion detection, template, channels and
+-- lifecycle. The feature is off by default; every test but the
 -- first turns it on.
 
 local function Set(world, key, value)
@@ -170,16 +170,11 @@ test("prefers the instance group, unless set to the party only", function(world)
     equal(#world.prints, 0, "nothing shown either")
 end)
 
-test("stays quiet outside a group unless set to show the message", function(world)
+test("stays quiet outside a group", function(world)
     WithQuest(world)
     world.party = false
     world:Progress(1, 1, 2)
     equal(#world.sentChat + #world.prints, 0, "nothing sent or shown")
-
-    Set(world, "solo", true)
-    world:Progress(1, 2, 1)
-    equal(#world.sentChat, 0, "nothing sent")
-    equal(world.prints[1], Default(world, "Wolf Pelt", 1, 1), "shown to the player")
 end)
 
 test("disabling stops the announcements", function(world)
