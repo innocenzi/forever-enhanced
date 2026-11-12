@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.0.1 - 2026-11-12
+
+
+### Features
+- **map:** show every quest on continents in the seamless world map
+
+
+### Fixes
+- **quests:** track dungeon quests on entering their dungeon
+
+
+### Performance
+- **map:** follow the seamless world map's view sooner after zooming or dragging
+
 ## 1.0.0 - 2026-11-12
 
 
