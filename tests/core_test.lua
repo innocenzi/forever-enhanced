@@ -354,7 +354,6 @@ test("the minimal preset turns chatty features off and keeps what it doesn't lis
 
     local modules = world.env.ForeverEnhancedDB.modules
     equal(modules.quests.features.helpers.nearby, false, "nearby tracking off")
-    equal(modules.inventory.features.locking.announce, false, "locking quiet")
     equal(modules.map.features.pin.announce, false, "waypoint quiet")
     equal(modules.inventory.features.bank.openWithBags, false, "bank opens on its own")
     equal(modules.interface.features.windows.modifier, "alt", "unlisted setting kept")

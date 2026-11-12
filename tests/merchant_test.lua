@@ -59,7 +59,7 @@ test("sells nothing when all junk is locked or excluded", function(world)
     world:OpenMerchant()
     equal(#world.sold, 0, "sold")
     equal(world.sellAllJunkCalls, 0, "Sell All Junk calls")
-    equal(#world.prints, 2, "only the lock and unlock messages")
+    equal(#world.prints, 0, "chat messages")
 end)
 
 test("stays quiet when announcing is off", function(world)

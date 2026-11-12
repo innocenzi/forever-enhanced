@@ -17,7 +17,7 @@ local DIALOG = "FOREVER_ENHANCED_ITEM_NOTE"
 local MAX_LETTERS = 255
 
 local function Save(editBox, data)
-    Locking:SetNote(data.guid, data.link, editBox:GetText())
+    Locking:SetNote(data.guid, editBox:GetText())
 end
 
 -- The text is set when shown: strings are in the player's language only after
@@ -53,7 +53,7 @@ function Locking:EditNote(itemLocation, guid)
     end
     local link = C_Item.GetItemLink(itemLocation)
     StaticPopupDialogs[DIALOG].text = ns.L["inventory.locking.notePrompt"]
-    StaticPopup_Show(DIALOG, link, nil, { guid = guid, link = link, note = self:GetGUIDNote(guid) })
+    StaticPopup_Show(DIALOG, link, nil, { guid = guid, note = self:GetGUIDNote(guid) })
 end
 
 function Notes:Disable()

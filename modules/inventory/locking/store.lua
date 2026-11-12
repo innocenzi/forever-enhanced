@@ -50,16 +50,11 @@ function Locking:GetIsLockedMessage()
 end
 
 -- A note belongs to its lock: unlocking removes it.
-local function SetLocked(guid, link, locked)
+local function SetLocked(guid, locked)
     local store = GetStore()
     store.locks[guid] = locked or nil
     if not locked then
         store.notes[guid] = nil
-    end
-
-    if Locking:GetSetting("announce") then
-        local message = locked and L["inventory.locking.locked"] or L["inventory.locking.unlocked"]
-        ns:Print(message:format(link))
     end
 
     ns:RefreshItemButtons()
@@ -69,12 +64,12 @@ end
 function Locking:ToggleLock(itemLocation)
     local guid = self:GetItemGUID(itemLocation)
     if guid then
-        SetLocked(guid, C_Item.GetItemLink(itemLocation), not GetStore().locks[guid])
+        SetLocked(guid, not GetStore().locks[guid])
     end
 end
 
 -- Blank text removes the note and keeps the lock; a note on an unlocked item locks it.
-function Locking:SetNote(guid, link, text)
+function Locking:SetNote(guid, text)
     local note = strtrim(text)
     local store = GetStore()
     if note == "" then
@@ -84,6 +79,6 @@ function Locking:SetNote(guid, link, text)
 
     store.notes[guid] = note
     if not store.locks[guid] then
-        SetLocked(guid, link, true)
+        SetLocked(guid, true)
     end
 end
