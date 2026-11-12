@@ -1,4 +1,4 @@
--- Quest Helpers: four parts, each behind its toggle.
+-- Quest Helpers: five parts, each behind its toggle.
 --
 -- "nearby": keeps the quests nearest to the player in the objective tracker
 -- and untracks the farthest ones as the player moves. It takes over the
@@ -8,19 +8,24 @@
 -- "objectives": item tooltips name the quests of the log that need the item,
 -- with the player's progress (food or trade goods a quest asks for are
 -- ordinary items, with nothing else to tell them apart).
+-- "leftovers": quest items whose quests are all completed say so in their
+-- tooltip, with a check mark in the bags ("leftoverMark"). The client has no
+-- quest database: which quests use an item is learned as the player plays,
+-- account-wide.
 -- "hideQuestie": hides other players' Questie announcements in group chat
 -- (whether or not the player announces their own objectives).
 --
 -- Files of this slice:
---   feature.lua  registration, schema and lifecycle (this file)
---   locales.lua  strings
---   ranking.lua  nearby: which quests should be tracked, closest first, and their order
---   watches.lua  nearby: the watch list: applying and ordering it, manual tracks, dismissals
---   refresh.lua  nearby: events and ticker, coalesced into one evaluation per frame
---   sparkle.lua  sparkles: the CVar behind the sparkle, set again after graphics changes
---   needs.lua    objectives: the item objectives of the quest log, by item name
---   tooltip.lua  objectives: the tooltip lines
---   questie.lua  hideQuestie: the group chat filter for Questie announcements
+--   feature.lua    registration, schema and lifecycle (this file)
+--   locales.lua    strings
+--   ranking.lua    nearby: which quests should be tracked, closest first, and their order
+--   watches.lua    nearby: the watch list: applying and ordering it, manual tracks, dismissals
+--   refresh.lua    nearby: events and ticker, coalesced into one evaluation per frame
+--   sparkle.lua    sparkles: the CVar behind the sparkle, set again after graphics changes
+--   needs.lua      objectives, leftovers: the item objectives of the quest log, by item name
+--   leftovers.lua  leftovers: which quests use each quest item, and the bag mark
+--   tooltip.lua    objectives, leftovers: the tooltip lines
+--   questie.lua    hideQuestie: the group chat filter for Questie announcements
 
 local _, ns = ...
 
@@ -28,9 +33,10 @@ local Helpers = ns:RegisterFeature("quests", "helpers", {
     order = 1,
     settings = {
         { key = "objectives", type = "toggle", default = true },
+        { key = "leftovers", type = "toggle", default = true },
+        { key = "leftoverMark", type = "toggle", default = true, requires = { leftovers = true } },
         { key = "sparkles", type = "toggle", default = true },
         { key = "nearby", type = "toggle", default = false },
-        { key = "count", type = "slider", default = 5, min = 1, max = 25, step = 1, requires = { nearby = true } },
         {
             key = "scope",
             type = "dropdown",
@@ -47,14 +53,31 @@ local Helpers = ns:RegisterFeature("quests", "helpers", {
             step = 50,
             requires = { scope = "range" },
         },
+        { key = "count", type = "slider", default = 5, min = 1, max = 25, step = 1, requires = { nearby = true } },
         { key = "sort", type = "toggle", default = false, requires = { nearby = true } },
         { key = "dungeons", type = "toggle", default = true, requires = { nearby = true } },
         { key = "keepManual", type = "toggle", default = false, requires = { nearby = true } },
         { key = "hideQuestie", type = "toggle", default = false },
     },
     presets = {
-        minimal = { enabled = true, objectives = true, sparkles = true, nearby = false, hideQuestie = false },
-        enhanced = { enabled = true, objectives = true, sparkles = true, nearby = true, hideQuestie = true },
+        minimal = {
+            enabled = true,
+            objectives = true,
+            leftovers = true,
+            leftoverMark = true,
+            sparkles = true,
+            nearby = false,
+            hideQuestie = false,
+        },
+        enhanced = {
+            enabled = true,
+            objectives = true,
+            leftovers = true,
+            leftoverMark = true,
+            sparkles = true,
+            nearby = true,
+            hideQuestie = true,
+        },
     },
 })
 
@@ -70,10 +93,22 @@ function Nearby:Disable()
     Helpers.Watches:Reset()
 end
 
+-- The objectives part: its tooltip lines read the shared objectives index.
+local Objectives = {}
+
+function Objectives:Enable()
+    Helpers.Needs:Acquire("objectives")
+end
+
+function Objectives:Disable()
+    Helpers.Needs:Release("objectives")
+end
+
 function Helpers:SyncParts()
     self:SyncPart("nearby", Nearby)
     self:SyncPart("sparkles", self.Sparkle)
-    self:SyncPart("objectives", self.Needs)
+    self:SyncPart("objectives", Objectives)
+    self:SyncPart("leftovers", self.Leftovers)
     self:SyncPart("hideQuestie", self.QuestieFilter)
 end
 
@@ -81,10 +116,13 @@ function Helpers:OnEnable()
     self:SyncParts()
 end
 
-function Helpers:OnSettingChanged()
+function Helpers:OnSettingChanged(key)
     self:SyncParts()
     if self:IsPartActive("nearby") then
         self.Refresh:Request()
+    end
+    if key == "leftoverMark" and self:IsPartActive("leftovers") then
+        ns:RefreshItemButtons()
     end
 end
 

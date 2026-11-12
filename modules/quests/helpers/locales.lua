@@ -2,7 +2,7 @@ local _, ns = ...
 
 ns:RegisterLocale("enUS", {
     ["quests.helpers.title"] = "Quest helpers",
-    ["quests.helpers.description"] = "Helps you follow your quests and the items they need, and keeps Questie announcements out of group chat.",
+    ["quests.helpers.description"] = "Helps you follow your quests and their items, and keeps Questie announcements out of group chat.",
     ["quests.helpers.nearby"] = "Track nearby quests",
     ["quests.helpers.nearby.tooltip"] = "Tracks the quests closest to you as you move. A quest you untrack stays untracked until you change zones.",
     ["quests.helpers.scope"] = "Quests to track",
@@ -27,13 +27,19 @@ ns:RegisterLocale("enUS", {
     ["quests.helpers.objectives"] = "Quest objectives in tooltips",
     ["quests.helpers.objectives.tooltip"] = "Shows the quests in your log that need an item, with your progress.",
     ["quests.helpers.objectives.line"] = "%s (%d/%d)",
+    ["quests.helpers.leftovers"] = "Leftover quest items",
+    ["quests.helpers.leftovers.tooltip"] = "Shows which quest items you no longer need, once their quests are completed. Only knows quests you do while this option is on.",
+    ["quests.helpers.leftovers.line"] = "Quest completed: %s",
+    ["quests.helpers.leftovers.lineUnknown"] = "Quest completed",
+    ["quests.helpers.leftoverMark"] = "Show check mark",
+    ["quests.helpers.leftoverMark.tooltip"] = "Shows a check mark on these items in your bags and bank.",
     ["quests.helpers.hideQuestie"] = "Hide Questie announcements",
     ["quests.helpers.hideQuestie.tooltip"] = "Hides quest progress messages sent by other players' Questie.",
 })
 
 ns:RegisterLocale("frFR", {
     ["quests.helpers.title"] = "Aides aux quêtes",
-    ["quests.helpers.description"] = "Vous aide à suivre vos quêtes et les objets dont elles ont besoin, et retire les annonces Questie de la discussion de groupe.",
+    ["quests.helpers.description"] = "Vous aide à suivre vos quêtes et leurs objets, et retire les annonces Questie de la discussion de groupe.",
     ["quests.helpers.nearby"] = "Suivre les quêtes proches",
     ["quests.helpers.nearby.tooltip"] = "Suit les quêtes les plus proches de vous à mesure que vous vous déplacez. Une quête que vous ne suivez plus reste écartée jusqu’au prochain changement de zone.",
     ["quests.helpers.scope"] = "Quêtes à suivre",
@@ -58,6 +64,12 @@ ns:RegisterLocale("frFR", {
     ["quests.helpers.objectives"] = "Objectifs dans les infobulles",
     ["quests.helpers.objectives.tooltip"] = "Affiche les quêtes de votre journal qui ont besoin de l’objet, avec votre progression.",
     ["quests.helpers.objectives.line"] = "%s (%d/%d)",
+    ["quests.helpers.leftovers"] = "Objets de quête obsolètes",
+    ["quests.helpers.leftovers.tooltip"] = "Indique les objets de quête dont vous n’avez plus besoin, une fois leurs quêtes terminées. Ne connaît que les quêtes faites pendant que l’option est activée.",
+    ["quests.helpers.leftovers.line"] = "Quête terminée : %s",
+    ["quests.helpers.leftovers.lineUnknown"] = "Quête terminée",
+    ["quests.helpers.leftoverMark"] = "Afficher une coche",
+    ["quests.helpers.leftoverMark.tooltip"] = "Affiche une coche sur ces objets dans vos sacs et votre banque.",
     ["quests.helpers.hideQuestie"] = "Masquer les annonces Questie",
     ["quests.helpers.hideQuestie.tooltip"] = "Masque les messages de progression envoyés par l’AddOn Questie des autres joueurs.",
 })

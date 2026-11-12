@@ -77,6 +77,10 @@ local world = {
     itemFamilies = {},
     bagFamilies = {},
     itemTypes = {},
+    questItems = {},
+    startsQuest = {},
+    completedQuests = {},
+    questFrame = nil,
     bankOpen = false,
     bankTabs = { 6, 7 },
     maxBankTabs = 3,
@@ -1150,6 +1154,7 @@ Enum = {
     CraftingReagentType = { Optional = 0, Basic = 1, Finishing = 2 },
     QuestTag = { Group = 1, PvP = 41, Raid = 62, Dungeon = 81, Heroic = 85, Raid10 = 88, Raid25 = 89 },
     UIMapType = { Cosmic = 0, World = 1, Continent = 2, Zone = 3, Dungeon = 4, Micro = 5, Orphan = 6 },
+    ItemClass = { Questitem = 12, Miscellaneous = 15 },
 }
 NUM_TOTAL_EQUIPPED_BAG_SLOTS = 0
 
@@ -1237,10 +1242,12 @@ C_Item = {
         return count
     end,
     -- world.itemTypes[guid] = { itemType, itemSubType, equipLoc }; items are their own IDs.
+    -- Items in world.questItems are of the quest class.
     GetItemInfoInstant = function(itemIDOrLink)
         local guid = itemIDOrLink:match("%[(.-)%]") or itemIDOrLink
         local itemType = world.itemTypes[guid] or { "Miscellaneous", "Other", "" }
-        return guid, itemType[1], itemType[2], itemType[3]
+        local classID = world.questItems[guid] and Enum.ItemClass.Questitem or Enum.ItemClass.Miscellaneous
+        return guid, itemType[1], itemType[2], itemType[3], ItemIcon(guid), classID
     end,
     GetItemID = function(location)
         return ItemID(ItemAt(location))
@@ -1405,6 +1412,17 @@ C_Container = {
                 iconFileID = ItemIcon(guid),
                 stackCount = StackCount(guid),
             }
+    end,
+    -- Items in world.startsQuest start that quest; active while it is in the log.
+    GetContainerItemQuestInfo = function(bagID, slot)
+        local guid = world.bags[bagID][slot]
+        local itemID = guid and ItemID(guid)
+        local questID = itemID and world.startsQuest[itemID]
+        return {
+            isQuestItem = itemID ~= nil and world.questItems[itemID] == true,
+            questID = questID,
+            isActive = questID ~= nil and C_QuestLog.GetLogIndexForQuestID(questID) ~= nil,
+        }
     end,
     -- Free slots and the bag type flags of the bag (world.bagFamilies), 0 for a normal bag.
     GetContainerNumFreeSlots = function(bagID)
@@ -1592,7 +1610,38 @@ C_QuestLog = {
         local quest = FindQuest(questID)
         return quest and quest.title
     end,
+    GetLogIndexForQuestID = function(questID)
+        for index, quest in ipairs(world.questLog) do
+            if not quest.isHeader and quest.questID == questID then
+                return index
+            end
+        end
+    end,
+    -- Quests in world.completedQuests; repeatable quests never are.
+    IsQuestFlaggedCompleted = function(questID)
+        return world.completedQuests[questID] == true
+    end,
 }
+
+-- The quest window (world.questFrame = { questID, title, required = { itemIDs } }):
+-- what the NPC shows, details or turn-in progress.
+function GetQuestID()
+    return world.questFrame and world.questFrame.questID or 0
+end
+
+function GetTitleText()
+    return world.questFrame and world.questFrame.title or ""
+end
+
+function GetNumQuestItems()
+    return world.questFrame and #(world.questFrame.required or {}) or 0
+end
+
+function GetQuestItemLink(itemType, index)
+    assert(itemType == "required", "only required items are modelled")
+    local itemID = world.questFrame.required[index]
+    return itemID and ItemLink(itemID)
+end
 
 function GetQuestLink(questID)
     local quest = FindQuest(questID)
@@ -3489,6 +3538,12 @@ function world:Glow(slot)
     return false
 end
 
+-- Whether a bag button shows our leftover quest item mark.
+function world:LeftoverMark(slot)
+    local holder = OverlayWith(slot, { ["UI-LFG-ReadyMark"] = true })
+    return holder ~= nil and holder.shown
+end
+
 -- Whether a bag button shows our bank mark.
 function world:BankMark(slot)
     local holder = OverlayWith(slot, { banker = true })
@@ -3616,6 +3671,38 @@ function world:AcceptQuest(quest)
     table.insert(self.questLog, quest)
     C_QuestLog.AddQuestWatch(quest.questID)
     self:Fire("QUEST_ACCEPTED", quest.questID)
+end
+
+-- An NPC shows a quest's details ({ questID, title }), as before accepting it.
+function world:ShowQuestDetail(quest)
+    self.questFrame = { questID = quest.questID, title = quest.title }
+    self:Fire("QUEST_DETAIL")
+end
+
+-- An NPC shows a quest's turn-in progress, with the items it takes.
+function world:ShowQuestProgress(quest, required)
+    self.questFrame = { questID = quest.questID, title = quest.title, required = required }
+    self:Fire("QUEST_PROGRESS")
+end
+
+-- The quest window closes (accepting or declining hides it first, like the client).
+function world:CloseQuestFrame()
+    self.questFrame = nil
+    self:Fire("QUEST_FINISHED")
+end
+
+-- The player turns a quest in: it leaves the log, completed.
+function world:TurnInQuest(questID)
+    for index, quest in ipairs(self.questLog) do
+        if quest.questID == questID then
+            table.remove(self.questLog, index)
+            break
+        end
+    end
+    self.completedQuests[questID] = true
+    self:Fire("QUEST_TURNED_IN", questID, 0, 0)
+    self:Fire("QUEST_REMOVED", questID)
+    self:Fire("QUEST_LOG_UPDATE")
 end
 
 -- An objective's text as the client words it, from QUEST_ITEMS_NEEDED: "3/10

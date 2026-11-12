@@ -3,6 +3,9 @@
 -- ("3/10 Crispy Bat Wing", "Steak de loup : 3/10"): reading that format back
 -- gives the item name in every language. The index is rebuilt on the first
 -- lookup after the log changes.
+--
+-- Shared by the "objectives" part (tooltip lines) and the "leftovers" part
+-- (which quests use the quest items in the bags): it runs while either does.
 
 local _, ns = ...
 
@@ -11,7 +14,7 @@ local Helpers = ns:GetFeature("quests", "helpers")
 local Needs = {}
 Helpers.Needs = Needs
 
--- byName[itemName] = { { title, numFulfilled, numRequired }, ... }
+-- byName[itemName] = { { questID, title, numFulfilled, numRequired }, ... }
 local byName = {}
 local stale = true
 
@@ -47,6 +50,7 @@ local function Rebuild()
                 if name then
                     byName[name] = byName[name] or {}
                     table.insert(byName[name], {
+                        questID = info.questID,
                         title = info.title,
                         numFulfilled = objective.numFulfilled,
                         numRequired = objective.numRequired,
@@ -72,12 +76,21 @@ function Needs:Find(name)
     return byName[name]
 end
 
-function Needs:Enable()
-    stale = true
-    listener:Start()
+-- The parts using the index (their toggle keys): it runs while any does.
+local users = {}
+
+function Needs:Acquire(user)
+    if next(users) == nil then
+        stale = true
+        listener:Start()
+    end
+    users[user] = true
 end
 
-function Needs:Disable()
-    listener:Stop()
-    wipe(byName)
+function Needs:Release(user)
+    users[user] = nil
+    if next(users) == nil then
+        listener:Stop()
+        wipe(byName)
+    end
 end

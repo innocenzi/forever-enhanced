@@ -71,6 +71,7 @@ modules\quests\helpers\watches.lua
 modules\quests\helpers\refresh.lua
 modules\quests\helpers\sparkle.lua
 modules\quests\helpers\needs.lua
+modules\quests\helpers\leftovers.lua
 modules\quests\helpers\tooltip.lua
 modules\quests\helpers\questie.lua
 modules\quests\announce\feature.lua
