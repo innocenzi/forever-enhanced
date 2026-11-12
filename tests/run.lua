@@ -21,6 +21,7 @@ local TEST_FILES = {
     "tests/merchant_test.lua",
     "tests/junk_test.lua",
     "tests/marks_test.lua",
+    "tests/notes_test.lua",
     "tests/windows_test.lua",
     "tests/waypoint_test.lua",
     "tests/way_test.lua",
@@ -50,8 +51,8 @@ local function Run(path, env, ...)
 end
 
 -- A fresh fake client with the addon loaded and the player logged in.
--- `options.savedVariables(locale)` returns the account saved table the client
--- loads before ADDON_LOADED.
+-- `options.savedVariables(locale)` and `options.characterSavedVariables(locale)`
+-- return the account and character saved tables the client loads before ADDON_LOADED.
 local function Boot(locale, options)
     local env = setmetatable({ TEST_LOCALE = locale }, { __index = _G })
     env._G = env
@@ -63,6 +64,9 @@ local function Boot(locale, options)
     end
     if options and options.savedVariables then
         env.ForeverEnhancedDB = options.savedVariables(locale)
+    end
+    if options and options.characterSavedVariables then
+        env.ForeverEnhancedCharacterDB = options.characterSavedVariables(locale)
     end
     world:Fire("ADDON_LOADED", "ForeverEnhanced")
     world:Fire("PLAYER_LOGIN")
@@ -103,7 +107,8 @@ local function LoadTests(path)
     for name, func in pairs(assertions) do
         env[name] = func
     end
-    -- options: { savedVariables = function(locale) return ForeverEnhancedDB end }
+    -- options: { savedVariables = function(locale) return ForeverEnhancedDB end,
+    --            characterSavedVariables = function(locale) return ForeverEnhancedCharacterDB end }
     function env.test(name, func, options)
         table.insert(tests, { file = path, name = name, func = func, options = options })
     end

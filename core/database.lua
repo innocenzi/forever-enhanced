@@ -177,9 +177,28 @@ local function Migrate(savedModules)
     end
 end
 
+-- Brings character data saved by earlier versions up to date.
+local function MigrateCharacter(characterDb)
+    -- Item notes moved from Item locking to Item marks. Item locking showed a
+    -- note only while its item was locked: those notes follow.
+    local inventory = characterDb.inventory
+    local locking = type(inventory) == "table" and inventory.locking
+    if type(locking) == "table" and type(locking.notes) == "table" then
+        local locks = type(locking.locks) == "table" and locking.locks or {}
+        local notes = GetOrCreateTable(GetOrCreateTable(inventory, "marks"), "notes")
+        for guid, note in pairs(locking.notes) do
+            if locks[guid] and notes[guid] == nil then
+                notes[guid] = note
+            end
+        end
+        locking.notes = nil
+    end
+end
+
 function Database:Initialize()
     ForeverEnhancedDB = type(ForeverEnhancedDB) == "table" and ForeverEnhancedDB or {}
     ForeverEnhancedCharacterDB = type(ForeverEnhancedCharacterDB) == "table" and ForeverEnhancedCharacterDB or {}
+    MigrateCharacter(ForeverEnhancedCharacterDB)
 
     -- Before the modules: their locale defaults come in this language.
     ApplyDefault(ForeverEnhancedDB, "language", Database.LANGUAGE_DEFAULT, LANGUAGE_ENTRY)

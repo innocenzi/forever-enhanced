@@ -161,6 +161,7 @@ for _, key in ipairs({ "inventory.marks.junk", "inventory.marks.enabled" }) do
         equal(MarkEntry(world, 1), nil, "no menu entry")
 
         world:OpenMerchant()
+        world.hiddenPopups = {} -- turning the feature off closes its own dialogs
         world:ClickSellAllJunk()
         equal(#world.hiddenPopups, 0, "Sell All Junk left to Blizzard")
 

@@ -3163,6 +3163,7 @@ EventRegistry = {
 
 ACCEPT = "Accept"
 CANCEL = "Cancel"
+CLOSE = "Close"
 
 function strtrim(text)
     return (text:gsub("^%s+", ""):gsub("%s+$", ""))

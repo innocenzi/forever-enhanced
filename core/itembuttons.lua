@@ -69,15 +69,32 @@ local sources = {
 --   OnGuardedClick(itemLocation, mouseButton), OnGuardedDrag(itemLocation)
 --                                       a click or drag on the shield that isn't an Alt action
 --   OnAltClick(itemLocation)            Alt Left Click
---   AddMenuEntries(rootDescription, itemLocation, guid)
---                                       entries of the Alt Right Click item menu
+--   AddMenuEntries(rootDescription, itemLocation, guid), menuOrder
+--                                       entries of the Alt Right Click item menu, and
+--                                       where they go in it (required with them): lower
+--                                       first. Spaced by tens, entries that go together
+--                                       under one ten: 10 lock, 21-23 marks (junk,
+--                                       auction house, bank), 30 Wowhead link, 40 note
 local handlers = {}
+-- The entries of handlers adding menu entries, by menuOrder.
+local menuHandlers = {}
 
 -- Only handlers of active features are called. Call ns:RefreshItemButtons() whenever
 -- what a handler draws or guards changes, and from the feature's OnEnable / OnDisable.
 -- Marks left by a disabled feature are its own to hide: Update is no longer called.
 function ns:AddItemButtonHandler(feature, handler)
-    table.insert(handlers, { feature = feature, handler = handler })
+    local entry = { feature = feature, handler = handler }
+    table.insert(handlers, entry)
+    if handler.AddMenuEntries then
+        assert(type(handler.menuOrder) == "number", "AddMenuEntries needs a menuOrder")
+        for _, other in ipairs(menuHandlers) do
+            assert(other.handler.menuOrder ~= handler.menuOrder, "menuOrder taken: " .. handler.menuOrder)
+        end
+        table.insert(menuHandlers, entry)
+        table.sort(menuHandlers, function(a, b)
+            return a.handler.menuOrder < b.handler.menuOrder
+        end)
+    end
 end
 
 -- The `field` functions of active features' handlers, in registration order.
@@ -86,6 +103,17 @@ local function GetActive(field)
     for _, entry in ipairs(handlers) do
         if entry.handler[field] and entry.feature:IsHandlerActive(entry.handler.part) then
             table.insert(methods, entry.handler[field])
+        end
+    end
+    return methods
+end
+
+-- The AddMenuEntries functions of active features' handlers, by menuOrder.
+local function GetMenuEntries()
+    local methods = {}
+    for _, entry in ipairs(menuHandlers) do
+        if entry.feature:IsHandlerActive(entry.handler.part) then
+            table.insert(methods, entry.handler.AddMenuEntries)
         end
     end
     return methods
@@ -146,7 +174,7 @@ end
 -- stand apart from the entries, then each active feature's entries. Its shield
 -- stays up while it's open. Returns false when no active feature adds entries.
 local function OpenMenu(shield, itemLocation)
-    local addEntries = GetActive("AddMenuEntries")
+    local addEntries = GetMenuEntries()
     local guid = GetItemGUID(itemLocation)
     if #addEntries == 0 or not guid then
         return false

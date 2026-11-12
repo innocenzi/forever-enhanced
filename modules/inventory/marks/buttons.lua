@@ -255,11 +255,15 @@ local function OnAltClick(destination, itemLocation)
     end
 end
 
-for _, destination in ipairs(Marks.DESTINATIONS) do
+-- The marks' entries follow the lock's, in destination order.
+local MENU_ORDER = 20
+
+for index, destination in ipairs(Marks.DESTINATIONS) do
     assert(MARKS[destination], "no mark for destination: " .. destination)
     holders[destination] = setmetatable({}, { __mode = "k" })
     ns:AddItemButtonHandler(Marks, {
         part = destination,
+        menuOrder = MENU_ORDER + index,
         Update = function(button, itemLocation, guid)
             ShowIcon(destination, button, ShowsIcon(destination, itemLocation, guid))
         end,

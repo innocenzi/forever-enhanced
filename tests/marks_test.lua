@@ -202,9 +202,9 @@ end
 test("the item menu lists junk, then the auction house, then the bank", function(world)
     world:Setting("inventory.merchant.enabled"):SetValue(true)
     local menu = world:AltRightClick(1)
-    equal(menu[4].text, world.L[TEXTS.junk], "junk fourth")
-    equal(menu[5].text, world.L[TEXTS.auction], "auction house fifth")
-    equal(menu[6].text, world.L[TEXTS.bank], "bank last")
+    equal(menu[3].text, world.L[TEXTS.junk], "junk third, after the lock")
+    equal(menu[4].text, world.L[TEXTS.auction], "auction house fourth")
+    equal(menu[5].text, world.L[TEXTS.bank], "bank fifth, before the note")
 end)
 
 test("Alt Left Click locks by default", function(world)

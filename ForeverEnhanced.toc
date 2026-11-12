@@ -32,7 +32,6 @@ modules\inventory\module.lua
 modules\inventory\locking\feature.lua
 modules\inventory\locking\locales.lua
 modules\inventory\locking\store.lua
-modules\inventory\locking\notes.lua
 modules\inventory\locking\indicators.lua
 modules\inventory\locking\buttons.lua
 modules\inventory\locking\guards.lua
@@ -60,6 +59,8 @@ modules\inventory\marks\locales.lua
 modules\inventory\marks\store.lua
 modules\inventory\marks\junk.lua
 modules\inventory\marks\buttons.lua
+modules\inventory\marks\notes.lua
+modules\inventory\marks\wowhead.lua
 
 # Quests
 modules\quests\module.lua
