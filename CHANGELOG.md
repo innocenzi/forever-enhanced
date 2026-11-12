@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.0.0 - 2026-11-12
+
+
+### Features
+- **core:** show chat messages like the game's system messages, without the addon prefix
+- **inventory:** keep the item menu open after releasing Alt, and mark junk from Merchant
+- **map:** show the world map as one seamless map, zoomed and panned across zones
+- **map:** group TomTom commands and clearing the pin on arrival under Map pin
+- **inventory:** mark items as junk, for the auction house or for the bank, and choose what Alt Left Click does
+- **core:** order settings by interest, make presets consistent and hide Questie announcements on their own
+- **inventory:** make items marked for the auction house glow while it is open
+- **inventory:** stop announcing item locks in chat
+- **quests:** stop showing objective announcements in chat when solo
+- **combat:** let the spell swaps editor move like other windows
+
+
+### Fixes
+- **interface:** shorten the French object glow title to fit the settings list
+
 ## 0.4.0 - 2026-11-12
 
 
