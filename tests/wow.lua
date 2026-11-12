@@ -2823,6 +2823,28 @@ scroll:SetScript("OnMouseUp", function(self, button)
     self.mouseButtonInfo[button].down = false
 end)
 
+-- Blizzard's pan easing: the view closes in on its target by 15% of the way per 60th
+-- of a second (FrameDeltaLerp), and lands on it once within 0.0001 (normalized).
+-- From a drag's fling, that's most of a second (measured in game).
+scroll:SetScript("OnUpdate", function(self, elapsed)
+    local changed = false
+    for _, axis in ipairs({ "X", "Y" }) do
+        local current, target = self["currentScroll" .. axis], self["targetScroll" .. axis]
+        if current and current ~= target then
+            if math.abs(current - target) < 0.0001 then
+                current = target
+            else
+                current = current + (target - current) * math.min(1, 0.15 * elapsed * 60)
+            end
+            self["currentScroll" .. axis] = current
+            changed = true
+        end
+    end
+    if changed then
+        self:GetMap():OnCanvasPanChanged()
+    end
+end)
+
 scroll:SetScript("OnMouseWheel", function(self, delta)
     if self.mouseWheelZoomMode == MAP_CANVAS_MOUSE_WHEEL_ZOOM_BEHAVIOR_NONE then
         return
@@ -4347,6 +4369,15 @@ function world:DragMap(u, v)
     scroll:InstantPanAndZoom(scroll:GetCanvasScale(), x, y, true)
     self.mouse = { x = self.mouse.x + 100, y = self.mouse.y }
     scroll:RunScript("OnMouseUp", "LeftButton")
+end
+
+-- Drags the world map to (u, v) and lets go while still moving: like Blizzard's, the
+-- pan's target flings on by `flingU` (of Azeroth's width), and the view eases there.
+function world:FlingMap(u, v, flingU)
+    self:DragMap(u, v)
+    local scroll = WorldMapFrame.ScrollContainer
+    local rect = MAPS[WorldMapFrame.mapID].rect
+    scroll.targetScrollX = scroll.targetScrollX + flingU / (rect[2] - rect[1])
 end
 
 -- Turns the mouse wheel over the world map (up: delta 1).

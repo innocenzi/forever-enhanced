@@ -41,9 +41,18 @@ local ENTER, LEAVE = 0.9, 0.7
 local ZOOM_RATE = 14 -- the wheel's approach, per second (in log zoom)
 local GLIDE_SECONDS = 0.4
 -- How long the view rests before the map underneath follows it: a change has
--- Blizzard refresh every map icon (every addon's).
-local SWITCH_AFTER = 0.6
-local TICK = 0.1
+-- Blizzard refresh every map icon (every addon's), so not at every pause of a
+-- zoom or a pan (the wheel's zoom runs on through quick notches: this only has to
+-- outlast slower ones), but soon enough that the icons keep up with the view.
+local SWITCH_AFTER = 0.1
+local TICK = 0.05
+-- How close Blizzard's easing must be to where it's going for the view to be still:
+-- the pan within a view pixel, the zoom within this share.
+local SETTLE_PX = 1
+local SETTLE_SCALE = 0.001
+-- How close our own zoom must be: the wheel's within this (log zoom), a glide this far through.
+local ANIM_SETTLE = 0.02
+local GLIDE_SETTLE = 0.85
 -- Room past the world's edges (of its size), gained between zoom 1 and CENTRE_UNTIL:
 -- zoomed right out the world is centred, and the wheel zooms at the cursor from the first notch.
 local EDGE_SLACK = 0.2
@@ -247,13 +256,36 @@ local function Switch(target)
     end
 end
 
--- Not moving: no zoom running, no drag, Blizzard's own easing done.
+-- Whether `current` (or nothing yet) is within `tolerance` of `target`.
+local function Within(current, target, tolerance)
+    return not current or math.abs(current - target) <= tolerance
+end
+
+-- Whether our zoom is as good as done: the wheel's within ANIM_SETTLE of its zoom
+-- (its approach slows down for a third of its time over the last few percent), a
+-- glide through most of its way.
+local function IsAnimSettled()
+    if not anim then
+        return true
+    end
+    if anim.mode == "anchor" then
+        local _, _, zoom = CurrentView()
+        return math.abs(math.log(anim.target / zoom)) < ANIM_SETTLE
+    end
+    return anim.t >= GLIDE_SETTLE
+end
+
+-- Not moving: no zoom running (or nearly done), no drag, Blizzard's own easing as
+-- good as done. (After a drag, Blizzard's pan glides on and closes in on where it
+-- ends for most of a second, by less than a pixel: still, for the map underneath.)
 local function IsSettled()
-    return not anim
-        and not sc.mouseButtonInfo.LeftButton.down
-        and (sc.currentScale or sc.targetScale) == sc.targetScale
-        and (sc.currentScrollX or sc.targetScrollX) == sc.targetScrollX
-        and (sc.currentScrollY or sc.targetScrollY) == sc.targetScrollY
+    if sc.mouseButtonInfo.LeftButton.down or not IsAnimSettled() then
+        return false
+    end
+    local scale = sc.targetScale
+    return Within(sc.currentScale, scale, scale * SETTLE_SCALE)
+        and Within(sc.currentScrollX, sc.targetScrollX, sc:NormalizeHorizontalSize(SETTLE_PX / scale))
+        and Within(sc.currentScrollY, sc.targetScrollY, sc:NormalizeVerticalSize(SETTLE_PX / scale))
 end
 
 -- The player's position on `mapID` (normalized), unless the game keeps it secret.
