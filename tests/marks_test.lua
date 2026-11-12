@@ -136,46 +136,68 @@ test("disabling item marks hides the icons and the entries", function(world)
     expect(world:AuctionMark(1) and world:BankMark(2), "icons back")
 end)
 
-test("auction house marks glow while the auction house is open", function(world)
-    world.itemIDs.G1, world.itemIDs.G2 = "CLOTH", "CLOTH"
-    Toggle(world, 1, "auction")
-    Toggle(world, 4, "junk")
-    expect(not world:AuctionGlow(1), "no glow before the auction house opens")
+-- Marks whose items glow while a window is open: the window, how the fake
+-- client opens and closes it, and the other glowing mark.
+local GLOWS = {
+    {
+        mark = "auction",
+        other = "bank",
+        name = "the auction house",
+        open = "OpenAuctionHouse",
+        close = "CloseAuctionHouse",
+    },
+    { mark = "bank", other = "auction", name = "the bank", open = "OpenBank", close = "CloseBank" },
+}
 
-    world:OpenAuctionHouse()
-    expect(world:AuctionGlow(1) and world:AuctionGlow(2), "every marked copy glows")
-    expect(not world:AuctionGlow(4), "no glow on other items")
+for _, glow in ipairs(GLOWS) do
+    local mark, other = glow.mark, glow.other
 
-    world:CloseAuctionHouse()
-    expect(not world:AuctionGlow(1) and not world:AuctionGlow(2), "gone once closed")
-end)
+    test(mark .. " marks glow while " .. glow.name .. " is open", function(world)
+        world.itemIDs.G1, world.itemIDs.G2 = "CLOTH", "CLOTH"
+        Toggle(world, 1, mark)
+        Toggle(world, 4, "junk")
+        expect(not world:Glow(1), "no glow before " .. glow.name .. " opens")
 
-test("auction house glow follows the mark, locking and its settings", function(world)
-    Toggle(world, 1, "auction")
-    world:OpenAuctionHouse()
-    expect(world:AuctionGlow(1), "glows")
+        world[glow.open](world)
+        expect(world:Glow(1) and world:Glow(2), "every marked copy glows")
+        expect(not world:Glow(4), "no glow on other items")
 
-    world:AltClick(1)
-    expect(not world:AuctionGlow(1), "no glow while locked")
-    world:AltClick(1)
-    expect(world:AuctionGlow(1), "back once unlocked")
+        world[glow.close](world)
+        world:OpenBags() -- closing the bank closes the bags
+        expect(not world:Glow(1) and not world:Glow(2), "gone once closed")
 
-    world:Setting("inventory.marks.auctionGlow"):SetValue(false)
-    expect(not world:AuctionGlow(1), "its toggle hides it")
-    world:Setting("inventory.marks.auctionGlow"):SetValue(true)
-    expect(world:AuctionGlow(1), "back with its toggle")
+        Toggle(world, 1, other)
+        world[glow.open](world)
+        expect(not world:Glow(1), "items marked for " .. other .. " don't glow")
+    end)
 
-    world:Setting("inventory.marks.auction"):SetValue(false)
-    expect(not world:AuctionGlow(1), "the auction house mark's toggle hides it")
-    world:Setting("inventory.marks.auction"):SetValue(true)
+    test(mark .. " glow follows the mark, locking and its settings", function(world)
+        Toggle(world, 1, mark)
+        world[glow.open](world)
+        expect(world:Glow(1), "glows")
 
-    world:Setting("inventory.marks.enabled"):SetValue(false)
-    expect(not world:AuctionGlow(1), "disabling item marks hides it")
-    world:Setting("inventory.marks.enabled"):SetValue(true)
+        world:AltClick(1)
+        expect(not world:Glow(1), "no glow while locked")
+        world:AltClick(1)
+        expect(world:Glow(1), "back once unlocked")
 
-    Toggle(world, 1, "auction")
-    expect(not world:AuctionGlow(1), "unmarking hides it")
-end)
+        world:Setting("inventory.marks." .. mark .. "Glow"):SetValue(false)
+        expect(not world:Glow(1), "its toggle hides it")
+        world:Setting("inventory.marks." .. mark .. "Glow"):SetValue(true)
+        expect(world:Glow(1), "back with its toggle")
+
+        world:Setting("inventory.marks." .. mark):SetValue(false)
+        expect(not world:Glow(1), "the mark's toggle hides it")
+        world:Setting("inventory.marks." .. mark):SetValue(true)
+
+        world:Setting("inventory.marks.enabled"):SetValue(false)
+        expect(not world:Glow(1), "disabling item marks hides it")
+        world:Setting("inventory.marks.enabled"):SetValue(true)
+
+        Toggle(world, 1, mark)
+        expect(not world:Glow(1), "unmarking hides it")
+    end)
+end
 
 test("the item menu lists junk, then the auction house, then the bank", function(world)
     world:Setting("inventory.merchant.enabled"):SetValue(true)

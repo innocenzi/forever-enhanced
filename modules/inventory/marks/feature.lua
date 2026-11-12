@@ -8,7 +8,8 @@
 --              marked bag items glow while the auction house is open
 --              ("auctionGlow");
 --   "bank":    Mark for bank, the banker's icon in the bags; Deposit moves them
---              to the bank (bank feature, "marked" transfer).
+--              to the bank (bank feature, "marked" transfer); marked bag items
+--              glow while the bank is open ("bankGlow").
 -- An item has one destination at most: marking one removes the others. Locked
 -- items show no icon. "altClick" picks what Alt Left Click does: lock the item
 -- (Item locking, by default) or one of the marks.
@@ -39,11 +40,12 @@ local Marks = ns:RegisterFeature("inventory", "marks", {
         { key = "auction", type = "toggle", default = true },
         { key = "auctionGlow", type = "toggle", default = true, requires = { auction = true } },
         { key = "bank", type = "toggle", default = true },
+        { key = "bankGlow", type = "toggle", default = true, requires = { bank = true } },
         { key = "altClick", type = "dropdown", default = "lock", options = { "lock", "junk", "auction", "bank" } },
     },
     presets = {
-        minimal = { enabled = true, junkCoin = "merchant", auctionGlow = true },
-        enhanced = { enabled = true, junkCoin = "always", auctionGlow = true },
+        minimal = { enabled = true, junkCoin = "merchant", auctionGlow = true, bankGlow = true },
+        enhanced = { enabled = true, junkCoin = "always", auctionGlow = true, bankGlow = true },
     },
 })
 
@@ -84,7 +86,7 @@ end
 
 function Marks:OnSettingChanged(key)
     self:SyncParts()
-    if key == "junkCoin" or key == "auctionGlow" then
+    if key == "junkCoin" or key == "auctionGlow" or key == "bankGlow" then
         ns:RefreshItemButtons()
     end
 end

@@ -3461,10 +3461,20 @@ function world:AuctionMark(slot)
     return holder ~= nil and holder.shown
 end
 
--- Whether a bag button shows our auction house glow, pulsing.
-function world:AuctionGlow(slot)
-    local holder = OverlayWith(slot, { ["bags-glow-orange"] = true })
-    return holder ~= nil and holder.shown and holder.animationGroups[1].playing
+-- Whether a bag button shows one of our mark glows (auction house, bank), pulsing.
+function world:Glow(slot)
+    for _, texture in ipairs(self.textures) do
+        local owner = texture.owner
+        if
+            texture.atlas == "bags-glow-orange"
+            and owner.parent == self.buttons[slot]
+            and owner.shown
+            and owner.animationGroups[1].playing
+        then
+            return true
+        end
+    end
+    return false
 end
 
 -- Whether a bag button shows our bank mark.

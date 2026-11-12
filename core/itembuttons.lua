@@ -341,6 +341,8 @@ local listener = ns:CreateEventListener({
     TRADE_CLOSED = Refresh,
     AUCTION_HOUSE_SHOW = Refresh,
     AUCTION_HOUSE_CLOSED = Refresh,
+    BANKFRAME_OPENED = Refresh,
+    BANKFRAME_CLOSED = Refresh,
 })
 
 local function HideShields()

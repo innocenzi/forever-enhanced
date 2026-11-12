@@ -11,7 +11,8 @@
 -- it at merchants. The other icons hide on locked items too.
 --
 -- While the auction house is open, bag items showing the auction house icon
--- also glow ("auctionGlow"), with Blizzard's new item glow and pulse
+-- also glow ("auctionGlow"); while the bank is open, those showing the bank
+-- icon do ("bankGlow"). The glow is Blizzard's new item glow and pulse
 -- (NewItemTexture and newitemglowAnim, ContainerFrameItemButtonTemplate) in
 -- a color of their own.
 
@@ -136,8 +137,31 @@ local function ShowsIcon(destination, itemLocation, guid)
     return Marks:IsMarked(C_Item.GetItemID(itemLocation), destination)
 end
 
--- Per Blizzard item button: our auction house glow, { frame, pulse }.
-local glows = setmetatable({}, { __mode = "k" })
+-- Per destination that glows:
+--   setting   the toggle that turns its glow on
+--   IsOpen()  whether its window is open
+-- Only bag items glow: bank items can't be posted, and bank marks show in the
+-- bags only.
+local GLOWS = {
+    -- AuctionHouseFrame is load-on-demand.
+    auction = {
+        setting = "auctionGlow",
+        IsOpen = function()
+            return AuctionHouseFrame ~= nil and AuctionHouseFrame:IsShown()
+        end,
+    },
+    -- BankFrame shows before addons get BANKFRAME_OPENED; the saved bank is a
+    -- frame of our own, so it doesn't count.
+    bank = {
+        setting = "bankGlow",
+        IsOpen = function()
+            return BankFrame:IsShown()
+        end,
+    },
+}
+
+-- Per glowing destination, per Blizzard item button: our glow, { frame, pulse }.
+local glows = {}
 
 local GLOW_ATLAS = "bags-glow-orange"
 local PULSE_SECONDS = 0.5
@@ -164,11 +188,11 @@ local function CreateGlow(button)
     return { frame = frame, pulse = pulse }
 end
 
-local function ShowGlow(button, shown)
-    local glow = glows[button]
+local function ShowGlow(destination, button, shown)
+    local glow = glows[destination][button]
     if shown and not glow then
         glow = CreateGlow(button)
-        glows[button] = glow
+        glows[destination][button] = glow
     end
     if not glow then
         return
@@ -179,24 +203,20 @@ local function ShowGlow(button, shown)
     end
 end
 
--- Bag items showing the auction house icon, while the auction house is open
--- (AuctionHouseFrame is load-on-demand); bank items can't be posted.
-local function ShowsGlow(itemLocation, guid)
-    return Marks:GetSetting("auctionGlow")
-        and AuctionHouseFrame ~= nil
-        and AuctionHouseFrame:IsShown()
+local function ShowsGlow(destination, itemLocation, guid)
+    local glow = GLOWS[destination]
+    return Marks:GetSetting(glow.setting)
+        and glow.IsOpen()
         and isBag[itemLocation:GetBagAndSlot()]
-        and ShowsIcon("auction", itemLocation, guid)
+        and ShowsIcon(destination, itemLocation, guid)
 end
 
 function Buttons:HideAll(destination)
     for _, holder in pairs(holders[destination]) do
         holder:Hide()
     end
-    if destination == "auction" then
-        for _, glow in pairs(glows) do
-            glow.frame:Hide()
-        end
+    for _, glow in pairs(glows[destination] or {}) do
+        glow.frame:Hide()
     end
 end
 
@@ -252,9 +272,12 @@ for _, destination in ipairs(Marks.DESTINATIONS) do
     })
 end
 
-ns:AddItemButtonHandler(Marks, {
-    part = "auction",
-    Update = function(button, itemLocation, guid)
-        ShowGlow(button, ShowsGlow(itemLocation, guid))
-    end,
-})
+for destination in pairs(GLOWS) do
+    glows[destination] = setmetatable({}, { __mode = "k" })
+    ns:AddItemButtonHandler(Marks, {
+        part = destination,
+        Update = function(button, itemLocation, guid)
+            ShowGlow(destination, button, ShowsGlow(destination, itemLocation, guid))
+        end,
+    })
+end
