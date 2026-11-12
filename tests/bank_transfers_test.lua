@@ -18,10 +18,14 @@ local function Setup(world, bags, bank, tab2, items)
     world:OpenBank()
 end
 
+-- The entry of a mode in the Deposit or Withdraw menu, if listed.
+local function Entry(world, direction, mode)
+    return world:MenuEntry(world:TransferMenu(direction), world.L["inventory.bank.transfers." .. mode])
+end
+
 -- Picks a mode in the Deposit or Withdraw menu and lets the transfer finish.
 local function Transfer(world, direction, mode)
-    local menu = world:TransferMenu(direction)
-    assert(world:MenuEntry(menu, world.L["inventory.bank.transfers." .. mode]), mode .. " entry").callback()
+    assert(Entry(world, direction, mode), mode .. " entry").callback()
     world:Elapse(5)
 end
 
@@ -86,7 +90,10 @@ test("locked items never move", function(world)
         L3 = { "linen", 12 },
     })
     world:AltClick(1)
-    Transfer(world, "deposit", "all")
+    world:NextFrame()
+    expect(not world:TransferButton("deposit"):IsEnabled(), "nothing to deposit")
+    Transfers(world):Run("deposit", "all")
+    world:Elapse(5)
     equal(world:Slots(0), "L1(15) - - -", "locked stack stays")
     equal(world:Slots(6), "L3(12) - - -", "bank unchanged")
 end)
@@ -124,7 +131,7 @@ test("closing the bank stops a transfer", function(world)
         L3 = { "linen", 12 },
     })
     world.pickups = 0
-    world:TransferMenu("deposit")[1].callback()
+    Entry(world, "deposit", "stacks").callback()
     expect(Transfers(world):IsRunning(), "running")
     world:CloseBank()
     expect(not Transfers(world):IsRunning(), "stopped")
@@ -139,7 +146,7 @@ test("a transfer waits for the end of combat", function(world)
     })
     world.pickups = 0
     world.inCombat = true
-    world:TransferMenu("deposit")[1].callback()
+    Entry(world, "deposit", "stacks").callback()
     world:Elapse(30)
     equal(world.pickups, 0, "nothing moved in combat")
     expect(Transfers(world):IsRunning(), "still running after a long fight")
@@ -158,21 +165,81 @@ test("a blocked move puts the item back and stops the transfer", function(world)
         L3 = { "linen", 12 },
     })
     world.blockDrops = true
-    world:TransferMenu("deposit")[1].callback()
+    Entry(world, "deposit", "stacks").callback()
     world:Elapse(0)
     expect(not CursorHasItem(), "nothing left on the cursor")
     expect(not Transfers(world):IsRunning(), "stopped")
     equal(world:Slots(0), "L1(3) L2(4) - -", "bags unchanged")
 end)
 
-test("menus offer both modes, disabled while a transfer runs", function(world)
+test("Deposit lists all matching items first, Withdraw existing stacks first", function(world)
+    Setup(world, { "L1" }, { "L3" }, {}, {
+        L1 = { "linen", 15 },
+        L3 = { "linen", 12 },
+    })
+    local deposit = world:TransferMenu("deposit")
+    equal(deposit[1].text, world.L["inventory.bank.transfers.all"], "deposit first mode")
+    equal(deposit[2].text, world.L["inventory.bank.transfers.stacks"], "deposit second mode")
+    local withdraw = world:TransferMenu("withdraw")
+    equal(withdraw[1].text, world.L["inventory.bank.transfers.stacks"], "withdraw first mode")
+    equal(withdraw[2].text, world.L["inventory.bank.transfers.all"], "withdraw second mode")
+end)
+
+test("menu entries that would move nothing are disabled", function(world)
+    Setup(world, { "L1", "W1" }, { "L3" }, {}, {
+        L1 = { "linen", 20 },
+        W1 = { "wool", 5 },
+        L3 = { "linen", 20 },
+    })
+    expect(not Entry(world, "deposit", "stacks").enabled, "no partial bank stack to fill")
+    expect(Entry(world, "deposit", "all").enabled, "linen can go to an empty bank slot")
+    expect(not Entry(world, "withdraw", "stacks").enabled, "no partial bag stack to fill")
+    expect(Entry(world, "withdraw", "all").enabled, "linen can go to an empty bag slot")
+    expect(not Entry(world, "deposit", "marked").enabled, "nothing marked")
+
+    MarkForBank(world, 2)
+    expect(Entry(world, "deposit", "marked").enabled, "marked wool")
+
+    Transfer(world, "deposit", "all")
+    expect(not Entry(world, "deposit", "all").enabled, "every matching item deposited")
+end)
+
+test("a button with nothing to move is disabled, its tooltip saying so", function(world)
+    Setup(world, { "W1" }, { "L3" }, {}, {
+        W1 = { "wool", 5 },
+        L3 = { "linen", 20 },
+    })
+    local deposit, withdraw = world:TransferButton("deposit"), world:TransferButton("withdraw")
+    expect(not deposit:IsEnabled() and not withdraw:IsEnabled(), "nothing to move either way")
+    local text, lines = world:TransferTooltip("deposit")
+    equal(text, world.L["inventory.bank.transfers.deposit.tooltip"], "tooltip on a disabled button")
+    equal(lines[1], world.L["inventory.bank.transfers.deposit.nothing"], "deposit says why")
+    lines = select(2, world:TransferTooltip("withdraw"))
+    equal(lines[1], world.L["inventory.bank.transfers.withdraw.nothing"], "withdraw says why")
+
+    MarkForBank(world, 1)
+    world:NextFrame()
+    expect(deposit:IsEnabled(), "a marked item to deposit")
+    lines = select(2, world:TransferTooltip("deposit"))
+    equal(#lines, 0, "no reason once enabled")
+
+    world:AltClick(1)
+    world:NextFrame()
+    expect(not deposit:IsEnabled(), "locked items don't move")
+    world:AltClick(1)
+    world:NextFrame()
+    expect(deposit:IsEnabled(), "unlocked")
+
+    Transfer(world, "deposit", "marked")
+    expect(not deposit:IsEnabled(), "disabled once deposited")
+end)
+
+test("menus are disabled while a transfer runs", function(world)
     Setup(world, { "L1" }, { "L3" }, {}, {
         L1 = { "linen", 15 },
         L3 = { "linen", 12 },
     })
     local menu = world:TransferMenu("withdraw")
-    equal(menu[1].text, world.L["inventory.bank.transfers.stacks"], "first mode")
-    equal(menu[2].text, world.L["inventory.bank.transfers.all"], "second mode")
     expect(menu[1].enabled and menu[2].enabled, "enabled")
 
     menu[1].callback()
@@ -234,7 +301,7 @@ test("turning transfers off hides the buttons and stops a transfer", function(wo
         L3 = { "linen", 12 },
     })
     expect(world:TransferButton("deposit").shown, "shown")
-    world:TransferMenu("deposit")[1].callback()
+    Entry(world, "deposit", "stacks").callback()
     world:Setting("inventory.bank.transfers"):SetValue(false)
     expect(not Transfers(world):IsRunning(), "stopped")
     expect(not world:TransferButton("deposit").shown, "deposit hidden")

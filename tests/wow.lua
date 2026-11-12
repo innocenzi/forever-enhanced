@@ -355,6 +355,20 @@ function Region:SetShown(shown)
     end
 end
 
+-- Buttons start enabled. While disabled, the client runs OnEnter and OnLeave
+-- only after SetMotionScriptsWhileDisabled(true).
+function Region:SetEnabled(enabled)
+    self.enabled = enabled and true or false
+end
+
+function Region:IsEnabled()
+    return self.enabled ~= false
+end
+
+function Region:SetMotionScriptsWhileDisabled(motionScripts)
+    self.motionScriptsWhileDisabled = motionScripts
+end
+
 -- Shown along with all its parents.
 function Region:IsVisible()
     return self.shown and (self.parent == nil or self.parent:IsVisible())
@@ -2994,6 +3008,10 @@ GameTooltip = {
 }
 GameTooltip_Hide = NoOp
 
+function GameTooltip_AddErrorLine(tooltip, text)
+    tooltip:AddLine(text)
+end
+
 UIErrorsFrame = {
     AddMessage = function(_, message)
         table.insert(world.errors, message)
@@ -3242,13 +3260,7 @@ end
 -- The merchant's Sell All Junk button: `enabled`, and its icon desaturated while disabled.
 MerchantSellAllJunkButton = CreateFrame("Button")
 MerchantSellAllJunkButton.Icon = MerchantSellAllJunkButton:CreateTexture()
-MerchantSellAllJunkButton.enabled = false
-function MerchantSellAllJunkButton:IsEnabled()
-    return self.enabled
-end
-function MerchantSellAllJunkButton:SetEnabled(enabled)
-    self.enabled = enabled
-end
+MerchantSellAllJunkButton:SetEnabled(false)
 
 -- Runs when the merchant opens and on bag changes: enables Sell All Junk with poor items only.
 function MerchantFrame_Update()
@@ -4097,9 +4109,23 @@ function world:TransferButton(direction)
     end)
 end
 
--- Clicks the Deposit or Withdraw button: the entries of the menu it opens.
-function world:TransferMenu(direction)
+-- Hovers the Deposit or Withdraw button: its tooltip's text and added lines.
+-- A disabled button runs OnEnter only with motion scripts while disabled.
+function world:TransferTooltip(direction)
     local button = self:TransferButton(direction)
+    self.tooltip, self.tooltipLines = nil, {}
+    if button:IsEnabled() or button.motionScriptsWhileDisabled then
+        button:RunScript("OnEnter")
+    end
+    return self.tooltip, self.tooltipLines
+end
+
+-- Clicks the Deposit or Withdraw button, a frame after the last action like a
+-- player: the entries of the menu it opens.
+function world:TransferMenu(direction)
+    self:NextFrame()
+    local button = self:TransferButton(direction)
+    assert(button:IsEnabled(), "a disabled button takes no click")
     button.scripts.OnClick(button, "LeftButton")
     return RunMenuGenerator(self.contextMenu.owner, self.contextMenu.generator)
 end
