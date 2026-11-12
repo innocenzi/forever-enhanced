@@ -71,11 +71,11 @@ modules\quests\helpers\refresh.lua
 modules\quests\helpers\sparkle.lua
 modules\quests\helpers\needs.lua
 modules\quests\helpers\tooltip.lua
+modules\quests\helpers\questie.lua
 modules\quests\announce\feature.lua
 modules\quests\announce\locales.lua
 modules\quests\announce\message.lua
 modules\quests\announce\objectives.lua
-modules\quests\announce\questie.lua
 
 # Professions
 modules\professions\module.lua

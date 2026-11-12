@@ -1,4 +1,4 @@
--- Ability Swaps: while a spell can be cast, the buttons of the spell it
+-- Spell Swaps: while a spell can be cast, the buttons of the spell it
 -- replaces show it and cast it (e.g. Ambush on Backstab after Ghostly
 -- Strike). Each character picks its own pairs in an editor opened from the
 -- settings panel. Secure code, the only code allowed to change what a button

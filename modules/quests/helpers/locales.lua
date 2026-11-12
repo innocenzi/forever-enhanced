@@ -2,7 +2,7 @@ local _, ns = ...
 
 ns:RegisterLocale("enUS", {
     ["quests.helpers.title"] = "Quest helpers",
-    ["quests.helpers.description"] = "Helps you keep track of your quests and the items they need.",
+    ["quests.helpers.description"] = "Helps you follow your quests and the items they need, and keeps Questie announcements out of group chat.",
     ["quests.helpers.nearby"] = "Track nearby quests",
     ["quests.helpers.nearby.tooltip"] = "Tracks the quests closest to you as you move. A quest you untrack stays untracked until you change zones.",
     ["quests.helpers.scope"] = "Quests to track",
@@ -27,11 +27,13 @@ ns:RegisterLocale("enUS", {
     ["quests.helpers.objectives"] = "Quest objectives in tooltips",
     ["quests.helpers.objectives.tooltip"] = "Shows the quests in your log that need an item, with your progress.",
     ["quests.helpers.objectives.line"] = "%s (%d/%d)",
+    ["quests.helpers.hideQuestie"] = "Hide Questie announcements",
+    ["quests.helpers.hideQuestie.tooltip"] = "Hides quest progress messages sent by other players' Questie.",
 })
 
 ns:RegisterLocale("frFR", {
     ["quests.helpers.title"] = "Aides aux quêtes",
-    ["quests.helpers.description"] = "Vous aide à suivre vos quêtes et les objets dont elles ont besoin.",
+    ["quests.helpers.description"] = "Vous aide à suivre vos quêtes et les objets dont elles ont besoin, et retire les annonces Questie de la discussion de groupe.",
     ["quests.helpers.nearby"] = "Suivre les quêtes proches",
     ["quests.helpers.nearby.tooltip"] = "Suit les quêtes les plus proches de vous à mesure que vous vous déplacez. Une quête que vous ne suivez plus reste écartée jusqu’au prochain changement de zone.",
     ["quests.helpers.scope"] = "Quêtes à suivre",
@@ -56,4 +58,6 @@ ns:RegisterLocale("frFR", {
     ["quests.helpers.objectives"] = "Objectifs dans les infobulles",
     ["quests.helpers.objectives.tooltip"] = "Affiche les quêtes de votre journal qui ont besoin de l’objet, avec votre progression.",
     ["quests.helpers.objectives.line"] = "%s (%d/%d)",
+    ["quests.helpers.hideQuestie"] = "Masquer les annonces Questie",
+    ["quests.helpers.hideQuestie.tooltip"] = "Masque les messages de progression envoyés par l’AddOn Questie des autres joueurs.",
 })

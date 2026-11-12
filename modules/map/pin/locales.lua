@@ -32,6 +32,6 @@ ns:RegisterLocale("frFR", {
     ["map.pin.range.format"] = "%d m",
     ["map.pin.announce"] = "Afficher un message",
     ["map.pin.announce.tooltip"] = "Affiche un message en haut de l’écran lorsque vous atteignez le repère.",
-    ["map.pin.unknownZone"] = "Zone inconnue : %s",
-    ["map.pin.usage"] = "Utilisation : /way [zone] x y [description], /way reset, /wayb [description], /cway",
+    ["map.pin.unknownZone"] = "Zone inconnue : %s",
+    ["map.pin.usage"] = "Utilisation : /way [zone] x y [description], /way reset, /wayb [description], /cway",
 })

@@ -1,4 +1,5 @@
--- Hides other players' Questie announcements in group chat, and their chat bubbles.
+-- Hide Questie announcements (the "hideQuestie" part): hides other players'
+-- Questie announcements in group chat, and their chat bubbles.
 --
 -- Questie starts every group announcement with a fixed prefix: "{rt1} Questie: "
 -- ("{rt1} Questie : " from French clients, "{звезда} Questie: " from Russian
@@ -13,12 +14,10 @@
 
 local _, ns = ...
 
-local Announce = ns:GetFeature("quests", "announce")
+local Helpers = ns:GetFeature("quests", "helpers")
 
 local QuestieFilter = {}
-Announce.QuestieFilter = QuestieFilter
-
-local enabled = false
+Helpers.QuestieFilter = QuestieFilter
 
 local EVENTS = {
     "CHAT_MSG_PARTY",
@@ -147,27 +146,21 @@ for _, event in ipairs(EVENTS) do
 end
 local listener = ns:CreateEventListener(handlers)
 
--- Adds or removes the chat filter and the bubble watch, once.
-function QuestieFilter:SetEnabled(enable)
-    if enable == enabled then
-        return
-    end
-    enabled = enable
+function QuestieFilter:Enable()
     for _, event in ipairs(EVENTS) do
-        if enable then
-            ChatFrameUtil.AddMessageEventFilter(event, HideQuestieAnnouncement)
-        else
-            ChatFrameUtil.RemoveMessageEventFilter(event, HideQuestieAnnouncement)
-        end
+        ChatFrameUtil.AddMessageEventFilter(event, HideQuestieAnnouncement)
     end
-    if enable then
-        listener:Start()
-    else
-        listener:Stop()
-        watcher:Hide()
-        pending = {}
-        for bubble in pairs(fadedBubbles) do
-            RestoreBubble(bubble)
-        end
+    listener:Start()
+end
+
+function QuestieFilter:Disable()
+    for _, event in ipairs(EVENTS) do
+        ChatFrameUtil.RemoveMessageEventFilter(event, HideQuestieAnnouncement)
+    end
+    listener:Stop()
+    watcher:Hide()
+    pending = {}
+    for bubble in pairs(fadedBubbles) do
+        RestoreBubble(bubble)
     end
 end

@@ -12,8 +12,6 @@ ns:RegisterLocale("enUS", {
     ["quests.announce.channel.party"] = "Party only",
     ["quests.announce.solo"] = "Show when solo",
     ["quests.announce.solo.tooltip"] = "Shows the message in your chat when you are not in a group.",
-    ["quests.announce.hideQuestie"] = "Hide Questie announcements",
-    ["quests.announce.hideQuestie.tooltip"] = "Hides quest progress messages sent by other players' Questie.",
 })
 
 ns:RegisterLocale("frFR", {
@@ -28,6 +26,4 @@ ns:RegisterLocale("frFR", {
     ["quests.announce.channel.party"] = "Groupe uniquement",
     ["quests.announce.solo"] = "Afficher hors groupe",
     ["quests.announce.solo.tooltip"] = "Affiche le message dans votre fenêtre de discussion lorsque vous n’êtes pas en groupe.",
-    ["quests.announce.hideQuestie"] = "Masquer les annonces Questie",
-    ["quests.announce.hideQuestie.tooltip"] = "Masque les messages de progression envoyés par l’AddOn Questie des autres joueurs.",
 })

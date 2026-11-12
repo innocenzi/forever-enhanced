@@ -21,7 +21,7 @@ local Reagents = ns:RegisterFeature("professions", "reagents", {
         { key = "professions", type = "dropdown", default = "all", options = { "all", "mine" } },
     },
     presets = {
-        minimal = { enabled = false },
+        minimal = { enabled = true },
         enhanced = { enabled = true },
     },
 })

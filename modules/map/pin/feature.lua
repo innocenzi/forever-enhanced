@@ -28,7 +28,7 @@ local Pin = ns:RegisterFeature("map", "pin", {
     },
     presets = {
         minimal = { enabled = true, announce = false },
-        enhanced = { enabled = true },
+        enhanced = { enabled = true, announce = true },
     },
 })
 

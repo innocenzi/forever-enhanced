@@ -6,6 +6,10 @@
 -- preset doesn't list stays as it is. Values go through the registered
 -- settings, so the panel's controls and the features' callbacks follow as if
 -- the player clicked.
+--
+-- Presets are symmetric: a value one preset sets, the others set too, so a
+-- preset gives the same options whatever was picked before. Only the settings
+-- of a feature a preset turns off can be left out, having no effect.
 
 local _, ns = ...
 

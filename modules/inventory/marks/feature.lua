@@ -24,7 +24,7 @@ local _, ns = ...
 local DESTINATIONS = { "junk", "auction", "bank" }
 
 local Marks = ns:RegisterFeature("inventory", "marks", {
-    order = 3,
+    order = 4,
     settings = {
         { key = "junk", type = "toggle", default = true },
         {

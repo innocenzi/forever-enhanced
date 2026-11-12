@@ -164,6 +164,17 @@ local function Migrate(savedModules)
             from[move.id] = nil
         end
     end
+
+    -- Hiding Questie announcements moved from Objective announcements to Quest
+    -- helpers, where it works on its own: it stays on only if it was in effect.
+    local quests = SavedFeatures(savedModules, "quests")
+    local announce = quests and quests.announce
+    if type(announce) == "table" and announce.hideQuestie ~= nil then
+        if announce.enabled == true and announce.hideQuestie == true then
+            GetOrCreateTable(quests, "helpers").hideQuestie = true
+        end
+        announce.hideQuestie = nil
+    end
 end
 
 function Database:Initialize()

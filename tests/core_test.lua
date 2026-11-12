@@ -135,7 +135,7 @@ test("the root page holds the general settings only", function(world)
 end)
 
 test("a feature without settings is one checkbox at the top of its page", function(world)
-    local combat = world.categories[5]
+    local combat = world.categories[6]
     equal(combat.name, world.L["combat.title"], "page")
 
     local ranks = combat.items[1]
@@ -173,17 +173,38 @@ test("settings of earlier versions are brought up to date", function(world)
     equal(modules.interface.features.swaps, nil, "moved features leave their old module")
     equal(modules.combat.features.swaps.enabled, true, "and keep their settings in the new one")
     equal(modules.interface.features.windows.modifier, "alt", "features that stayed keep theirs")
+
+    equal(modules.quests.features.announce.hideQuestie, nil, "moved settings leave their old feature")
+    equal(modules.quests.features.helpers.hideQuestie, true, "and stay on where they were in effect")
 end, {
     savedVariables = function()
         return {
             modules = {
                 inventory = { enabled = false, features = { locking = { enabled = true } } },
-                quests = { enabled = true, features = { helpers = { enabled = true } } },
+                quests = {
+                    enabled = true,
+                    features = {
+                        helpers = { enabled = true },
+                        announce = { enabled = true, hideQuestie = true },
+                    },
+                },
                 interface = {
                     enabled = true,
                     features = { swaps = { enabled = true }, windows = { modifier = "alt" } },
                 },
             },
+        }
+    end,
+})
+
+test("a moved setting that had no effect stays off", function(world)
+    local quests = world.env.ForeverEnhancedDB.modules.quests.features
+    equal(quests.announce.hideQuestie, nil, "left its old feature")
+    equal(quests.helpers.hideQuestie, false, "off in the new one")
+end, {
+    savedVariables = function()
+        return {
+            modules = { quests = { features = { announce = { enabled = false, hideQuestie = true } } } },
         }
     end,
 })
@@ -324,19 +345,59 @@ test("the minimal preset turns chatty features off and keeps what it doesn't lis
     world:Setting("interface.windows.modifier"):SetValue("alt")
     ApplyPreset(world, "minimal")
 
-    local merchant = Feature(world, "inventory", "merchant")
+    expect(not Feature(world, "inventory", "merchant"):IsActive(), "merchant off")
     expect(Feature(world, "inventory", "marks"):IsPartActive("junk"), "junk marking on")
-    expect(not merchant:GetSetting("autoSellJunk") and not merchant:GetSetting("autoRepair"), "merchant automation off")
     expect(not Feature(world, "quests", "announce"):IsActive(), "announcements off")
     expect(not Feature(world, "interface", "glow"):IsActive(), "glow off")
     expect(Feature(world, "inventory", "locking"):IsActive(), "locking on")
+    expect(Feature(world, "professions", "reagents"):IsActive(), "reagent uses on")
 
     local modules = world.env.ForeverEnhancedDB.modules
     equal(modules.quests.features.helpers.nearby, false, "nearby tracking off")
     equal(modules.inventory.features.locking.announce, false, "locking quiet")
     equal(modules.map.features.pin.announce, false, "waypoint quiet")
+    equal(modules.inventory.features.bank.openWithBags, false, "bank opens on its own")
     equal(modules.interface.features.windows.modifier, "alt", "unlisted setting kept")
-    equal(modules.inventory.features.bank.openWithBags, true, "unlisted setting kept")
+end)
+
+-- Every feature's saved values, by locale key.
+local function Snapshot(world)
+    local values = {}
+    for _, module in world.ns:EnumerateModules() do
+        for _, feature in ipairs(module.sortedFeatures) do
+            local copy = {}
+            for key, value in pairs(feature.db) do
+                copy[key] = value
+            end
+            values[feature:GetLocaleKey()] = copy
+        end
+    end
+    return values
+end
+
+test("a preset gives the same options whatever was picked before", function(world)
+    for _, pair in ipairs({ { "minimal", "enhanced" }, { "enhanced", "minimal" } }) do
+        local presetId, otherId = pair[1], pair[2]
+        ApplyPreset(world, presetId)
+        local expected = Snapshot(world)
+        ApplyPreset(world, otherId)
+        ApplyPreset(world, presetId)
+        local actual = Snapshot(world)
+        for key, values in pairs(expected) do
+            -- The settings of a feature the preset turns off have no effect.
+            if values.enabled then
+                for settingKey, value in pairs(values) do
+                    equal(
+                        actual[key][settingKey],
+                        value,
+                        presetId .. " after " .. otherId .. ": " .. key .. "." .. settingKey
+                    )
+                end
+            else
+                equal(actual[key].enabled, false, presetId .. " after " .. otherId .. ": " .. key .. " off")
+            end
+        end
+    end
 end)
 
 test("preset values are checked against the schemas", function(world)

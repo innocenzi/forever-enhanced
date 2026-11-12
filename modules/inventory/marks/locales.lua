@@ -2,7 +2,7 @@ local _, ns = ...
 
 ns:RegisterLocale("enUS", {
     ["inventory.marks.title"] = "Item marks",
-    ["inventory.marks.description"] = "Marks where items go from the item menu (Alt Right Click): junk, the auction house or the bank. Every copy of a marked item is marked.",
+    ["inventory.marks.description"] = "Marks items as junk, for the auction house or for the bank from the item menu (Alt Right Click). Every copy of the item shows the mark.",
     ["inventory.marks.junk"] = "Junk",
     ["inventory.marks.junk.tooltip"] = 'Adds "Mark as junk" to the item menu: marked items are sold with your junk.',
     ["inventory.marks.junkCoin"] = "Junk coin",
@@ -26,17 +26,17 @@ ns:RegisterLocale("enUS", {
 
 ns:RegisterLocale("frFR", {
     ["inventory.marks.title"] = "Marques d’objets",
-    ["inventory.marks.description"] = "Indique où vont vos objets depuis le menu des objets (Alt-clic droit) : la camelote, l’hôtel des ventes ou la banque. Chaque exemplaire d’un objet marqué est marqué.",
+    ["inventory.marks.description"] = "Marque des objets comme camelote, pour l’hôtel des ventes ou pour la banque depuis le menu des objets (Alt-clic droit). Chaque exemplaire de l’objet affiche la marque.",
     ["inventory.marks.junk"] = "Camelote",
-    ["inventory.marks.junk.tooltip"] = "Ajoute « Marquer comme camelote » au menu des objets : les objets marqués sont vendus avec votre camelote.",
+    ["inventory.marks.junk.tooltip"] = "Ajoute « Marquer comme camelote » au menu des objets : les objets marqués sont vendus avec votre camelote.",
     ["inventory.marks.junkCoin"] = "Pièce de camelote",
     ["inventory.marks.junkCoin.tooltip"] = "Contrôle quand votre camelote affiche une pièce dans vos sacs.",
     ["inventory.marks.junkCoin.merchant"] = "Chez les marchands",
     ["inventory.marks.junkCoin.always"] = "Toujours",
     ["inventory.marks.auction"] = "Hôtel des ventes",
-    ["inventory.marks.auction.tooltip"] = "Ajoute « Marquer pour l’hôtel des ventes » au menu des objets.",
+    ["inventory.marks.auction.tooltip"] = "Ajoute « Marquer pour l’hôtel des ventes » au menu des objets.",
     ["inventory.marks.bank"] = "Banque",
-    ["inventory.marks.bank.tooltip"] = "Ajoute « Marquer pour la banque » au menu des objets, et dépose les objets marqués depuis le bouton Dépôt.",
+    ["inventory.marks.bank.tooltip"] = "Ajoute « Marquer pour la banque » au menu des objets, et dépose les objets marqués depuis le bouton Dépôt.",
     ["inventory.marks.altClick"] = "Alt-clic gauche",
     ["inventory.marks.altClick.tooltip"] = "Contrôle ce que fait un Alt-clic gauche sur un objet de vos sacs ou de votre banque.",
     ["inventory.marks.altClick.lock"] = "Verrouiller",

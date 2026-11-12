@@ -11,7 +11,7 @@
 local _, ns = ...
 
 local Merchant = ns:RegisterFeature("inventory", "merchant", {
-    order = 4,
+    order = 1,
     -- It sells and spends money on its own: the player opts in.
     enabledByDefault = false,
     settings = {
@@ -27,7 +27,7 @@ local Merchant = ns:RegisterFeature("inventory", "merchant", {
         { key = "announce", type = "toggle", default = true },
     },
     presets = {
-        minimal = { enabled = true, autoSellJunk = false, autoRepair = false },
+        minimal = { enabled = false },
         enhanced = { enabled = true, autoSellJunk = true, autoRepair = true },
     },
 })

@@ -1,4 +1,4 @@
--- Quest Helpers: three parts, each behind its toggle.
+-- Quest Helpers: four parts, each behind its toggle.
 --
 -- "nearby": keeps the quests nearest to the player in the objective tracker
 -- and untracks the farthest ones as the player moves. It takes over the
@@ -8,6 +8,8 @@
 -- "objectives": item tooltips name the quests of the log that need the item,
 -- with the player's progress (food or trade goods a quest asks for are
 -- ordinary items, with nothing else to tell them apart).
+-- "hideQuestie": hides other players' Questie announcements in group chat
+-- (whether or not the player announces their own objectives).
 --
 -- Files of this slice:
 --   feature.lua  registration, schema and lifecycle (this file)
@@ -18,6 +20,7 @@
 --   sparkle.lua  sparkles: the CVar behind the sparkle, set again after graphics changes
 --   needs.lua    objectives: the item objectives of the quest log, by item name
 --   tooltip.lua  objectives: the tooltip lines
+--   questie.lua  hideQuestie: the group chat filter for Questie announcements
 
 local _, ns = ...
 
@@ -47,10 +50,11 @@ local Helpers = ns:RegisterFeature("quests", "helpers", {
         { key = "sort", type = "toggle", default = false, requires = { nearby = true } },
         { key = "dungeons", type = "toggle", default = true, requires = { nearby = true } },
         { key = "keepManual", type = "toggle", default = false, requires = { nearby = true } },
+        { key = "hideQuestie", type = "toggle", default = false },
     },
     presets = {
-        minimal = { enabled = true, nearby = false },
-        enhanced = { enabled = true, nearby = true, sparkles = true, objectives = true },
+        minimal = { enabled = true, objectives = true, sparkles = true, nearby = false, hideQuestie = false },
+        enhanced = { enabled = true, objectives = true, sparkles = true, nearby = true, hideQuestie = true },
     },
 })
 
@@ -70,6 +74,7 @@ function Helpers:SyncParts()
     self:SyncPart("nearby", Nearby)
     self:SyncPart("sparkles", self.Sparkle)
     self:SyncPart("objectives", self.Needs)
+    self:SyncPart("hideQuestie", self.QuestieFilter)
 end
 
 function Helpers:OnEnable()

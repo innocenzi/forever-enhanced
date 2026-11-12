@@ -30,7 +30,7 @@
 local _, ns = ...
 
 local Bank = ns:RegisterFeature("inventory", "bank", {
-    order = 1,
+    order = 2,
     settings = {
         { key = "savedBank", type = "toggle", default = true },
         { key = "tooltipCount", type = "toggle", default = true, requires = { savedBank = true } },
@@ -45,7 +45,7 @@ local Bank = ns:RegisterFeature("inventory", "bank", {
         { key = "transfers", type = "toggle", default = true },
     },
     presets = {
-        minimal = { enabled = true },
+        minimal = { enabled = true, savedBank = true, openWithBags = false },
         enhanced = { enabled = true, savedBank = true, openWithBags = true },
     },
 })

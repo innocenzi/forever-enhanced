@@ -1,7 +1,7 @@
 local _, ns = ...
 
 ns:RegisterLocale("enUS", {
-    ["combat.swaps.title"] = "Ability swaps",
+    ["combat.swaps.title"] = "Spell swaps",
     ["combat.swaps.description"] = "Shows a spell in place of another on your action bars while you can cast it.",
     ["combat.swaps.edit"] = "Edit",
     ["combat.swaps.editor.hint"] = "The spell on the right replaces the spell on the left on your action bars while you can cast it.",

@@ -1,6 +1,6 @@
 local _, ns = ...
 
-ns:RegisterModule("interface", { order = 5 })
+ns:RegisterModule("interface", { order = 4 })
 
 ns:RegisterLocale("enUS", {
     ["interface.title"] = "Interface",
