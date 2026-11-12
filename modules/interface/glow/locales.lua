@@ -16,7 +16,7 @@ ns:RegisterLocale("enUS", {
 })
 
 ns:RegisterLocale("frFR", {
-    ["interface.glow.title"] = "Lueur sur l’objet le plus proche",
+    ["interface.glow.title"] = "Lueur de l’objet proche",
     ["interface.glow.description"] = "Fait briller la plante, le filon ou l’objet de quête le plus proche hors combat : vif quand vous pouvez l’utiliser, gris sinon. Tant que l’option est activée, les sorts bénéfiques lancés sans cible peuvent toucher un personnage proche au lieu de vous.",
     ["interface.glow.herbs"] = "Plantes",
     ["interface.glow.ore"] = "Filons",
