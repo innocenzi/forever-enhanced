@@ -82,7 +82,7 @@ test("sells unlocked junk and keeps locked junk", function(world)
     equal(world.hiddenPopups[1], "GENERIC_CONFIRMATION", "Blizzard's confirmation replaced")
 
     local popup = assert(world.popups[1], "our confirmation shown")
-    equal(popup.text, world.L["inventory.locking.sellJunkConfirm"], "text")
+    equal(popup.text, world.L["core.junk.sellConfirmKept"], "text")
     equal(popup.text_arg1, 1, "junk items to sell")
     equal(popup.text_arg2, 1, "locked junk kept")
     equal(#world.sold, 0, "nothing sold before accepting")
@@ -113,7 +113,7 @@ test("says so when all junk is locked", function(world)
     world:ClickSellAllJunk()
     equal(world.hiddenPopups[1], "GENERIC_CONFIRMATION", "Blizzard's confirmation hidden")
     equal(#world.popups, 0, "our confirmations shown")
-    equal(world.errors[#world.errors], world.L["inventory.locking.allJunkLocked"], "error")
+    equal(world.errors[#world.errors], world.L["core.junk.allKept"], "error")
 end)
 
 test("cancels Sell All Junk instead when selling unlocked junk is off", function(world)
@@ -123,7 +123,7 @@ test("cancels Sell All Junk instead when selling unlocked junk is off", function
     world:ClickSellAllJunk()
     equal(world.hiddenPopups[1], "GENERIC_CONFIRMATION", "Blizzard's confirmation hidden")
     equal(#world.popups, 0, "our confirmations shown")
-    equal(world.errors[#world.errors], world.L["inventory.locking.sellJunkBlocked"], "error")
+    equal(world.errors[#world.errors], world.L["core.junk.sellBlocked"], "error")
 end)
 
 test("ignores junk in bags excluded from Sell All Junk", function(world)
@@ -143,16 +143,83 @@ test("adds a tooltip line to locked items only", function(world)
     equal(#world:ItemTooltip({ guid = "G2", id = "G2" }), 0, "unlocked item lines")
 end)
 
--- Notes: Alt+Right-click opens our note dialog.
+-- Notes: "Add note" (or "Edit note") in the item menu opens our note dialog.
+local function NoteEntry(world, menu)
+    return world:MenuEntry(menu, world.L["inventory.locking.addNote"])
+        or world:MenuEntry(menu, world.L["inventory.locking.editNote"])
+end
+
+local function OpenNote(world, slot)
+    local menu = assert(world:AltRightClick(slot), "item menu opened")
+    assert(NoteEntry(world, menu), "note entry").callback()
+end
+
 local function WriteNote(world, slot, text)
-    world:AltRightClick(slot)
+    OpenNote(world, slot)
     world:TypeInDialog(text)
     world:ClickDialogButton(1)
 end
 
+test("alt+right-click opens the item menu with a note entry", function(world)
+    local menu = world:AltRightClick(1)
+    equal(menu[1].kind, "title", "title first")
+    equal(menu[1].text, "G1", "item name")
+    equal(menu[1].color, nil, "Blizzard's default title color")
+    expect(world:MenuEntry(menu, world.L["inventory.locking.addNote"]), "add note")
+
+    WriteNote(world, 1, "For my alt")
+    menu = world:AltRightClick(1)
+    expect(world:MenuEntry(menu, world.L["inventory.locking.editNote"]), "edit note once written")
+    expect(not world:MenuEntry(menu, world.L["inventory.locking.addNote"]), "no add note")
+end)
+
+test("the item menu lists the note, then the checkboxes", function(world)
+    local menu = world:AltRightClick(1)
+    equal(menu[2].text, world.L["inventory.locking.addNote"], "note second")
+    equal(menu[3].text, world.L["inventory.locking.lock"], "lock third")
+    equal(menu[4].text, world.L["inventory.junk.mark"], "junk last")
+end)
+
+test("the item menu locks and unlocks", function(world)
+    local lock = world:MenuEntry(world:AltRightClick(1), world.L["inventory.locking.lock"])
+    equal(lock.kind, "checkbox", "a checkbox")
+    expect(not lock.isSelected(), "unchecked while unlocked")
+
+    lock.select()
+    expect(Locking(world):IsGUIDLocked("G1"), "locked")
+    expect(world.prints[#world.prints]:find("[G1]", 1, true), "announced in chat")
+    lock = world:MenuEntry(world:AltRightClick(1), world.L["inventory.locking.lock"])
+    expect(lock.isSelected(), "checked while locked")
+
+    lock.select()
+    expect(not Locking(world):IsGUIDLocked("G1"), "unlocked")
+end)
+
+test("the lock entry ignores an item that left its slot", function(world)
+    local lock = world:MenuEntry(world:AltRightClick(1), world.L["inventory.locking.lock"])
+    world.bags[0][1], world.bags[0][3] = nil, "G1"
+    lock.select()
+    expect(not Locking(world):IsGUIDLocked("G1"), "not locked")
+end)
+
+test("the note entry ignores an item that left its slot", function(world)
+    local menu = world:AltRightClick(1)
+    world.bags[0][1], world.bags[0][3] = nil, "G1"
+    NoteEntry(world, menu).callback()
+    expect(not world:Dialog(), "no dialog")
+end)
+
+test("no item menu without a feature adding entries", function(world)
+    world:Setting("inventory.locking.enabled"):SetValue(false)
+    world:Setting("inventory.junk.enabled"):SetValue(false)
+    world:SetAlt(true)
+    expect(not world:IsShielded(1), "no shield")
+    world:SetAlt(false)
+end)
+
 test("alt+right-click writes a note shown under the locked line", function(world)
     world:AltClick(1)
-    world:AltRightClick(1)
+    OpenNote(world, 1)
     local dialog = world:Dialog()
     expect(dialog, "dialog shown")
     equal(
@@ -171,7 +238,7 @@ test("alt+right-click writes a note shown under the locked line", function(world
     equal(lines[2], " ", "empty line before the note")
     equal(lines[3], world.L["inventory.locking.noteLine"]:format("For my alt"), "trimmed, quoted note")
 
-    world:AltRightClick(1)
+    OpenNote(world, 1)
     equal(world:Dialog():GetEditBox():GetText(), "For my alt", "pre-filled with the note")
 end)
 
@@ -183,7 +250,7 @@ test("a note on an unlocked item locks it", function(world)
 end)
 
 test("cancelling or a blank note leaves an unlocked item alone", function(world)
-    world:AltRightClick(2)
+    OpenNote(world, 2)
     world:TypeInDialog("Quest item")
     world:ClickDialogButton(2)
     WriteNote(world, 2, "   ")
@@ -207,7 +274,7 @@ test("unlocking removes the note", function(world)
 end)
 
 test("a note follows its item, even when it moves while the dialog is open", function(world)
-    world:AltRightClick(1)
+    OpenNote(world, 1)
     world.bags[0][1], world.bags[0][3] = nil, "G1"
     world:Fire("BAG_UPDATE_DELAYED")
     world:TypeInDialog("Moved")
@@ -227,7 +294,7 @@ end)
 
 test("turning the feature off hides notes and the note dialog", function(world)
     WriteNote(world, 1, "For my alt")
-    world:AltRightClick(1)
+    OpenNote(world, 1)
     world:Setting("inventory.locking.enabled"):SetValue(false)
     expect(not world:Dialog(), "dialog hidden")
     equal(#world:ItemTooltip({ guid = "G1", id = "G1" }), 0, "tooltip lines")
@@ -254,6 +321,7 @@ end)
 
 test("turning the feature off undoes everything and keeps locks", function(world)
     world:AltClick(1)
+    world:AltClick(4)
     MerchantFrame.shown = true
     world:Fire("MERCHANT_SHOW")
 
@@ -261,7 +329,9 @@ test("turning the feature off undoes everything and keeps locks", function(world
     expect(not world:IsShielded(1), "shield removed")
     equal(world:Indicator(1), "hidden", "indicator")
     expect(not Locking(world):IsGUIDLocked("G1"), "public API reports unlocked while inactive")
-    equal(world.eventRegistry["MerchantFrame.SellAllJunkButtonClicked"], nil, "junk guard unregistered")
+    world:ClickSellAllJunk()
+    equal(#world.popups, 0, "locked junk left to Blizzard's Sell All Junk")
+    equal(#world.errors, 0, "errors")
     C_Container.PickupContainerItem(0, 1)
     world:NextFrame()
     expect(world.cursor ~= nil, "cursor guard off")

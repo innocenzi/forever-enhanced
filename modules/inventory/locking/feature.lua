@@ -1,7 +1,8 @@
 -- Item Locking: Alt+Left-click a bag or bank item to lock that exact item
 -- (by GUID). A locked item can't be picked up, right-click is blocked wherever
 -- it would sell, mail, trade or auction the item, Sell All Junk keeps it, and
--- sorting leaves it in place. Alt+Right-click writes a note on the item.
+-- sorting leaves it in place. "Add note" in the item menu (Alt+Right-click)
+-- writes a note on the item.
 --
 -- Files of this slice:
 --   feature.lua     registration, schema and lifecycle (this file)
@@ -9,9 +10,9 @@
 --   store.lua       lock set, notes and public API
 --   notes.lua       note popup
 --   indicators.lua  lock indicator styles drawn on item buttons
---   buttons.lua     item buttons: indicators and click shield
+--   buttons.lua     item buttons: indicators, Alt clicks, menu entry, click shield
 --   guards.lua      cursor guard
---   junk.lua        Sell All Junk with locked junk
+--   junk.lua        Sell All Junk keeps locked items
 --   sorting.lua     puts locked items back after a sort
 --   tooltip.lua     "Locked" and note tooltip lines
 
@@ -38,23 +39,24 @@ local Locking = ns:RegisterFeature("inventory", "locking", {
 })
 
 function Locking:OnEnable()
-    self.Buttons:Enable()
+    ns:RefreshItemButtons()
+    ns:RefreshJunk()
     self.Guards:Enable()
-    self.Junk:Enable()
     self.Sorting:Enable()
 end
 
 function Locking:OnDisable()
     self.Notes:Disable()
     self.Sorting:Disable()
-    self.Junk:Disable()
     self.Guards:Disable()
-    self.Buttons:Disable()
+    self.Indicators:HideAll()
+    ns:RefreshItemButtons()
+    ns:RefreshJunk()
 end
 
 function Locking:OnSettingChanged(key, value)
     if key == "indicator" then
-        self.Buttons:Refresh()
+        ns:RefreshItemButtons()
     elseif key == "keepInPlace" and not value then
         self.Sorting:Cancel()
     end

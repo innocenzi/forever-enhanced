@@ -1,15 +1,15 @@
--- Sells the junk Sell All Junk Items would sell, keeping locked items.
+-- Sells the junk Sell All Junk Items would sell (core/junk.lua: marked items
+-- are added, locked items kept).
 --
--- Without locked junk, Blizzard's C_MerchantFrame.SellAllJunkItems() sells it
--- all in one server call. It can't skip items, so with locked junk the rest is
--- sold one C_Container.UseContainerItem per item, as a right-click at the
--- merchant would (like Item Locking's Sell All Junk).
+-- When that is exactly Blizzard's junk, C_MerchantFrame.SellAllJunkItems()
+-- sells it in one server call. It can't add or skip items, so otherwise the
+-- junk is sold one C_Container.UseContainerItem per item, as a right-click at
+-- the merchant would.
 
 local _, ns = ...
 
 local L = ns.L
 local Merchant = ns:GetFeature("inventory", "merchant")
-local Locking = ns:GetFeature("inventory", "locking")
 
 local Junk = {}
 Merchant.Junk = Junk
@@ -25,24 +25,24 @@ function Junk:Sell()
         return 0
     end
 
-    local unlocked, lockedCount = Locking:CollectUnlockedJunk()
-    if #unlocked == 0 then
+    local junk, keptCount, addedCount = ns:CollectJunk()
+    if #junk == 0 then
         return 0
     end
 
     local value = 0
-    for _, junk in ipairs(unlocked) do
-        value = value + GetSellValue(junk.info)
+    for _, item in ipairs(junk) do
+        value = value + GetSellValue(item.info)
     end
 
-    if lockedCount == 0 and C_MerchantFrame.IsSellAllJunkEnabled() then
+    if keptCount == 0 and addedCount == 0 and C_MerchantFrame.IsSellAllJunkEnabled() then
         C_MerchantFrame.SellAllJunkItems()
     else
-        for _, junk in ipairs(unlocked) do
-            C_Container.UseContainerItem(junk.bagID, junk.slot)
+        for _, item in ipairs(junk) do
+            C_Container.UseContainerItem(item.bagID, item.slot)
         end
     end
 
-    Merchant:Announce(L["inventory.merchant.sold"]:format(#unlocked, GetMoneyString(value, true)))
+    Merchant:Announce(L["inventory.merchant.sold"]:format(#junk, GetMoneyString(value, true)))
     return value
 end

@@ -1,6 +1,6 @@
 -- Merchant: when a merchant opens, sells the junk Sell All Junk Items would
--- sell (locked items are kept) and repairs all items, from guild funds first
--- if the player chose so.
+-- sell (with marked items, without locked items) and repairs all items, from
+-- guild funds first if the player chose so.
 --
 -- Files of this slice:
 --   feature.lua  registration, schema and lifecycle (this file)

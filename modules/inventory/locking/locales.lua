@@ -2,7 +2,7 @@ local _, ns = ...
 
 ns:RegisterLocale("enUS", {
     ["inventory.locking.title"] = "Item locking",
-    ["inventory.locking.description"] = "Locks an item in your bags or bank with Alt Left Click: it can't be moved, sold, destroyed, mailed, traded or auctioned, but can still be used or equipped. Alt Right Click adds a note.",
+    ["inventory.locking.description"] = "Locks an item in your bags or bank with Alt Left Click: it can't be moved, sold, destroyed, mailed, traded or auctioned, but can still be used or equipped. Alt Right Click opens a menu to add a note.",
     ["inventory.locking.indicator"] = "Lock indicator",
     ["inventory.locking.indicator.tooltip"] = "Controls how locked items are marked.",
     ["inventory.locking.indicator.padlock"] = "Small padlock",
@@ -22,16 +22,16 @@ ns:RegisterLocale("enUS", {
     ["inventory.locking.tooltipLine"] = "Locked",
     ["inventory.locking.isLocked"] = "This item is locked. Alt Left Click to unlock it.",
     ["inventory.locking.cannotSell"] = "Locked items can't be sold.",
-    ["inventory.locking.sellJunkBlocked"] = "Some of your junk is locked.",
-    ["inventory.locking.sellJunkConfirm"] = "Are you sure you want to sell %d junk |4item:items;? %d locked |4item:items; will be kept.",
-    ["inventory.locking.allJunkLocked"] = "All of your junk is locked.",
     ["inventory.locking.notePrompt"] = "Enter a note for %s:",
+    ["inventory.locking.lock"] = "Lock",
+    ["inventory.locking.addNote"] = "Add note",
+    ["inventory.locking.editNote"] = "Edit note",
     ["inventory.locking.noteLine"] = '"%s"',
 })
 
 ns:RegisterLocale("frFR", {
     ["inventory.locking.title"] = "Verrouillage d’objets",
-    ["inventory.locking.description"] = "Verrouille un objet de vos sacs ou de votre banque d’un Alt-clic gauche : il ne peut plus être déplacé, vendu, détruit, envoyé, échangé ni mis aux enchères, mais peut toujours être utilisé ou équipé. Un Alt-clic droit ajoute une note.",
+    ["inventory.locking.description"] = "Verrouille un objet de vos sacs ou de votre banque d’un Alt-clic gauche : il ne peut plus être déplacé, vendu, détruit, envoyé, échangé ni mis aux enchères, mais peut toujours être utilisé ou équipé. Un Alt-clic droit ouvre un menu pour ajouter une note.",
     ["inventory.locking.indicator"] = "Indicateur de verrouillage",
     ["inventory.locking.indicator.tooltip"] = "Contrôle comment les objets verrouillés sont signalés.",
     ["inventory.locking.indicator.padlock"] = "Petit cadenas",
@@ -51,9 +51,9 @@ ns:RegisterLocale("frFR", {
     ["inventory.locking.tooltipLine"] = "Verrouillé",
     ["inventory.locking.isLocked"] = "Cet objet est verrouillé. Alt-clic gauche pour le déverrouiller.",
     ["inventory.locking.cannotSell"] = "Les objets verrouillés ne peuvent pas être vendus.",
-    ["inventory.locking.sellJunkBlocked"] = "Une partie de votre camelote est verrouillée.",
-    ["inventory.locking.sellJunkConfirm"] = "Voulez-vous vraiment vendre %d |4objet:objets; de camelote ? %d |4objet verrouillé sera conservé:objets verrouillés seront conservés;.",
-    ["inventory.locking.allJunkLocked"] = "Toute votre camelote est verrouillée.",
     ["inventory.locking.notePrompt"] = "Entrez une note pour %s :",
+    ["inventory.locking.lock"] = "Verrouiller",
+    ["inventory.locking.addNote"] = "Ajouter une note",
+    ["inventory.locking.editNote"] = "Modifier la note",
     ["inventory.locking.noteLine"] = "« %s »",
 })

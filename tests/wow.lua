@@ -69,6 +69,7 @@ local world = {
     bags = { [0] = { "G1", "G2", nil, "GJUNK" }, [6] = { "B1", nil, "B2" }, [7] = { nil, "B3" } },
     bagSizes = { [6] = 4, [7] = 2 },
     quality = { GJUNK = 0 },
+    noValue = {},
     counts = { B2 = 20 },
     itemIDs = {},
     maxStacks = {},
@@ -1123,6 +1124,12 @@ C_Item = {
         local itemType = world.itemTypes[guid] or { "Miscellaneous", "Other", "" }
         return guid, itemType[1], itemType[2], itemType[3]
     end,
+    GetItemID = function(location)
+        return ItemID(ItemAt(location))
+    end,
+    GetItemName = function(location)
+        return ItemAt(location)
+    end,
     -- Only the sell price (11th return) is modelled: world.sellPrices[itemID], default 0.
     GetItemInfo = function(itemID)
         return itemID, nil, nil, nil, nil, nil, nil, nil, nil, nil, world.sellPrices[itemID] or 0
@@ -1144,22 +1151,33 @@ local function SellItem(bagID, slot)
     end)
 end
 
+-- Blizzard's junk: poor quality items of the bags not excluded from Sell All Junk.
+local function BlizzardJunkSlots()
+    local slots = {}
+    if not world.excludedFromJunkSell[0] then
+        for slot = 1, BAG_SIZE do
+            local guid = world.bags[0][slot]
+            if guid and ItemQuality(guid) == Enum.ItemQuality.Poor then
+                table.insert(slots, slot)
+            end
+        end
+    end
+    return slots
+end
+
 C_MerchantFrame = {
     IsSellAllJunkEnabled = function()
         return world.sellAllJunkEnabled
+    end,
+    GetNumJunkItems = function()
+        return #BlizzardJunkSlots()
     end,
     -- Sells every poor-quality item of the bags not excluded from Sell All Junk.
     SellAllJunkItems = function()
         assert(MerchantFrame.shown, "SellAllJunkItems outside a merchant")
         world.sellAllJunkCalls = world.sellAllJunkCalls + 1
-        if world.excludedFromJunkSell[0] then
-            return
-        end
-        for slot = 1, BAG_SIZE do
-            local guid = world.bags[0][slot]
-            if guid and ItemQuality(guid) == Enum.ItemQuality.Poor then
-                SellItem(0, slot)
-            end
+        for _, slot in ipairs(BlizzardJunkSlots()) do
+            SellItem(0, slot)
         end
     end,
 }
@@ -1260,7 +1278,7 @@ C_Container = {
         return guid
             and {
                 quality = ItemQuality(guid),
-                hasNoValue = false,
+                hasNoValue = world.noValue[guid] == true,
                 isLocked = false,
                 isBound = false,
                 hyperlink = ItemLink(guid),
@@ -2433,6 +2451,24 @@ for _, name in ipairs({ "MerchantFrame", "MailFrame", "TradeFrame" }) do
     _G[name].shown = false
 end
 
+-- The merchant's Sell All Junk button: `enabled`, and its icon desaturated while disabled.
+MerchantSellAllJunkButton = CreateFrame("Button")
+MerchantSellAllJunkButton.Icon = MerchantSellAllJunkButton:CreateTexture()
+MerchantSellAllJunkButton.enabled = false
+function MerchantSellAllJunkButton:IsEnabled()
+    return self.enabled
+end
+function MerchantSellAllJunkButton:SetEnabled(enabled)
+    self.enabled = enabled
+end
+
+-- Runs when the merchant opens and on bag changes: enables Sell All Junk with poor items only.
+function MerchantFrame_Update()
+    local hasJunkItems = C_MerchantFrame.GetNumJunkItems() > 0
+    MerchantSellAllJunkButton.Icon:SetDesaturated(not hasJunkItems)
+    MerchantSellAllJunkButton:SetEnabled(hasJunkItems)
+end
+
 -- World API for tests ------------------------------------------------------------------------
 
 function world:Fire(event, ...)
@@ -2554,10 +2590,22 @@ function world:AltClick(slot)
     self:SetAlt(false)
 end
 
+-- Returns the entries of the item menu it opened, or nil.
 function world:AltRightClick(slot)
+    self.contextMenu = nil
     self:SetAlt(true)
     self:ClickShield(slot, "RightButton")
     self:SetAlt(false)
+    return self.contextMenu and self:ContextMenu()
+end
+
+-- The entry of `menu` (a list of entries) with this text.
+function world:MenuEntry(menu, text)
+    for _, entry in ipairs(menu) do
+        if entry.text == text then
+            return entry
+        end
+    end
 end
 
 -- The shown dialog (StaticPopup_Show), or nil.
@@ -2591,15 +2639,28 @@ function world:ClickDialogButton(index)
     dialog:Hide()
 end
 
+-- Our frame laid over a bag button holding a texture with one of `atlases`, if any.
+local function OverlayWith(slot, atlases)
+    for _, texture in ipairs(world.textures) do
+        local owner = texture.owner
+        if atlases[texture.atlas] and owner.parent == world.buttons[slot] then
+            return owner
+        end
+    end
+end
+
+local LOCK_ATLASES = { ["QuestSharing-Padlock"] = true, ["bankslot-icon-lock"] = true }
+
+-- Whether a bag button shows our junk coin.
+function world:JunkCoin(slot)
+    local holder = OverlayWith(slot, { ["bags-junkcoin"] = true })
+    return holder ~= nil and holder.shown
+end
+
 -- Describes the lock indicator on a bag button: "" (never drawn), "hidden",
 -- or "<atlas> <width>x<height> <anchor>[+shadow]".
 function world:Indicator(slot)
-    local holder
-    for _, frame in ipairs(self.frames) do
-        if frame.parent == self.buttons[slot] and not frame.itemButton then
-            holder = frame
-        end
-    end
+    local holder = OverlayWith(slot, LOCK_ATLASES)
     if not holder then
         return ""
     end
@@ -2640,7 +2701,14 @@ end
 
 function world:OpenMerchant()
     MerchantFrame.shown = true
+    MerchantSellAllJunkButton:SetShown(C_MerchantFrame.IsSellAllJunkEnabled())
+    MerchantFrame_Update()
     self:Fire("MERCHANT_SHOW")
+end
+
+-- Whether the merchant's Sell All Junk button can be clicked.
+function world:IsSellAllJunkEnabled()
+    return MerchantSellAllJunkButton.enabled and not MerchantSellAllJunkButton.Icon.desaturated
 end
 
 function world:CloseMerchant()
@@ -3153,10 +3221,8 @@ function world:SavedBankBags()
     return table.concat(slots, " ")
 end
 
--- Runs the character dropdown's menu generator: a list of
--- { kind = "radio" | "button" | "divider", text, isSelected(), select(), callback(), children }.
--- Menu descriptions record their entries: { kind = "radio" | "button" | "divider",
--- text, isSelected(), select(), callback(), enabled, children }.
+-- Menu descriptions record their entries: { kind = "radio" | "button" | "checkbox" |
+-- "title" | "divider", text, color, isSelected(), select(), callback(), enabled, children }.
 local function NewMenuDescription()
     local description = { children = {}, enabled = true }
     function description:CreateRadio(text, isSelected, setSelected)
@@ -3169,6 +3235,15 @@ local function NewMenuDescription()
         entry.kind, entry.text, entry.callback = "button", text, callback
         table.insert(self.children, entry)
         return entry
+    end
+    function description:CreateCheckbox(text, isSelected, setSelected)
+        local entry = NewMenuDescription()
+        entry.kind, entry.text, entry.isSelected, entry.select = "checkbox", text, isSelected, setSelected
+        table.insert(self.children, entry)
+        return entry
+    end
+    function description:CreateTitle(text, color)
+        table.insert(self.children, { kind = "title", text = text, color = color })
     end
     function description:CreateDivider()
         table.insert(self.children, { kind = "divider" })

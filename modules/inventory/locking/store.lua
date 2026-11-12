@@ -51,7 +51,8 @@ local function SetLocked(guid, link, locked)
         ns:Print(message:format(link))
     end
 
-    Locking.Buttons:Refresh()
+    ns:RefreshItemButtons()
+    ns:RefreshJunk()
 end
 
 function Locking:ToggleLock(itemLocation)

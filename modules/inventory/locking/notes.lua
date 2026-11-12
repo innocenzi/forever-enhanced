@@ -1,5 +1,6 @@
--- Item notes: Alt+Right-click an item to write a short note, shown in its
--- tooltip (tooltip.lua). Saving a note on an unlocked item locks it.
+-- Item notes: "Add note" in the item menu (Alt Right Click) writes a short
+-- note, shown in the item's tooltip (tooltip.lua). Saving a note on an
+-- unlocked item locks it.
 --
 -- Blizzard's GENERIC_INPUT_BOX can't be pre-filled and refuses blank text,
 -- which is how a note is removed, so we register our own dialog. Disabling the
@@ -44,10 +45,10 @@ StaticPopupDialogs[DIALOG] = {
     whileDead = 1,
 }
 
--- Keyed by the GUID at open time: the item may move while the popup is up.
-function Locking:EditNote(itemLocation)
-    local guid = self:GetItemGUID(itemLocation)
-    if not guid then
+-- `guid`: the item the menu was opened on, ignored if it has left `itemLocation`
+-- since. Keyed by the GUID: the item may move while the popup is up.
+function Locking:EditNote(itemLocation, guid)
+    if not guid or self:GetItemGUID(itemLocation) ~= guid then
         return
     end
     local link = C_Item.GetItemLink(itemLocation)

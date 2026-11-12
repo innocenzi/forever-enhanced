@@ -19,6 +19,8 @@ core\tooltips.lua
 core\locale.lua
 core\addon.lua
 core\messages.lua
+core\itembuttons.lua
+core\junk.lua
 core\database.lua
 core\presets.lua
 core\settings.lua
@@ -53,6 +55,11 @@ modules\inventory\merchant\feature.lua
 modules\inventory\merchant\locales.lua
 modules\inventory\merchant\junk.lua
 modules\inventory\merchant\repair.lua
+modules\inventory\junk\feature.lua
+modules\inventory\junk\locales.lua
+modules\inventory\junk\store.lua
+modules\inventory\junk\buttons.lua
+modules\inventory\junk\selling.lua
 
 # Quests
 modules\quests\module.lua
