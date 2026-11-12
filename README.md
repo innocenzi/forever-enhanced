@@ -30,3 +30,17 @@ A lightweight utility addon for Forever. It keeps the default UI familiar while 
 - Show your friends on the world map (supports OpenMap too)
 
 All of those features can be enabled or disabled individually, and most of them are disabled by default to prevent ruining your vanilla experience.
+
+&nbsp;
+
+## Fewer addons
+
+If you install a large addon for only one or two of its features, Forever Enhanced may cover them on its own:
+
+- **OpenMap**, **Mapster**, **Leatrix Maps**: seamless world map, unexplored areas
+- **Bagnon**, **Baganator**, **BagSync**, **Altoholic**: your characters' banks from anywhere, bank counts in tooltips
+- **Scrap**, **Peddler**, **Dejunk**: junk marking and automatic selling
+- **BlizzMove**, **Forever Move**, **MoveAnything**: movable windows
+- **Leatrix Plus**: automatic repairs and junk selling, movable windows
+- **Questie**: nearby quest tracking, quest item sparkles, objectives in tooltips, objective announcements
+- **TomTom**: `/way` commands from guides
