@@ -26,6 +26,6 @@ ns:RegisterLocale("frFR", {
     ["interface.glow.icon"] = "Afficher l’icône",
     ["interface.glow.icon.tooltip"] = "Affiche l’icône d’interaction au-dessus des objets qui brillent.",
     ["interface.glow.range"] = "Portée",
-    ["interface.glow.range.tooltip"] = "Règle la distance jusqu’à laquelle un objet peut briller.",
+    ["interface.glow.range.tooltip"] = "Définit la distance jusqu’à laquelle un objet peut briller.",
     ["interface.glow.range.format"] = "%d m",
 })

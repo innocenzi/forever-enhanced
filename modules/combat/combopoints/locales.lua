@@ -6,6 +6,6 @@ ns:RegisterLocale("enUS", {
 })
 
 ns:RegisterLocale("frFR", {
-    ["combat.combopoints.title"] = "Points de combo",
+    ["combat.combopoints.title"] = "Points de combo sur les barres",
     ["combat.combopoints.description"] = "Affiche vos points de combo sur les barres d’infos ennemies.",
 })

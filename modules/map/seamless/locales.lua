@@ -2,7 +2,7 @@ local _, ns = ...
 
 ns:RegisterLocale("enUS", {
     ["map.seamless.title"] = "Seamless world map",
-    ["map.seamless.description"] = "Shows the world map as one map: zoom out of a zone into its neighbours, its continent and the world, and pan anywhere.",
+    ["map.seamless.description"] = "Shows the world map as one map: zoom out of a zone into its neighbors, its continent and the world, and pan anywhere.",
     ["map.seamless.unexplored"] = "Show unexplored areas",
     ["map.seamless.unexplored.tooltip"] = "Draws the land you haven't explored yet.",
     ["map.seamless.quests"] = "Show all quests on continents",

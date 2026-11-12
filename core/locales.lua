@@ -29,7 +29,7 @@ ns:RegisterLocale("frFR", {
     ["core.language.auto"] = "Langue du jeu",
     ["core.language.reloadConfirm"] = "Voulez-vous vraiment recharger l’interface maintenant pour changer de langue ?",
     ["core.presets"] = "Préréglage",
-    ["core.presets.tooltip"] = "Règle de nombreuses options en une fois.",
+    ["core.presets.tooltip"] = "Définit de nombreuses options en une fois.",
     ["core.presets.none"] = "Choisir un préréglage",
     ["core.presets.minimal"] = "Minimal",
     ["core.presets.minimal.tooltip"] = "Garde l’interface proche de celle par défaut et discrète dans la discussion.",
