@@ -6,12 +6,10 @@
 //   bun run professions --build 1.60.1.70888
 //   bun run professions --refresh       download again instead of using tools/.cache
 
-import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import path from "node:path";
+import { integer, latestBuild, parseCsv, table } from "./wago";
 
-const WAGO = "https://wago.tools";
-const PRODUCT = "wowf";
 const OUTPUT = "modules/professions/reagents/data.lua";
 const CACHE = "tools/.cache/professions";
 const REAGENT_SLOTS = 8;
@@ -22,64 +20,8 @@ const REAGENT_SLOTS = 8;
 // professions in it.
 export const SKILL_LINES = [129, 185, 171, 164, 165, 197, 202, 333, 186];
 
-type Row = Record<string, string>;
-
 /** A recipe that uses an item: spell, skill line, quantity of the item. */
 export type Use = [spellID: number, skillLineID: number, quantity: number];
-
-function parseLine(line: string): string[] {
-    const fields: string[] = [];
-    let field = "";
-    let quoted = false;
-    for (let i = 0; i < line.length; i++) {
-        const char = line[i];
-        if (quoted) {
-            if (char === '"' && line[i + 1] === '"') {
-                field += '"';
-                i++;
-            } else if (char === '"') {
-                quoted = false;
-            } else {
-                field += char;
-            }
-        } else if (char === '"') {
-            quoted = true;
-        } else if (char === ",") {
-            fields.push(field);
-            field = "";
-        } else {
-            field += char;
-        }
-    }
-    fields.push(field);
-    return fields;
-}
-
-export function parseCsv(content: string): Row[] {
-    const lines = content
-        .replace(/^﻿/, "")
-        .split(/\r?\n/)
-        .filter((line) => line.length > 0);
-    if (lines.length === 0) {
-        return [];
-    }
-    const headers = parseLine(lines[0]);
-    return lines.slice(1).map((line, index) => {
-        const fields = parseLine(line);
-        if (fields.length !== headers.length) {
-            throw new Error(`CSV row ${index + 2} has ${fields.length} fields, expected ${headers.length}`);
-        }
-        return Object.fromEntries(headers.map((header, i) => [header, fields[i]]));
-    });
-}
-
-function integer(row: Row, field: string): number {
-    const value = Number(row[field]);
-    if (!Number.isInteger(value)) {
-        throw new Error(`DB2 field ${field} must be an integer, got '${row[field]}'`);
-    }
-    return value;
-}
 
 /** Item ID → the recipes using it, ordered by profession (SKILL_LINES) then spell. */
 export function collectUses(spellReagentsCsv: string, skillLineAbilityCsv: string): Map<number, Use[]> {
@@ -156,35 +98,6 @@ export function renderLua(uses: Map<number, Use[]>, build: string): string {
     return lines.join("\n");
 }
 
-async function latestBuild(): Promise<string> {
-    const response = await fetch(`${WAGO}/api/builds`);
-    if (!response.ok) {
-        throw new Error(`Failed to list builds: HTTP ${response.status}`);
-    }
-    const builds = (await response.json()) as Record<string, { version: string }[]>;
-    const build = builds[PRODUCT]?.[0]?.version;
-    if (!build) {
-        throw new Error(`No ${PRODUCT} build on wago.tools`);
-    }
-    return build;
-}
-
-async function table(repoRoot: string, name: string, build: string, refresh: boolean): Promise<string> {
-    const cached = path.join(repoRoot, CACHE, build, `${name}.csv`);
-    if (!refresh && existsSync(cached)) {
-        return readFile(cached, "utf8");
-    }
-    const url = `${WAGO}/db2/${name}/csv?build=${encodeURIComponent(build)}`;
-    const response = await fetch(url);
-    if (!response.ok) {
-        throw new Error(`Failed to download ${url}: HTTP ${response.status}`);
-    }
-    const content = await response.text();
-    await mkdir(path.dirname(cached), { recursive: true });
-    await writeFile(cached, content);
-    return content;
-}
-
 if (import.meta.main) {
     const args = Bun.argv.slice(2);
     const buildIndex = args.indexOf("--build");
@@ -193,8 +106,8 @@ if (import.meta.main) {
     const repoRoot = path.resolve(import.meta.dir, "..");
 
     const uses = collectUses(
-        await table(repoRoot, "SpellReagents", build, refresh),
-        await table(repoRoot, "SkillLineAbility", build, refresh),
+        await table(path.join(repoRoot, CACHE), "SpellReagents", build, refresh),
+        await table(path.join(repoRoot, CACHE), "SkillLineAbility", build, refresh),
     );
     const output = path.join(repoRoot, OUTPUT);
     await writeFile(output, renderLua(uses, build));

@@ -114,6 +114,14 @@ modules\interface\glow\target.lua
 
 # Map
 modules\map\module.lua
+modules\map\seamless\feature.lua
+modules\map\seamless\locales.lua
+modules\map\seamless\data.lua
+modules\map\seamless\geometry.lua
+modules\map\seamless\art.lua
+modules\map\seamless\arrow.lua
+modules\map\seamless\combat.lua
+modules\map\seamless\view.lua
 modules\map\waypoint\feature.lua
 modules\map\waypoint\locales.lua
 modules\map\waypoint\arrival.lua

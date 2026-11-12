@@ -226,13 +226,13 @@ for _, name in ipairs({
     "RegisterForClicks",
     "RegisterForDrag",
     "SetHighlightTexture",
-    "SetVertexColor",
     "SetFrameLevel",
     "SetToplevel",
     "EnableMouse",
     "SetHorizTile",
     "SetVertTile",
     "SetRotation",
+    "SetTexCoord",
     "SetJustifyH",
     "SetTextColor",
     "HighlightText",
@@ -1836,19 +1836,41 @@ C_SuperTrack = {
 local MAP_SIZE = 1000
 local MAP_CONTINENTS = { [1] = 0, [2] = 1 }
 
--- The map tree under Azeroth (9): a zone on each continent, a dungeon, which
+-- The map tree under Azeroth (947): a zone on each continent, a dungeon, which
 -- can't hold a pin, and Northshire, a starting area inside Elwynn Forest with its
 -- own map. The player is on map 1 or 2 by continent, on 4 inside NORTHSHIRE (yards
--- on continent 0) and on 3 in an instance.
+-- on continent 0) and on 3 in an instance. Westfall (5) and Stormwind City (6, a
+-- city: a zone that's its continent's child) are only on the world map.
+-- `rect`: where Azeroth's map places each map ({ left, right, top, bottom },
+-- normalized: C_Map.GetMapRectOnMap); every map's art is MAP_ART, so a map's rect
+-- has the art's shape (700 / 1000 as tall as wide, in Azeroth's own art).
 local MAPS = {
-    [1] = { name = "Elwynn Forest", mapType = Enum.UIMapType.Zone, parentMapID = 10 },
-    [2] = { name = "Durotar", mapType = Enum.UIMapType.Zone, parentMapID = 11 },
+    [1] = {
+        name = "Elwynn Forest",
+        mapType = Enum.UIMapType.Zone,
+        parentMapID = 10,
+        rect = { 0.70, 0.80, 0.55, 0.65 },
+    },
+    [2] = { name = "Durotar", mapType = Enum.UIMapType.Zone, parentMapID = 11, rect = { 0.30, 0.40, 0.40, 0.50 } },
     [3] = { name = "The Deadmines", mapType = Enum.UIMapType.Dungeon, parentMapID = 1 },
-    [4] = { name = "Northshire", mapType = Enum.UIMapType.Micro, parentMapID = 1 },
-    [9] = { name = "Azeroth", mapType = Enum.UIMapType.World, parentMapID = 0 },
-    [10] = { name = "Eastern Kingdoms", mapType = Enum.UIMapType.Continent, parentMapID = 9 },
-    [11] = { name = "Kalimdor", mapType = Enum.UIMapType.Continent, parentMapID = 9 },
+    [4] = { name = "Northshire", mapType = Enum.UIMapType.Micro, parentMapID = 1, rect = { 0.78, 0.80, 0.55, 0.57 } },
+    [5] = { name = "Westfall", mapType = Enum.UIMapType.Zone, parentMapID = 10, rect = { 0.60, 0.70, 0.55, 0.65 } },
+    [6] = {
+        name = "Stormwind City",
+        mapType = Enum.UIMapType.Zone,
+        parentMapID = 10,
+        rect = { 0.74, 0.76, 0.57, 0.59 },
+    },
+    [947] = { name = "Azeroth", mapType = Enum.UIMapType.World, parentMapID = 0, rect = { 0, 1, 0, 1 } },
+    [10] = {
+        name = "Eastern Kingdoms",
+        mapType = Enum.UIMapType.Continent,
+        parentMapID = 947,
+        rect = { 0.55, 0.95, 0.3, 0.7 },
+    },
+    [11] = { name = "Kalimdor", mapType = Enum.UIMapType.Continent, parentMapID = 947, rect = { 0.05, 0.45, 0.3, 0.7 } },
 }
+local MAP_ART = { width = 1000, height = 700, tile = 256 }
 
 local NORTHSHIRE = { left = 800, top = 0, size = 200 }
 
@@ -2190,6 +2212,16 @@ MapCanvasDataProviderMixin = {
     end,
 }
 
+-- Optional data provider callbacks.
+for _, name in ipairs({ "OnCanvasScaleChanged", "OnCanvasPanChanged", "OnCanvasSizeChanged" }) do
+    MapCanvasDataProviderMixin[name] = NoOp
+end
+
+-- world.mouseInputs: { pin, method, inCombat } for each pin's mouse input setup
+-- (CheckMouseButtonPassthrough, UpdateMousePropagation), which the canvas does as it
+-- acquires a pin. The game blocks them in combat when the map's code runs tainted.
+world.mouseInputs = {}
+
 MapCanvasPinMixin = {
     OnLoad = NoOp,
     OnAcquired = NoOp,
@@ -2198,11 +2230,45 @@ MapCanvasPinMixin = {
     SetPosition = function(self, x, y)
         self.position = { x = x, y = y }
     end,
+    -- (the map it's on; none once let go)
+    GetMap = function(self)
+        return self.owningMap
+    end,
+    CheckMouseButtonPassthrough = function(self)
+        table.insert(world.mouseInputs, { pin = self, method = "passthrough", inCombat = world.inCombat })
+    end,
 }
+
+-- A pin the player can super-track sets whether its clicks go on to the map as it's put up.
+SuperTrackablePinMixin = {
+    OnAcquired = function(self)
+        self:UpdateMousePropagation()
+    end,
+    UpdateMousePropagation = function(self)
+        table.insert(world.mouseInputs, { pin = self, method = "propagation", inCombat = world.inCombat })
+    end,
+}
+
+templates.SuperTrackablePinTemplate = function(frame)
+    Mixin(frame, MapCanvasPinMixin, SuperTrackablePinMixin)
+end
 
 templates.ForeverEnhancedFriendPinTemplate = function(frame)
     frame.Dot = frame:CreateTexture()
     Mixin(frame, ForeverEnhanced:GetFeature("map", "friends").Map.PinMixin)
+end
+
+-- Blizzard's explored areas of the map shown: one pin, which Blizzard shows again on every map change.
+templates.MapExplorationPinTemplate = function(frame)
+    Mixin(frame, MapCanvasPinMixin)
+end
+
+MAP_CANVAS_MOUSE_WHEEL_ZOOM_BEHAVIOR_SMOOTH = 1
+MAP_CANVAS_MOUSE_WHEEL_ZOOM_BEHAVIOR_FULL = 2
+MAP_CANVAS_MOUSE_WHEEL_ZOOM_BEHAVIOR_NONE = 3
+
+local function MapClamp(value, low, high)
+    return math.min(math.max(value, low), high)
 end
 
 WorldMapFrame = CreateFrame("Frame")
@@ -2210,6 +2276,27 @@ WorldMapFrame.shown = false
 WorldMapFrame.dataProviders = {}
 WorldMapFrame.pins = {}
 WorldMapFrame.freePins = {}
+WorldMapFrame.pinPools = {}
+
+-- The pin frame levels: Blizzard's, and what addons insert above them (false, like the
+-- client, for one already there or above one that isn't).
+local frameLevels = {
+    levels = { PIN_FRAME_LEVEL_MAP_EXPLORATION = 100, PIN_FRAME_LEVEL_GROUP_MEMBER = 500 },
+}
+function frameLevels:InsertFrameLevelAbove(frameLevelType, relativeFrameLevelType)
+    if self.levels[frameLevelType] or not self.levels[relativeFrameLevelType] then
+        return false
+    end
+    self.levels[frameLevelType] = self.levels[relativeFrameLevelType] + 1
+    return true
+end
+function frameLevels:GetValidFrameLevel(frameLevelType)
+    return assert(self.levels[frameLevelType], "unknown frame level " .. frameLevelType)
+end
+
+function WorldMapFrame:GetPinFrameLevelsManager()
+    return frameLevels
+end
 
 function WorldMapFrame:AddDataProvider(provider)
     self.dataProviders[provider] = true
@@ -2226,15 +2313,37 @@ function WorldMapFrame:GetMapID()
     return self.mapID
 end
 
+local function PinPool(template)
+    local pool = WorldMapFrame.pinPools[template]
+    if not pool then
+        pool = {}
+        function pool:EnumerateActive()
+            local active = {}
+            for _, pin in ipairs(WorldMapFrame.pins) do
+                if pin.template == template then
+                    active[pin] = true
+                end
+            end
+            return pairs(active)
+        end
+        WorldMapFrame.pinPools[template] = pool
+    end
+    return pool
+end
+
+-- Like the canvas, sets the pin's mouse input as it puts it on the map.
 function WorldMapFrame:AcquirePin(template, ...)
+    PinPool(template)
     self.freePins[template] = self.freePins[template] or {}
     local pin = table.remove(self.freePins[template])
     if not pin then
         pin = CreateFrame("Frame", nil, self, template)
         pin:OnLoad()
     end
+    pin.owningMap = self
     pin:Show()
     pin:OnAcquired(...)
+    pin:CheckMouseButtonPassthrough("RightButton")
     table.insert(self.pins, pin)
     return pin
 end
@@ -2245,12 +2354,134 @@ function WorldMapFrame:RemoveAllPinsByTemplate(template)
         if pin.template == template then
             table.remove(self.pins, index)
             pin:Hide()
+            pin.owningMap = nil
             table.insert(self.freePins[template], pin)
         end
     end
 end
 
+function WorldMapFrame:EnumeratePinsByTemplate(template)
+    local index = 0
+    return function()
+        repeat
+            index = index + 1
+        until not self.pins[index] or self.pins[index].template == template
+        return self.pins[index]
+    end
+end
+
+local explorationPin = CreateFrame("Frame", nil, WorldMapFrame, "MapExplorationPinTemplate")
+explorationPin.owningMap = WorldMapFrame
+table.insert(WorldMapFrame.pins, explorationPin)
+
+-- The map art's detail layers: one, shown again whenever the map refreshes them.
+local detailLayer = CreateFrame("Frame", nil, WorldMapFrame)
+WorldMapFrame.detailLayerPool = {
+    EnumerateActive = function()
+        return pairs({ [detailLayer] = true })
+    end,
+}
+function WorldMapFrame:RefreshDetailLayers()
+    detailLayer:Show()
+end
+
+local function CallProviders(map, method, ...)
+    for provider in pairs(map.dataProviders) do
+        provider[method](provider, ...)
+    end
+end
+
+-- Like the canvas: the scroll container's map first (zoom levels, canvas size, view
+-- reset), then the detail layers, then every data provider's OnMapChanged.
+function WorldMapFrame:SetMapID(mapID)
+    if self.mapID == mapID then
+        return
+    end
+    self.mapID = mapID
+    if QuestMapFrame.DetailsFrame.questMapID and QuestMapFrame.DetailsFrame.questMapID ~= mapID then
+        QuestMapFrame.DetailsFrame.questMapID = nil
+    end
+    self.ScrollContainer:SetMapID(mapID)
+    if self:IsShown() then
+        self:RefreshDetailLayers()
+    end
+    explorationPin:Show()
+    CallProviders(self, "OnMapChanged")
+end
+
+function WorldMapFrame:OnCanvasScaleChanged()
+    CallProviders(self, "OnCanvasScaleChanged")
+end
+
+function WorldMapFrame:OnCanvasPanChanged()
+    CallProviders(self, "OnCanvasPanChanged")
+end
+
+function WorldMapFrame:OnCanvasSizeChanged()
+    CallProviders(self, "OnCanvasSizeChanged")
+end
+
+-- Canvas click handlers: higher priority first; one returning true handles the click.
+function WorldMapFrame:AddCanvasClickHandler(handler, priority)
+    table.insert(self.clickHandlers, { handler = handler, priority = priority or 0 })
+    table.sort(self.clickHandlers, function(a, b)
+        return a.priority > b.priority
+    end)
+end
+
+function WorldMapFrame:ProcessCanvasClickHandlers(button, x, y)
+    for _, entry in ipairs(self.clickHandlers) do
+        if entry.handler(self, button, x, y) then
+            return true
+        end
+    end
+    return false
+end
+
+-- The map's pin button (Blizzard's WorldMapTrackingPinButton): while it's on, a click places a map pin.
+WorldMapFrame.WorldMapTrackingPinButton = { isActive = false }
+
+-- Blizzard's map pins (WaypointLocationDataProvider, priority 90): Ctrl Click, or a click
+-- with the pin button on, puts the pin on the map shown, where the cursor is on it.
+WorldMapFrame.clickHandlers = {
+    {
+        priority = 90,
+        handler = function(map, button, x, y)
+            if button ~= "LeftButton" or not (map.WorldMapTrackingPinButton.isActive or IsControlKeyDown()) then
+                return false
+            end
+            if C_Map.CanSetUserWaypointOnMap(map.mapID) then
+                C_Map.SetUserWaypoint(UiMapPoint.CreateFromCoordinates(map.mapID, x, y))
+            end
+            return true
+        end,
+    },
+}
+
+-- Blizzard's own click: into the map under the cursor.
+function WorldMapFrame:NavigateToCursor()
+    local x, y = self.ScrollContainer:GetNormalizedCursorPosition()
+    local info = C_Map.GetMapInfoAtPosition(self.mapID, x, y)
+    if info and info.mapID ~= self.mapID then
+        self:SetMapID(info.mapID)
+        return true
+    end
+    return false
+end
+
+function WorldMapFrame:NavigateToParentMap()
+    local parent = MAPS[self.mapID].parentMapID
+    if parent ~= 0 then
+        self:SetMapID(parent)
+    end
+end
+
+function WorldMapFrame:GetCanvas()
+    return self.ScrollContainer.Child
+end
+
 WorldMapFrame:SetScript("OnShow", function(self)
+    self:RefreshDetailLayers()
     for provider in pairs(self.dataProviders) do
         provider:RefreshAllData(true)
     end
@@ -2264,6 +2495,249 @@ WorldMapFrame:SetScript("OnHide", function(self)
         provider:OnHide()
     end
 end)
+
+-- The map's view: Blizzard's MapCanvasScrollControllerMixin, the parts the addon
+-- touches. 1000 x 700 at (100, 100) from the screen's top left. Scrolls are
+-- normalized on the canvas (the map's art), the view's middle; the canvas scale is
+-- view px per canvas unit. Zoom levels come from the map's art layer (one level:
+-- the map fits the view), and the scroll extents keep the view on the map.
+local scroll = CreateFrame("ScrollFrame", nil, WorldMapFrame)
+WorldMapFrame.ScrollContainer = scroll
+scroll:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 100, -100)
+scroll:SetSize(1000, 700)
+scroll.Child = CreateFrame("Frame", nil, scroll)
+scroll.mouseButtonInfo = { LeftButton = { down = false }, RightButton = { down = false } }
+scroll.mouseWheelZoomMode = MAP_CANVAS_MOUSE_WHEEL_ZOOM_BEHAVIOR_FULL
+scroll.scalingMode = "SCALING_MODE_TRANSLATE_FASTER_THAN_SCALE"
+scroll.targetScrollX, scroll.targetScrollY = 0.5, 0.5
+scroll.MarkAreaTriggersDirty = NoOp
+scroll.MarkViewRectDirty = NoOp
+scroll.MarkCanvasDirty = NoOp
+
+function scroll:GetMap()
+    return WorldMapFrame
+end
+
+function scroll:SetMapID(mapID)
+    self.mapID = mapID
+    self:OnCanvasSizeChanged()
+end
+
+function scroll:OnCanvasSizeChanged()
+    if not self.mapID then
+        return
+    end
+    self:CreateZoomLevels()
+    local layer = C_Map.GetMapArtLayers(self.mapID)[1]
+    self:SetCanvasSize(layer.layerWidth, layer.layerHeight)
+    self:ResetZoom()
+end
+
+function scroll:CreateZoomLevels()
+    local layer = C_Map.GetMapArtLayers(self.mapID)[1]
+    self.baseScale = math.min(self:GetWidth() / layer.layerWidth, self:GetHeight() / layer.layerHeight)
+    self.zoomLevels = { { scale = self.baseScale, layerIndex = 1 } }
+end
+
+function scroll:SetCanvasSize(width, height)
+    self.Child:SetSize(width, height)
+    self:CalculateScaleExtents()
+    self:CalculateScrollExtents()
+    self:GetMap():OnCanvasSizeChanged()
+end
+
+function scroll:CalculateScaleExtents()
+    local zoomOut, zoomIn = self:GetCurrentZoomRange()
+    self.targetScale = MapClamp(self.targetScale or zoomOut, zoomOut, zoomIn)
+end
+
+function scroll:CalculateScrollExtents()
+    self.scrollXExtentsMin, self.scrollXExtentsMax, self.scrollYExtentsMin, self.scrollYExtentsMax =
+        self:CalculateScrollExtentsAtScale(self:GetCanvasScale())
+end
+
+function scroll:CalculateScrollExtentsAtScale(scale)
+    local xOffset = math.min(self:NormalizeHorizontalSize(self:GetWidth() * 0.5 / scale), 0.5)
+    local yOffset = math.min(self:NormalizeVerticalSize(self:GetHeight() * 0.5 / scale), 0.5)
+    return xOffset, 1 - xOffset, yOffset, 1 - yOffset
+end
+
+function scroll:GetZoomLevelIndexForScale(scale)
+    local best = 1
+    for index, level in ipairs(self.zoomLevels) do
+        if scale >= level.scale then
+            best = index
+        else
+            break
+        end
+    end
+    return best
+end
+
+function scroll:GetCurrentZoomRange()
+    local index = self:GetZoomLevelIndexForScale(self:GetCanvasScale())
+    local out = self.zoomLevels[index - 1] or self.zoomLevels[index]
+    local into = self.zoomLevels[index + 1] or self.zoomLevels[index]
+    return out.scale, into.scale
+end
+
+function scroll:ResetZoom(ignoreScaleRatio)
+    self:InstantPanAndZoom(self.zoomLevels[1].scale, 0.5, 0.5, ignoreScaleRatio)
+end
+
+function scroll:InstantPanAndZoom(scale, panX, panY, ignoreScaleRatio)
+    if not ignoreScaleRatio then
+        local ratio = self:GetCanvasScale() / scale
+        panX = panX + ((self:GetCurrentScrollX() or 0.5) - panX) * ratio
+        panY = panY + ((self:GetCurrentScrollY() or 0.5) - panY) * ratio
+    end
+    self.currentScale = scale
+    self.targetScale = scale
+    self.Child:SetScale(scale)
+    self:CalculateScrollExtents()
+    self.targetScrollX = MapClamp(panX, self.scrollXExtentsMin, self.scrollXExtentsMax)
+    self.targetScrollY = MapClamp(panY, self.scrollYExtentsMin, self.scrollYExtentsMax)
+    self.currentScrollX, self.currentScrollY = self.targetScrollX, self.targetScrollY
+    self:GetMap():OnCanvasScaleChanged()
+end
+
+function scroll:ZoomIn()
+    local _, zoomIn = self:GetCurrentZoomRange()
+    if zoomIn > self:GetCanvasScale() then
+        self:InstantPanAndZoom(zoomIn, self.targetScrollX, self.targetScrollY)
+    end
+end
+
+function scroll:ZoomOut()
+    local zoomOut = self:GetCurrentZoomRange()
+    if zoomOut < self:GetCanvasScale() then
+        self:InstantPanAndZoom(zoomOut, self.targetScrollX, self.targetScrollY)
+    end
+end
+
+function scroll:GetCanvasScale()
+    return self.currentScale or self.targetScale or 1
+end
+
+function scroll:GetCurrentScrollX()
+    return self.currentScrollX or self.targetScrollX
+end
+
+function scroll:GetCurrentScrollY()
+    return self.currentScrollY or self.targetScrollY
+end
+
+function scroll:NormalizeHorizontalSize(size)
+    return size / self.Child.width
+end
+
+function scroll:NormalizeVerticalSize(size)
+    return size / self.Child.height
+end
+
+function scroll:SetMouseWheelZoomMode(mode)
+    self.mouseWheelZoomMode = mode
+end
+
+function scroll:SetScalingMode(mode)
+    self.scalingMode = mode
+end
+
+function scroll:ScalingMode()
+    return self.scalingMode
+end
+
+function scroll:GetCursorPosition()
+    local x, y = GetCursorPosition()
+    local scale = UIParent:GetEffectiveScale()
+    return x / scale, y / scale
+end
+
+-- A point on screen on the canvas, normalized: unclamped (fake only, for tests), and
+-- clamped to the map, as Blizzard's NormalizeUIPosition does (Saturate).
+function scroll:CanvasPoint(x, y)
+    local scale = self:GetCanvasScale()
+    local left, bottom, width, height = self:GetScreenRect()
+    return self:GetCurrentScrollX() + (x - left - width / 2) / scale / self.Child.width,
+        self:GetCurrentScrollY() - (y - bottom - height / 2) / scale / self.Child.height
+end
+
+function scroll:NormalizeUIPosition(x, y)
+    local cx, cy = self:CanvasPoint(x, y)
+    return MapClamp(cx, 0, 1), MapClamp(cy, 0, 1)
+end
+
+function scroll:GetNormalizedCursorPosition()
+    return self:NormalizeUIPosition(self:GetCursorPosition())
+end
+
+function scroll:WouldCursorPositionBeClick(button, x, y)
+    local info = self.mouseButtonInfo[button]
+    if info and info.down then
+        local dx, dy = x - info.startX, y - info.startY
+        return dx * dx + dy * dy <= 20
+    end
+    return false
+end
+
+scroll:SetScript("OnMouseDown", function(self, button)
+    local info = self.mouseButtonInfo[button]
+    info.down = true
+    info.startX, info.startY = self:GetCursorPosition()
+end)
+
+-- A click goes to the canvas click handlers first; unhandled, a click opens the map
+-- under the cursor and a right click the map above.
+scroll:SetScript("OnMouseUp", function(self, button)
+    local x, y = self:GetCursorPosition()
+    local isClick = self:WouldCursorPositionBeClick(button, x, y)
+    if isClick and not self:GetMap():ProcessCanvasClickHandlers(button, self:GetNormalizedCursorPosition()) then
+        if button == "LeftButton" then
+            self:GetMap():NavigateToCursor()
+        elseif button == "RightButton" then
+            self:GetMap():NavigateToParentMap()
+        end
+    end
+    self.mouseButtonInfo[button].down = false
+end)
+
+scroll:SetScript("OnMouseWheel", function(self, delta)
+    if self.mouseWheelZoomMode == MAP_CANVAS_MOUSE_WHEEL_ZOOM_BEHAVIOR_NONE then
+        return
+    end
+    if delta > 0 then
+        self:ZoomIn()
+    else
+        self:ZoomOut()
+    end
+end)
+
+-- world.mouse: the cursor on screen, { x, y } from the bottom left.
+world.mouse = { x = 0, y = 0 }
+function GetCursorPosition()
+    return world.mouse.x, world.mouse.y
+end
+
+function GetPlayerFacing()
+    return world.facing
+end
+
+-- world.secretValues[value]: values the game keeps secret.
+world.secretValues = {}
+function issecretvalue(value)
+    return value ~= nil and world.secretValues[value] == true
+end
+
+function IsModifierKeyDown()
+    return IsShiftKeyDown() or IsControlKeyDown() or IsAltKeyDown() == true
+end
+
+RED_FONT_COLOR = CreateColor(1, 0.1, 0.1)
+
+-- The quest log beside the map. DetailsFrame.questMapID: the map of the quest whose
+-- details are open (world:OpenQuestDetails); like the client, they close when the map
+-- shown becomes another.
+QuestMapFrame = { DetailsFrame = {} }
 
 -- The map position of a world position (yards on a continent), like the
 -- client: outside 0..1 when it's off the map, nil when the map is elsewhere.
@@ -2279,6 +2753,79 @@ C_Map.GetMapPosFromWorldPos = function(continentID, worldPosition, uiMapID)
             }
     end
 end
+
+-- Map art and places on Azeroth's map: MAPS' rect, every map's art MAP_ART in tiles.
+
+-- The map's rect on topMapID's (left, right, top, bottom); an error for a map that has no place there.
+C_Map.GetMapRectOnMap = function(uiMapID, topMapID)
+    local rect = MAPS[uiMapID] and MAPS[uiMapID].rect
+    local top = MAPS[topMapID] and MAPS[topMapID].rect
+    if not rect or not top then
+        error(("map %s isn't on map %s"):format(tostring(uiMapID), tostring(topMapID)))
+    end
+    local width, height = top[2] - top[1], top[4] - top[3]
+    return (rect[1] - top[1]) / width,
+        (rect[2] - top[1]) / width,
+        (rect[3] - top[3]) / height,
+        (rect[4] - top[3]) / height
+end
+
+-- The child map of uiMapID at (x, y) on it (the smallest), or uiMapID itself.
+C_Map.GetMapInfoAtPosition = function(uiMapID, x, y)
+    local top = MAPS[uiMapID].rect
+    local u, v = top[1] + x * (top[2] - top[1]), top[3] + y * (top[4] - top[3])
+    local best, bestArea
+    for childID, map in pairs(MAPS) do
+        local rect = map.rect
+        if map.parentMapID == uiMapID and rect and u >= rect[1] and u <= rect[2] and v >= rect[3] and v <= rect[4] then
+            local area = (rect[2] - rect[1]) * (rect[4] - rect[3])
+            if not bestArea or area < bestArea then
+                best, bestArea = childID, area
+            end
+        end
+    end
+    return GetMapInfo(best or uiMapID)
+end
+
+C_Map.GetMapArtLayers = function(uiMapID)
+    if MAPS[uiMapID] then
+        return {
+            {
+                layerWidth = MAP_ART.width,
+                layerHeight = MAP_ART.height,
+                tileWidth = MAP_ART.tile,
+                tileHeight = MAP_ART.tile,
+                minScale = 1,
+                maxScale = 1,
+                additionalZoomSteps = 0,
+            },
+        }
+    end
+end
+
+-- The art's tiles, row-major: file IDs uiMapID * 100 + 1, + 2, ...
+C_Map.GetMapArtLayerTextures = function(uiMapID)
+    local files = {}
+    local count = math.ceil(MAP_ART.width / MAP_ART.tile) * math.ceil(MAP_ART.height / MAP_ART.tile)
+    for i = 1, count do
+        files[i] = uiMapID * 100 + i
+    end
+    return files
+end
+
+-- Each map's art: uiMapID * 10.
+C_Map.GetMapArtID = function(uiMapID)
+    return uiMapID * 10
+end
+
+-- world.exploredMapTextures[uiMapID]: the explored-area pieces the client lists for the
+-- map, { fileDataIDs, offsetX, offsetY, textureWidth, textureHeight, isShownByMouseOver }.
+world.exploredMapTextures = {}
+C_MapExplorationInfo = {
+    GetExploredMapTextures = function(uiMapID)
+        return world.exploredMapTextures[uiMapID] or {}
+    end,
+}
 
 -- UI globals ---------------------------------------------------------------------------
 
@@ -2304,6 +2851,9 @@ GameTooltip = {
 GameTooltip_Hide = NoOp
 
 UIErrorsFrame = {
+    AddMessage = function(_, message)
+        table.insert(world.errors, message)
+    end,
     AddExternalErrorMessage = function(_, message)
         table.insert(world.errors, message)
     end,
@@ -2573,17 +3123,27 @@ function world:Fire(event, ...)
     end
 end
 
--- Runs the callbacks queued for the next frame, then the OnUpdate scripts of visible frames.
-function world:NextFrame()
+-- Runs the callbacks queued for the next frame, then the OnUpdate scripts (and their
+-- hooks) of visible frames, `elapsed` seconds after the last frame (none by default).
+function world:NextFrame(elapsed)
     local callbacks = self.nextFrameCallbacks
     self.nextFrameCallbacks = {}
     for _, callback in ipairs(callbacks) do
         callback()
     end
     for _, frame in ipairs(self.frames) do
-        if frame.scripts.OnUpdate and frame:IsVisible() then
-            frame.scripts.OnUpdate(frame, 0)
+        if (frame.scripts.OnUpdate or frame.hooks.OnUpdate) and frame:IsVisible() then
+            frame:RunScript("OnUpdate", elapsed or 0)
         end
+    end
+end
+
+-- Runs `seconds` of frames at 30 a second, the clock moving with them (timers don't run).
+function world:RunFrames(seconds)
+    local step = 1 / 30
+    for _ = 1, math.ceil(seconds / step - 1e-9) do
+        self.now = self.now + step
+        self:NextFrame(step)
     end
 end
 
@@ -2748,6 +3308,18 @@ local LOCK_ATLASES = { ["QuestSharing-Padlock"] = true, ["bankslot-icon-lock"] =
 -- Whether a bag button shows our junk coin.
 function world:JunkCoin(slot)
     local holder = OverlayWith(slot, { ["bags-junkcoin"] = true })
+    return holder ~= nil and holder.shown
+end
+
+-- Whether a bag button shows our auction house mark.
+function world:AuctionMark(slot)
+    local holder = OverlayWith(slot, { auctioneer = true })
+    return holder ~= nil and holder.shown
+end
+
+-- Whether a bag button shows our bank mark.
+function world:BankMark(slot)
+    local holder = OverlayWith(slot, { banker = true })
     return holder ~= nil and holder.shown
 end
 
@@ -3563,16 +4135,142 @@ end
 
 -- Opens the world map on uiMapID (the player's map by default).
 function world:OpenMap(uiMapID)
-    WorldMapFrame.mapID = uiMapID or C_Map.GetBestMapForUnit("player")
+    WorldMapFrame:SetMapID(uiMapID or C_Map.GetBestMapForUnit("player"))
     WorldMapFrame:Show()
 end
 
 -- Switches the open map to uiMapID.
 function world:ShowMap(uiMapID)
-    WorldMapFrame.mapID = uiMapID
-    for provider in pairs(WorldMapFrame.dataProviders) do
-        provider:OnMapChanged()
+    WorldMapFrame:SetMapID(uiMapID)
+end
+
+-- The world map's view: its middle on Azeroth's map (normalized) and the share of
+-- Azeroth's width it shows, from the map shown, its scroll and its scale.
+function world:MapView()
+    local scroll = WorldMapFrame.ScrollContainer
+    local rect = MAPS[WorldMapFrame.mapID].rect
+    local u = rect[1] + scroll:GetCurrentScrollX() * (rect[2] - rect[1])
+    local v = rect[3] + scroll:GetCurrentScrollY() * (rect[4] - rect[3])
+    local shown = scroll:GetWidth() / scroll:GetCanvasScale() / scroll.Child.width * (rect[2] - rect[1])
+    return u, v, shown
+end
+
+-- Puts the mouse over the point (u, v) of Azeroth's map, as the world map shows it now.
+function world:PointMouseAt(u, v)
+    local scroll = WorldMapFrame.ScrollContainer
+    local rect = MAPS[WorldMapFrame.mapID].rect
+    local x = (u - rect[1]) / (rect[2] - rect[1])
+    local y = (v - rect[3]) / (rect[4] - rect[3])
+    local scale = scroll:GetCanvasScale()
+    local left, bottom, width, height = scroll:GetScreenRect()
+    self.mouse = {
+        x = left + width / 2 + (x - scroll:GetCurrentScrollX()) * scroll.Child.width * scale,
+        y = bottom + height / 2 - (y - scroll:GetCurrentScrollY()) * scroll.Child.height * scale,
+    }
+end
+
+-- The point of Azeroth's map (normalized) under the mouse, as the world map shows it now.
+function world:MapPointUnderMouse()
+    local rect = MAPS[WorldMapFrame.mapID].rect
+    local x, y = WorldMapFrame.ScrollContainer:CanvasPoint(GetCursorPosition())
+    return rect[1] + x * (rect[2] - rect[1]), rect[3] + y * (rect[4] - rect[3])
+end
+
+-- Whether Blizzard's own art of the map shown is drawn: its detail layers and its explored areas.
+function world:IsBlizzardMapArtShown()
+    return detailLayer:IsShown() and explorationPin:IsShown()
+end
+
+-- Opens a quest's details in the map's quest log: the map shows the quest's map.
+function world:OpenQuestDetails(uiMapID)
+    WorldMapFrame:SetMapID(uiMapID)
+    QuestMapFrame.DetailsFrame.questMapID = uiMapID
+end
+
+-- Drags the world map so its view's middle is at (u, v) on Azeroth's map: like
+-- Blizzard's drag, the scroll follows the mouse within the scroll extents.
+function world:DragMap(u, v)
+    local scroll = WorldMapFrame.ScrollContainer
+    local rect = MAPS[WorldMapFrame.mapID].rect
+    local fromU, fromV = self:MapView()
+    self:PointMouseAt(fromU, fromV)
+    scroll:RunScript("OnMouseDown", "LeftButton")
+    local x, y = (u - rect[1]) / (rect[2] - rect[1]), (v - rect[3]) / (rect[4] - rect[3])
+    scroll:InstantPanAndZoom(scroll:GetCanvasScale(), x, y, true)
+    self.mouse = { x = self.mouse.x + 100, y = self.mouse.y }
+    scroll:RunScript("OnMouseUp", "LeftButton")
+end
+
+-- Turns the mouse wheel over the world map (up: delta 1).
+function world:MapWheel(delta)
+    WorldMapFrame.ScrollContainer:RunScript("OnMouseWheel", delta)
+end
+
+-- Clicks the world map where the mouse is.
+function world:MapClick(button)
+    local scroll = WorldMapFrame.ScrollContainer
+    scroll:RunScript("OnMouseDown", button or "LeftButton")
+    scroll:RunScript("OnMouseUp", button or "LeftButton")
+end
+
+local function IsDrawn(region)
+    if not region.shown or region.alpha == 0 then
+        return false
     end
+    local frame = region.owner or region.parent
+    while frame do
+        if not frame.shown or frame.alpha == 0 then
+            return false
+        end
+        frame = frame.parent
+    end
+    return true
+end
+
+-- The files of the textures drawn on the world map's canvas (shown, with their frames,
+-- and not faded out): file -> how many textures draw it.
+function world:MapArt()
+    local files = {}
+    for _, texture in ipairs(self.textures) do
+        local frame = texture.owner
+        while frame and frame ~= WorldMapFrame.ScrollContainer.Child do
+            frame = frame.parent
+        end
+        if frame and texture.texture and IsDrawn(texture) then
+            files[texture.texture] = (files[texture.texture] or 0) + 1
+        end
+    end
+    return files
+end
+
+-- The vertex colour ({ r, g, b }) of the first texture with `file`.
+function world:MapArtTint(file)
+    for _, texture in ipairs(self.textures) do
+        if texture.texture == file then
+            local tint = texture.tint
+            return (tint == nil or tint == "white") and { 1, 1, 1 } or tint == "blue" and { 0.5, 0.5, 1 } or tint
+        end
+    end
+end
+
+-- Where the frame drawing the texture with `file` sits: its first anchor's offsets.
+function world:DrawnAt(file)
+    for _, texture in ipairs(self.textures) do
+        if texture.texture == file and texture.owner.anchors and texture.owner.anchors[1] then
+            local anchor = texture.owner.anchors[1]
+            return anchor[4], anchor[5]
+        end
+    end
+end
+
+-- Whether a texture with `file` is drawn anywhere.
+function world:IsDrawn(file)
+    for _, texture in ipairs(self.textures) do
+        if texture.texture == file and IsDrawn(texture) then
+            return true
+        end
+    end
+    return false
 end
 
 function world:CloseMap()

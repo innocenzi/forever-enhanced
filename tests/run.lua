@@ -26,6 +26,7 @@ local TEST_FILES = {
     "tests/swaps_test.lua",
     "tests/ranks_test.lua",
     "tests/friends_test.lua",
+    "tests/seamless_test.lua",
 }
 
 local function ReadAddonFiles()
