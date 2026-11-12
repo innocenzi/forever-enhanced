@@ -282,7 +282,16 @@ test("asks many friends without hitting the addon message throttle", function(wo
     end
 end)
 
+local function CountDataProviders()
+    local count = 0
+    for _ in pairs(WorldMapFrame.dataProviders) do
+        count = count + 1
+    end
+    return count
+end
+
 test("turning it off removes the pins, hides the player and stops sending", function(world)
+    local blizzardProviders = CountDataProviders()
     Setup(world)
     world:StandAt(250, 500)
     world:OpenMap(1)
@@ -292,7 +301,7 @@ test("turning it off removes the pins, hides the player and stops sending", func
 
     Set(world, "enabled", false)
     equal(#world:FriendPins(), 0, "pins")
-    equal(next(WorldMapFrame.dataProviders), nil, "data providers")
+    equal(CountDataProviders(), blizzardProviders, "only Blizzard's data providers")
     equal(Sent(world), "#7 1H", "hidden from Bob")
 
     world:ReceiveGameData("1W", 7)

@@ -126,6 +126,8 @@ modules\map\seamless\art.lua
 modules\map\seamless\arrow.lua
 modules\map\seamless\combat.lua
 modules\map\seamless\view.lua
+modules\map\seamless\quests.lua
+modules\map\seamless\quests.xml
 modules\map\pin\feature.lua
 modules\map\pin\locales.lua
 modules\map\pin\parser.lua

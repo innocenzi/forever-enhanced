@@ -1470,7 +1470,8 @@ C_Container = {
 
 -- Quests ----------------------------------------------------------------------------------
 -- world.questLog entries: { questID, title, distance (yards, nil = no location),
--- offContinent, onMap, isHeader, isHidden, isTask, isBounty, isWorldQuest,
+-- offContinent, onMap (true, or its position { x, y } on any map; 0.5, 0.5 for true),
+-- isHeader, isHidden, isTask, isBounty, isWorldQuest,
 -- tagID (Enum.QuestTag, nil = untagged),
 -- objectives = { { text, finished, numFulfilled, numRequired }, ... } }.
 
@@ -1530,7 +1531,8 @@ C_QuestLog = {
         local pois = {}
         for _, quest in ipairs(world.questLog) do
             if quest.onMap then
-                table.insert(pois, { questID = quest.questID })
+                local position = type(quest.onMap) == "table" and quest.onMap or { x = 0.5, y = 0.5 }
+                table.insert(pois, { questID = quest.questID, x = position.x, y = position.y })
             end
         end
         return pois
@@ -1855,9 +1857,11 @@ C_SuperTrack = {
     GetSuperTrackedQuestID = function()
         return world.superTracked
     end,
+    -- Blizzard's super tracking (Blizzard_QuestSuperTracking.lua) passes the event on to its EventRegistry callbacks.
     SetSuperTrackedQuestID = function(questID)
         world.superTracked = questID
         world:Fire("SUPER_TRACKING_CHANGED")
+        EventRegistry:TriggerEvent("Supertracking.OnChanged")
     end,
     SetSuperTrackedUserWaypoint = function(superTracked)
         world.superTrackingWaypoint = superTracked
@@ -2309,6 +2313,75 @@ templates.MapExplorationPinTemplate = function(frame)
     Mixin(frame, MapCanvasPinMixin)
 end
 
+-- Blizzard's quest pins (Blizzard_SharedMapDataProviders/QuestDataProvider.lua), the parts
+-- the addon builds on: a refresh puts a pin of its template on each quest the game places
+-- on the map that ShouldShowQuest keeps, which on a continent is only the super-tracked one.
+-- While the map is shown it refreshes as super tracking changes, through an EventRegistry
+-- callback it never drops (not even once off the map). The quest log's events, focus
+-- waypoints, bounties and the pins' spacing aren't modelled.
+QuestPinMixin = CreateFromMixins(MapCanvasPinMixin)
+function QuestPinMixin:SetQuestID(questID)
+    self.questID = questID
+end
+function QuestPinMixin:GetQuestID()
+    return self.questID
+end
+
+templates.QuestPinTemplate = function(frame)
+    Mixin(frame, QuestPinMixin)
+end
+templates.ForeverEnhancedQuestPinTemplate = templates.QuestPinTemplate
+
+function QuestMapFrame_GetFocusedQuestID()
+    return QuestMapFrame.DetailsFrame.questID
+end
+
+QuestDataProviderMixin = CreateFromMixins(MapCanvasDataProviderMixin)
+
+function QuestDataProviderMixin:GetPinTemplate()
+    return "QuestPinTemplate"
+end
+
+function QuestDataProviderMixin:OnShow()
+    EventRegistry:RegisterCallback("Supertracking.OnChanged", function()
+        self:RefreshAllData()
+    end, self)
+end
+
+function QuestDataProviderMixin:RemoveAllData()
+    self:GetMap():RemoveAllPinsByTemplate(self:GetPinTemplate())
+end
+
+function QuestDataProviderMixin:RefreshAllData()
+    self:RemoveAllData()
+    local mapID = self:GetMap():GetMapID()
+    if not mapID then
+        return
+    end
+    local mapType = C_Map.GetMapInfo(mapID).mapType
+    for _, info in ipairs(C_QuestLog.GetQuestsOnMap(mapID) or {}) do
+        if self:ShouldShowQuest(info.questID, mapType, false, info.isMapIndicatorQuest) then
+            local pin = self:GetMap():AcquirePin(self:GetPinTemplate())
+            pin:SetQuestID(info.questID)
+            pin:SetPosition(info.x, info.y)
+        end
+    end
+end
+
+function QuestDataProviderMixin:ShouldShowQuest(questID, mapType, _, isMapIndicatorQuest)
+    local focusedQuestID = QuestMapFrame_GetFocusedQuestID()
+    if focusedQuestID and focusedQuestID ~= questID then
+        return false
+    end
+    if isMapIndicatorQuest then
+        return false
+    end
+    if mapType == Enum.UIMapType.Continent and questID == C_SuperTrack.GetSuperTrackedQuestID() then
+        return true
+    end
+    return mapType ~= Enum.UIMapType.World and mapType ~= Enum.UIMapType.Continent and mapType ~= Enum.UIMapType.Cosmic
+end
+
 MAP_CANVAS_MOUSE_WHEEL_ZOOM_BEHAVIOR_SMOOTH = 1
 MAP_CANVAS_MOUSE_WHEEL_ZOOM_BEHAVIOR_FULL = 2
 MAP_CANVAS_MOUSE_WHEEL_ZOOM_BEHAVIOR_NONE = 3
@@ -2419,6 +2492,9 @@ end
 local explorationPin = CreateFrame("Frame", nil, WorldMapFrame, "MapExplorationPinTemplate")
 explorationPin.owningMap = WorldMapFrame
 table.insert(WorldMapFrame.pins, explorationPin)
+
+-- Blizzard's own quest pins.
+WorldMapFrame:AddDataProvider(CreateFromMixins(QuestDataProviderMixin))
 
 -- The map art's detail layers: one, shown again whenever the map refreshes them.
 local detailLayer = CreateFrame("Frame", nil, WorldMapFrame)

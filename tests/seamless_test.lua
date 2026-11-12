@@ -340,6 +340,83 @@ test("keeps the player's arrow on the player as the map pans", function(world)
     Near(after - before, 0.05 / 0.4 * 1000, "moved with the map on the next frame")
 end)
 
+-- questID -> position of the map's quest pins of `template` (ours, or Blizzard's QuestPinTemplate).
+local function QuestPins(template)
+    local pins = {}
+    for _, pin in ipairs(WorldMapFrame.pins) do
+        if pin.template == template then
+            pins[pin.questID] = pin.position
+        end
+    end
+    return pins
+end
+
+local OUR_QUESTS = "ForeverEnhancedQuestPinTemplate"
+local BLIZZARD_QUESTS = "QuestPinTemplate"
+
+local function SetupQuests(world)
+    world.questLog = {
+        { questID = 1, title = "Items of Some Consequence", onMap = { x = 0.3, y = 0.4 } },
+        { questID = 2, title = "Crime and Punishment", onMap = { x = 0.6, y = 0.7 } },
+    }
+    world.superTracked = 2
+    Setup(world)
+end
+
+test("shows every quest on a continent, the super-tracked one left to Blizzard's", function(world)
+    SetupQuests(world)
+    world:OpenMap(10)
+    local ours = QuestPins(OUR_QUESTS)
+    Near(ours[1].x, 0.3, "where the game places it")
+    Near(ours[1].y, 0.4, "where the game places it")
+    expect(not ours[2], "not the super-tracked quest")
+    local blizzard = QuestPins(BLIZZARD_QUESTS)
+    expect(blizzard[2] and not blizzard[1], "Blizzard's shows only the super-tracked quest")
+    C_SuperTrack.SetSuperTrackedQuestID(1)
+    ours = QuestPins(OUR_QUESTS)
+    expect(ours[2] and not ours[1], "following super tracking")
+end)
+
+test("leaves zones' quests to Blizzard's", function(world)
+    SetupQuests(world)
+    world:OpenMap(1)
+    expect(next(QuestPins(OUR_QUESTS)) == nil, "none of ours")
+    local blizzard = QuestPins(BLIZZARD_QUESTS)
+    expect(blizzard[1] and blizzard[2], "Blizzard's shows them all")
+    world:ShowMap(10)
+    expect(QuestPins(OUR_QUESTS)[1], "ours once the continent is underneath")
+end)
+
+test("shows only the quest whose details are open", function(world)
+    SetupQuests(world)
+    world.superTracked = 0
+    world:OpenMap(10)
+    QuestMapFrame.DetailsFrame.questID = 1
+    C_SuperTrack.SetSuperTrackedQuestID(0)
+    local ours = QuestPins(OUR_QUESTS)
+    expect(not ours[1] and not ours[2], "neither: Blizzard's shows the focused one")
+end)
+
+test("shows continents' quests only while turned on", function(world)
+    SetupQuests(world)
+    world:OpenMap(10)
+    Set(world, "quests", false)
+    expect(next(QuestPins(OUR_QUESTS)) == nil, "turned off")
+    Set(world, "quests", true)
+    expect(QuestPins(OUR_QUESTS)[1], "turned back on")
+end)
+
+test("turning it off removes continents' quests for good", function(world)
+    SetupQuests(world)
+    world:OpenMap(10)
+    Set(world, "enabled", false)
+    expect(next(QuestPins(OUR_QUESTS)) == nil, "removed")
+    C_SuperTrack.SetSuperTrackedQuestID(1)
+    expect(next(QuestPins(OUR_QUESTS)) == nil, "not back as super tracking changes")
+    Set(world, "enabled", true)
+    expect(QuestPins(OUR_QUESTS)[2], "back once turned on")
+end)
+
 local function SetInCombat(world)
     for _, input in ipairs(world.mouseInputs) do
         if input.inCombat then
