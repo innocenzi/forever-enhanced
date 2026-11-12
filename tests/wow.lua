@@ -2279,11 +2279,38 @@ local function ImportSlashCommands()
     wipe(SlashCmdList)
 end
 
-DEFAULT_CHAT_FRAME = {
-    AddMessage = function(_, message)
-        table.insert(world.prints, message)
-    end,
-}
+-- Chat tabs, as the client sets them up: ChatFrame1 (General) shows system
+-- messages, ChatFrame2 (Combat Log) doesn't. world.prints lists ChatFrame1's
+-- lines (text only); each frame's `lines` keeps { text, r, g, b, id }.
+ChatTypeInfo = { SYSTEM = { r = 1, g = 1, b = 0, id = 1 } }
+
+local ChatFrameMethods = {}
+
+function ChatFrameMethods:AddMessage(text, r, g, b, id)
+    table.insert(self.lines, { text = text, r = r, g = g, b = b, id = id })
+    if self == DEFAULT_CHAT_FRAME then
+        table.insert(world.prints, text)
+    end
+end
+
+function ChatFrameMethods:ContainsMessageGroup(group)
+    return tContains(self.messageTypeList, group)
+end
+
+local function CreateChatFrame(name, groups)
+    _G[name] = setmetatable({ lines = {}, messageTypeList = groups }, { __index = ChatFrameMethods })
+    return _G[name]
+end
+
+CHAT_FRAMES = { "ChatFrame1", "ChatFrame2" }
+DEFAULT_CHAT_FRAME = CreateChatFrame("ChatFrame1", { "SAY", "PARTY", "GUILD", "WHISPER", "SYSTEM", "LOOT" })
+CreateChatFrame("ChatFrame2", { "COMBAT_XP_GAIN", "COMBAT_HONOR_GAIN" })
+
+function ChatFrameUtil.ForEachChatFrame(func)
+    for _, frameName in pairs(CHAT_FRAMES) do
+        func(_G[frameName])
+    end
+end
 
 -- world.eventRegistry[event] = { [owner] = callback }, nil once empty.
 EventRegistry = {

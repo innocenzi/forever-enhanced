@@ -361,3 +361,23 @@ test("preset values are checked against the schemas", function(world)
     presets.custom = {}
     expect(not Loads(), "unknown preset")
 end)
+
+-- Chat messages look like the game's system messages, where the player shows them.
+test("prints like a system message in the tabs that show them", function(world)
+    world.ns:Print("Hello")
+    local line = ChatFrame1.lines[#ChatFrame1.lines]
+    equal(line.text, "Hello", "no prefix")
+    equal(line.id, ChatTypeInfo.SYSTEM.id, "system chat type")
+    equal(("%s %s %s"):format(line.r, line.g, line.b), "1 1 0", "system color")
+    equal(#ChatFrame2.lines, 0, "combat log lines")
+
+    ChatFrame1.messageTypeList = { "SAY" }
+    ChatFrame2.messageTypeList = { "SYSTEM" }
+    world.ns:Print("Moved")
+    equal(ChatFrame1.lines[#ChatFrame1.lines].text, "Hello", "not in a tab without system messages")
+    equal(ChatFrame2.lines[#ChatFrame2.lines].text, "Moved", "in the tab with system messages")
+
+    ChatFrame2.messageTypeList = {}
+    world.ns:Print("Nowhere")
+    equal(ChatFrame1.lines[#ChatFrame1.lines].text, "Nowhere", "main tab when no tab shows them")
+end)
