@@ -5,10 +5,10 @@
 
 local _, ns = ...
 
-local Waypoint = ns:GetFeature("map", "waypoint")
+local Pin = ns:GetFeature("map", "pin")
 
 local Arrival = {}
-Waypoint.Arrival = Arrival
+Pin.Arrival = Arrival
 
 local TICK_SECONDS = 0.5
 
@@ -35,7 +35,7 @@ end
 
 local function IsWithinRange()
     local distance = GetDistance()
-    return distance ~= nil and distance <= Waypoint:GetSetting("range")
+    return distance ~= nil and distance <= Pin:GetSetting("range")
 end
 
 local function Check()
@@ -48,7 +48,7 @@ local function Check()
     elseif armed then
         armed = false
         C_Map.ClearUserWaypoint()
-        if Waypoint:GetSetting("announce") then
+        if Pin:GetSetting("announce") then
             UIErrorsFrame:AddExternalWarningMessage(NAVIGATION_DESTINATION_REACHED_MESSAGE)
         end
     end

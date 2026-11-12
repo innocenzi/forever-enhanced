@@ -9,11 +9,11 @@
 local _, ns = ...
 
 local L = ns.L
-local Way = ns:GetFeature("map", "way")
-local Parser = Way.Parser
+local Pin = ns:GetFeature("map", "pin")
+local Parser = Pin.Parser
 
 local Commands = {}
-Way.Commands = Commands
+Pin.Commands = Commands
 
 -- Our registered entries, each { key, command, handler }.
 local registered = {}
@@ -25,7 +25,7 @@ local function Place(mapID, x, y)
         return
     end
     C_Map.SetUserWaypoint(UiMapPoint.CreateFromCoordinates(mapID, x, y))
-    if Way:GetSetting("track") then
+    if Pin:GetSetting("track") then
         C_SuperTrack.SetSuperTrackedUserWaypoint(true)
     end
     PlaySound(SOUNDKIT.UI_MAP_WAYPOINT_CONTROL_CLICK)
@@ -60,14 +60,14 @@ local function PlaceFromText(text)
     end
     local point = Parser:Parse(text)
     if not point then
-        ns:Print(L["map.way.usage"])
+        ns:Print(L["map.pin.usage"])
         return
     end
     local mapID
     if point.zone then
         mapID = Parser:FindMap(point.zone)
         if not mapID then
-            ns:Error(L["map.way.unknownZone"]:format(point.zone))
+            ns:Error(L["map.pin.unknownZone"]:format(point.zone))
             return
         end
     else

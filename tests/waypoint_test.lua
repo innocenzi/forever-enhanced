@@ -5,7 +5,7 @@
 local TICK_SECONDS = 0.5
 
 local function Set(world, key, value)
-    world:Setting("map.waypoint." .. key):SetValue(value)
+    world:Setting("map.pin." .. key):SetValue(value)
 end
 
 -- The player starts far from a pin at (500, 500).
@@ -105,12 +105,12 @@ end)
 
 test("disabling the feature keeps the pin and stops checking", function(world)
     WithPin(world)
-    world:Setting("map.waypoint.enabled"):SetValue(false)
+    world:Setting("map.pin.arrival"):SetValue(false)
     world:StandAt(500, 500)
     world:Elapse(TICK_SECONDS * 4)
     expect(C_Map.HasUserWaypoint(), "pin kept while disabled")
 
-    world:Setting("map.waypoint.enabled"):SetValue(true)
+    world:Setting("map.pin.arrival"):SetValue(true)
     world:Elapse(TICK_SECONDS)
     expect(C_Map.HasUserWaypoint(), "pin under the player kept on enable")
 

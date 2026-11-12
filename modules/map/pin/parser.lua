@@ -7,10 +7,10 @@
 
 local _, ns = ...
 
-local Way = ns:GetFeature("map", "way")
+local Pin = ns:GetFeature("map", "pin")
 
 local Parser = {}
-Way.Parser = Parser
+Pin.Parser = Parser
 
 local NUMBER = "%d+%.?%d*"
 

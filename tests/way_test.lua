@@ -57,7 +57,7 @@ end)
 test("/way rejects unknown zones and maps without pins", function(world)
     world:Chat("/way Atlantis 10 20")
     expect(not C_Map.HasUserWaypoint(), "no pin for an unknown zone")
-    equal(world.errors[#world.errors], world.L["map.way.unknownZone"]:format("Atlantis"), "unknown zone error")
+    equal(world.errors[#world.errors], world.L["map.pin.unknownZone"]:format("Atlantis"), "unknown zone error")
 
     world:Chat("/way #3 10 20")
     expect(not C_Map.HasUserWaypoint(), "no pin in a dungeon")
@@ -69,7 +69,7 @@ test("/way shows how to use it when it can't read coordinates", function(world)
         world.prints = {}
         world:Chat(text)
         expect(not C_Map.HasUserWaypoint(), "no pin for " .. text)
-        equal(LastPrint(world):find(world.L["map.way.usage"], 1, true) ~= nil, true, "usage for " .. text)
+        equal(LastPrint(world):find(world.L["map.pin.usage"], 1, true) ~= nil, true, "usage for " .. text)
     end
 end)
 
@@ -107,15 +107,24 @@ test("pins the zone when the player stands in a starting area", function(world)
 end)
 
 test("doesn't track the pin when tracking is off", function(world)
-    world:Setting("map.way.track"):SetValue(false)
+    world:Setting("map.pin.track"):SetValue(false)
     world:Chat("/way 45 63")
     expect(C_Map.HasUserWaypoint(), "pin set")
     expect(not C_SuperTrack.IsSuperTrackingUserWaypoint(), "not tracked")
 end)
 
-test("disabling the feature removes the commands", function(world)
+test("disabling the map pin feature removes the commands", function(world)
+    world:Setting("map.pin.enabled"):SetValue(false)
+    expect(not world:Chat("/way 10 20"), "unknown while disabled")
+    expect(SlashCmdList.FOREVERENHANCED_WAY == nil, "handler removed")
+
+    world:Setting("map.pin.enabled"):SetValue(true)
+    expect(world:Chat("/way 10 20"), "known again")
+end)
+
+test("turning the commands off removes them", function(world)
     world:Chat("/way 45 63")
-    world:Setting("map.way.enabled"):SetValue(false)
+    world:Setting("map.pin.commands"):SetValue(false)
     for _, text in ipairs({ "/way 10 20", "/wayb", "/cway" }) do
         expect(not world:Chat(text), text .. " unknown while disabled")
     end
@@ -123,19 +132,19 @@ test("disabling the feature removes the commands", function(world)
     expect(SLASH_FOREVERENHANCED_WAY1 == nil, "command name removed")
     ExpectPin(1, 0.45, 0.63, "pin kept")
 
-    world:Setting("map.way.enabled"):SetValue(true)
+    world:Setting("map.pin.commands"):SetValue(true)
     expect(world:Chat("/way 10 20"), "known again")
     ExpectPin(1, 0.10, 0.20, "pin moved")
 end)
 
 test("leaves /way to another addon that registered it", function(world)
-    world:Setting("map.way.enabled"):SetValue(false)
+    world:Setting("map.pin.commands"):SetValue(false)
     local received
     world.env.SLASH_TOMTOM_WAY1 = "/way"
     SlashCmdList.TOMTOM_WAY = function(text)
         received = text
     end
-    world:Setting("map.way.enabled"):SetValue(true)
+    world:Setting("map.pin.commands"):SetValue(true)
 
     world:Chat("/way 45 63")
     equal(received, "45 63", "other addon's command ran")
@@ -143,8 +152,8 @@ test("leaves /way to another addon that registered it", function(world)
     expect(world:Chat("/cway"), "/cway still ours")
 
     -- Once the chat edit box imported it, toggling still leaves it alone.
-    world:Setting("map.way.enabled"):SetValue(false)
-    world:Setting("map.way.enabled"):SetValue(true)
+    world:Setting("map.pin.commands"):SetValue(false)
+    world:Setting("map.pin.commands"):SetValue(true)
     world:Chat("/way 1 2")
     equal(received, "1 2", "other addon's command still runs")
 end)
