@@ -99,10 +99,15 @@ function Placement:CanMove(frame)
     return not (InCombatLockdown() and frame:IsProtected())
 end
 
--- Moves the frame to its saved position, if it has one.
+-- Whether the frame is maximized (the World Map): Blizzard places it itself.
+function Placement:IsMaximized(frame)
+    return frame.IsMaximized ~= nil and frame:IsMaximized()
+end
+
+-- Moves the frame to its saved position, if it has one and isn't maximized.
 function Placement:Apply(frame)
     local position = Windows.Store:Get(frame:GetName())
-    if not position then
+    if not position or self:IsMaximized(frame) then
         return
     end
     if not self:CanMove(frame) then

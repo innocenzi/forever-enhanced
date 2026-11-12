@@ -1,7 +1,8 @@
 -- Drag handles: our own button laid over each window's title bar (its
--- TitleContainer, or a strip along the top that leaves the close button free).
--- Dragging it (with the "modifier" setting's key held) moves the window;
--- Shift Right Click puts the window back where Blizzard places it.
+-- TitleContainer, or its border's for the World Map, short of a maximize button;
+-- else a strip along the top that leaves the close button free).
+-- Dragging it (with the "modifier" setting's key held) moves the window, unless
+-- it is maximized; Shift Right Click puts the window back where Blizzard places it.
 -- Handles are hidden while the feature is inactive.
 
 local _, ns = ...
@@ -36,7 +37,7 @@ local MODIFIERS = {
 
 local function OnDragStart(handle)
     local frame = targets[handle]
-    if not MODIFIERS[Windows:GetSetting("modifier")]() then
+    if not MODIFIERS[Windows:GetSetting("modifier")]() or Windows.Placement:IsMaximized(frame) then
         return
     end
     if not Windows.Placement:CanMove(frame) then
@@ -59,9 +60,13 @@ end
 
 local function CreateHandle(frame)
     local handle = CreateFrame("Button", nil, frame)
-    local title = frame.TitleContainer
+    -- The World Map's border is of a higher strata: the handle takes the title bar's.
+    local title = frame.TitleContainer or (frame.BorderFrame and frame.BorderFrame.TitleContainer)
     if title then
-        handle:SetAllPoints(title)
+        local maximize = title:GetParent().MaximizeMinimizeFrame
+        handle:SetPoint("TOPLEFT", title)
+        handle:SetPoint("BOTTOMRIGHT", title, "BOTTOMRIGHT", maximize and -maximize:GetWidth() or 0, 0)
+        handle:SetFrameStrata(title:GetFrameStrata())
         handle:SetFrameLevel(title:GetFrameLevel() + 1)
     else
         handle:SetPoint("TOPLEFT")

@@ -859,7 +859,8 @@ function UpdateUIPanelPositions(shownFrame)
     local point, relativePoint, x, y = unpack(world.PANEL_ANCHOR)
     for name, attributes in pairs(UIPanelWindows) do
         local frame = _G[name]
-        if frame and attributes.area ~= "full" and (frame:IsShown() or frame == shownFrame) then
+        local laidOut = frame and attributes.area ~= "full" and frame ~= world.maximizedPanel
+        if laidOut and (frame:IsShown() or frame == shownFrame) then
             frame:ClearAllPoints()
             frame:SetPoint(point, UIParent, relativePoint, x, y)
         end
@@ -878,6 +879,19 @@ function HideUIPanel(frame)
         frame:Hide()
         UpdateUIPanelPositions()
     end
+end
+
+-- The World Map's one-off flow: maximized, it leaves the panel layout for its
+-- maximizePoint; restored, it is a panel of its area again.
+function MaximizeUIPanel(frame)
+    world.maximizedPanel = frame
+    frame:ClearAllPoints()
+    frame:SetPoint(UIPanelWindows[frame:GetName()].maximizePoint)
+end
+
+function RestoreUIPanelArea(frame)
+    world.maximizedPanel = nil
+    UpdateUIPanelPositions(frame)
 end
 
 -- Timers -----------------------------------------------------------------------
@@ -2453,7 +2467,7 @@ local function MapClamp(value, low, high)
     return math.min(math.max(value, low), high)
 end
 
-WorldMapFrame = CreateFrame("Frame")
+WorldMapFrame = CreateFrame("Frame", "WorldMapFrame", UIParent)
 WorldMapFrame.shown = false
 WorldMapFrame.dataProviders = {}
 WorldMapFrame.pins = {}
@@ -2665,7 +2679,35 @@ function WorldMapFrame:GetCanvas()
     return self.ScrollContainer.Child
 end
 
+-- WorldMapMixin's panel: windowed ("minimized") on the left like other panels, or
+-- maximized at the top of the screen, outside the panel layout. Its title bar is
+-- on its border, the maximize button at the title bar's right end.
+RegisterUIPanel(WorldMapFrame, { area = "left", maximizePoint = "TOP" })
+WorldMapFrame.BorderFrame = CreateFrame("Frame", nil, WorldMapFrame, "PortraitFrameTemplate")
+WorldMapFrame.BorderFrame.MaximizeMinimizeFrame = CreateFrame("Frame", nil, WorldMapFrame.BorderFrame)
+WorldMapFrame.BorderFrame.MaximizeMinimizeFrame:SetSize(24, 24)
+WorldMapFrame.isMaximized = false
+
+function WorldMapFrame:IsMaximized()
+    return self.isMaximized
+end
+
+function WorldMapFrame:Maximize()
+    self.isMaximized = true
+    UpdateUIPanelPositions(self) -- UpdateMaximizedSize
+    MaximizeUIPanel(self) -- SynchronizeDisplayState
+end
+
+function WorldMapFrame:Minimize()
+    self.isMaximized = false
+    UpdateUIPanelPositions(self)
+    RestoreUIPanelArea(self) -- SynchronizeDisplayState
+end
+
 WorldMapFrame:SetScript("OnShow", function(self)
+    if self.isMaximized then
+        MaximizeUIPanel(self) -- SynchronizeDisplayState
+    end
     self:RefreshDetailLayers()
     for provider in pairs(self.dataProviders) do
         provider:RefreshAllData(true)
@@ -5447,5 +5489,8 @@ function Region:GetStringHeight()
     return 12
 end
 Region.SetFrameStrata = NoOp
+function Region:GetFrameStrata()
+    return "MEDIUM"
+end
 
 return world

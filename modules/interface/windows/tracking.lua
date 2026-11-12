@@ -1,8 +1,10 @@
 -- Which frames are movable, and when to put them at their saved position.
 --
 -- Movable: every frame shown through ShowUIPanel (core and load-on-demand
--- panels, ours included), except full-screen ones and the ones Blizzard places
--- itself (LootFrame belongs to Edit Mode, the World Map maximizes), plus bags.
+-- panels, ours included), except full-screen ones and LootFrame (it belongs to
+-- Edit Mode), plus bags. The World Map moves only while windowed: maximized, it
+-- leaves the panel layout (MaximizeUIPanel) until RestoreUIPanelArea, hooked
+-- too, puts it back.
 -- Frames are picked up lazily, the first time they are shown. Other features'
 -- windows that aren't UI panels (the swaps editor) join through
 -- Windows:AddWindow.
@@ -21,7 +23,7 @@ local Windows = ns:GetFeature("interface", "windows")
 local Tracking = {}
 Windows.Tracking = Tracking
 
-local EXCLUDED = { LootFrame = true, WorldMapFrame = true }
+local EXCLUDED = { LootFrame = true }
 
 -- Per movable frame: "panel", "window" (added by another feature) or "bag".
 local managed = setmetatable({}, { __mode = "k" })
@@ -104,6 +106,11 @@ local function InstallHooks()
     hooksecurefunc("UpdateUIPanelPositions", function()
         if Windows:IsActive() then
             ApplyShownPanels()
+        end
+    end)
+    hooksecurefunc("RestoreUIPanelArea", function(frame)
+        if Windows:IsActive() and managed[frame] then
+            Windows.Placement:Apply(frame)
         end
     end)
     hooksecurefunc("UpdateContainerFrameAnchors", function()

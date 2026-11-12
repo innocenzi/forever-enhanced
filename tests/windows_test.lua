@@ -135,6 +135,40 @@ test("panels of load-on-demand addons and our own are movable", function(world)
     equal(Saved(world, "ForeverEnhancedSavedBankFrame").y, 400, "saved bank position")
 end)
 
+-- ToggleWorldMap.
+local function OpenMap()
+    WorldMapFrame:SetMapID(C_Map.GetBestMapForUnit("player"))
+    ShowUIPanel(WorldMapFrame)
+end
+
+test("the world map moves while windowed and stays where Blizzard puts it maximized", function(world)
+    local MAXIMIZED = "TOP UIParent TOP 0 0"
+    OpenMap()
+    expect(world:HasTitleHandle(WorldMapFrame), "title bar handle")
+    world:DragTitle(WorldMapFrame, 300, 400)
+    equal(world:Anchor(WorldMapFrame), DROPPED, "windowed")
+
+    WorldMapFrame:Maximize()
+    equal(world:Anchor(WorldMapFrame), MAXIMIZED, "maximized")
+    world:DragTitle(WorldMapFrame, 600, 700)
+    equal(world:Anchor(WorldMapFrame), MAXIMIZED, "not dragged while maximized")
+    equal(Saved(world, "WorldMapFrame").x, 300, "position kept")
+    UpdateUIPanelPositions()
+    equal(world:Anchor(WorldMapFrame), MAXIMIZED, "maximized after a re-layout")
+    HideUIPanel(WorldMapFrame)
+    OpenMap()
+    equal(world:Anchor(WorldMapFrame), MAXIMIZED, "reopened maximized")
+
+    WorldMapFrame:Minimize()
+    equal(world:Anchor(WorldMapFrame), DROPPED, "windowed again")
+    HideUIPanel(WorldMapFrame)
+    OpenMap()
+    equal(world:Anchor(WorldMapFrame), DROPPED, "reopened windowed")
+
+    world:Setting("interface.windows.enabled"):SetValue(false)
+    equal(world:Anchor(WorldMapFrame), PANEL_DEFAULT, "back when disabled")
+end)
+
 test("full-screen panels and the loot window get no handle", function(world)
     ShowUIPanel(CinematicFrame)
     ShowUIPanel(LootFrame)
