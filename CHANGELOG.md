@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.2 - 2026-11-12
+
+
+### Features
+- **inventory:** make items marked for bank glow while the bank is open
+- **inventory:** disable bank transfers with nothing to move and list all matching items first on Deposit
+- **quests:** show which quest items you no longer need
+- **inventory:** move item notes to item marks and add a Wowhead link
+- **interface:** move the world map by its title bar while it isn't maximized
+
 ## 1.0.1 - 2026-11-12
 
 
