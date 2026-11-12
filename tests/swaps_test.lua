@@ -438,6 +438,23 @@ test("the editor closes with the settings panel", function(world)
     expect(not editor:IsVisible(), "hidden with the panel")
 end)
 
+test("the editor moves like the other windows", function(world)
+    Rogue(world)
+    Enable(world)
+    local editor = OpenEditor(world)
+    local place = world:Anchor(editor)
+    world:DragTitle(editor, 300, 400)
+    equal(world:Anchor(editor), "TOPLEFT UIParent BOTTOMLEFT 300 400", "dropped")
+
+    OpenEditor(world)
+    OpenEditor(world)
+    equal(world:Anchor(editor), "TOPLEFT UIParent BOTTOMLEFT 300 400", "reopened where it was left")
+
+    world:Setting("interface.windows.enabled"):SetValue(false)
+    equal(world:Anchor(editor), place, "back over the settings panel with movable windows off")
+    expect(not world:HasTitleHandle(editor), "no handle while off")
+end)
+
 test("turning it off restores the buttons", function(world)
     Rogue(world)
     Enable(world)

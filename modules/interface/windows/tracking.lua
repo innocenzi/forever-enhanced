@@ -3,7 +3,9 @@
 -- Movable: every frame shown through ShowUIPanel (core and load-on-demand
 -- panels, ours included), except full-screen ones and the ones Blizzard places
 -- itself (LootFrame belongs to Edit Mode, the World Map maximizes), plus bags.
--- Frames are picked up lazily, the first time they are shown.
+-- Frames are picked up lazily, the first time they are shown. Other features'
+-- windows that aren't UI panels (the swaps editor) join through
+-- Windows:AddWindow.
 --
 -- Blizzard's panel manager re-anchors every open panel whenever one opens or
 -- closes, ignoring frames the player placed; UpdateContainerFrameAnchors does
@@ -21,8 +23,10 @@ Windows.Tracking = Tracking
 
 local EXCLUDED = { LootFrame = true, WorldMapFrame = true }
 
--- Per movable frame: "panel" or "bag".
+-- Per movable frame: "panel", "window" (added by another feature) or "bag".
 local managed = setmetatable({}, { __mode = "k" })
+-- Windows added by other features, picked up whenever the feature enables.
+local added = setmetatable({}, { __mode = "k" })
 local hooksInstalled = false
 
 local function GetArea(name, frame)
@@ -51,7 +55,7 @@ end
 
 local function ApplyShownPanels()
     for frame, kind in pairs(managed) do
-        if kind == "panel" and frame:IsShown() then
+        if kind ~= "bag" and frame:IsShown() then
             Windows.Placement:Apply(frame)
         end
     end
@@ -114,6 +118,9 @@ function Tracking:Enable()
     if not hooksInstalled then
         InstallHooks()
     end
+    for frame in pairs(added) do
+        Attach(frame, "window")
+    end
     for name in pairs(UIPanelWindows) do
         local frame = _G[name]
         if frame and frame:IsShown() and IsMovablePanel(frame) then -- nil until its addon loads
@@ -122,4 +129,13 @@ function Tracking:Enable()
     end
     ApplyShownPanels()
     LayOutBags()
+end
+
+-- Makes another feature's window movable like the panels: a named frame (its
+-- position is saved by name) with a title bar, not shown through ShowUIPanel.
+function Windows:AddWindow(frame)
+    added[frame] = true
+    if self:IsActive() then
+        Attach(frame, "window")
+    end
 end

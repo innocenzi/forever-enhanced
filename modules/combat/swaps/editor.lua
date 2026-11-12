@@ -3,7 +3,8 @@
 -- show instead. Clicking a slot picks a spell from a menu of the spellbook's
 -- tabs (the spellbook can't be open with the settings panel); a spell dropped
 -- on it is taken too. After the saved rows comes one to add a swap, saved
--- once both its spells are in. It closes with Escape and with the settings panel.
+-- once both its spells are in. It closes with Escape and with the settings
+-- panel, and moves like the other windows (interface.windows).
 -- It borrows the look of the action bars (slots) and of Blizzard's click
 -- binding window (list, remove buttons).
 
@@ -281,6 +282,7 @@ local function Create()
     frame:SetScript("OnHide", function()
         adding = {}
     end)
+    ns:GetFeature("interface", "windows"):AddWindow(frame)
 end
 
 function Editor:Toggle()
