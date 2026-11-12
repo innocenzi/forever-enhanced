@@ -65,6 +65,7 @@ modules\inventory\marks\buttons.lua
 modules\quests\module.lua
 modules\quests\helpers\feature.lua
 modules\quests\helpers\locales.lua
+modules\quests\helpers\data.lua
 modules\quests\helpers\ranking.lua
 modules\quests\helpers\watches.lua
 modules\quests\helpers\refresh.lua

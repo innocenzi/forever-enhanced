@@ -1514,9 +1514,10 @@ C_QuestLog = {
             return { tagID = quest.tagID, tagName = tostring(quest.tagID) }
         end
     end,
+    -- Nothing in an instance, whatever the quest (measured in the Stockade).
     GetDistanceSqToQuest = function(questID)
         local quest = FindQuest(questID)
-        if quest and quest.distance then
+        if quest and quest.distance and not world.position.instanceID then
             return quest.distance * quest.distance, not quest.offContinent
         end
     end,
@@ -1936,6 +1937,8 @@ local function IsDescendant(uiMapID, ancestorID)
     return false
 end
 
+local INSTANCES_WITHOUT_MAP = { [34] = true }
+
 -- Every instance is a 5-player dungeon on map 3. Outside one, the client
 -- names the continent.
 function IsInInstance()
@@ -1955,10 +1958,18 @@ function GetInstanceInfo()
 end
 
 C_Map = {
+    -- Nothing in an instance without a map (the Stockade, 34, on build 70888);
+    -- the continent for a moment after a loading screen (world.onContinentMap).
     GetBestMapForUnit = function()
         local position = world.position
         if position.instanceID then
+            if INSTANCES_WITHOUT_MAP[position.instanceID] then
+                return nil
+            end
             return 3
+        end
+        if world.onContinentMap then
+            return position.continentID == 1 and 11 or 10
         end
         if InNorthshire(position) then
             return 4
@@ -3442,7 +3453,14 @@ function world:ClickSellAllJunk()
 end
 
 -- Replaces the quest log: { { questID = 1, distance = 100, ... }, ... } (see Quests above).
+-- A header with an `areaID` is filed under that area: its sort key holds the
+-- area ID with bit 30 set, like the client's.
 function world:SetQuests(quests)
+    for _, quest in ipairs(quests) do
+        if quest.isHeader and quest.areaID then
+            quest.headerSortKey = 2 ^ 30 + quest.areaID
+        end
+    end
     self.questLog = quests
 end
 

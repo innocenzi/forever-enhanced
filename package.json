@@ -4,6 +4,7 @@
     "changelog": "bun run tools/changelog.ts",
     "format": "stylua core modules tests",
     "icon": "bun run tools/icon.ts",
+    "instances": "bun run tools/instances.ts",
     "lint": "stylua --check core modules tests",
     "professions": "bun run tools/professions.ts",
     "release": "bumpp",

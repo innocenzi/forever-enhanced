@@ -129,23 +129,37 @@ test("leaves out dungeon and raid quests outside instances when asked to", funct
     equal(world:Watched(), "3 4", "watched without dungeon quests")
 end)
 
-test("inside an instance, tracks its dungeon quests first when asked to", function(world)
-    Enable(world)
-    Set(world, "dungeons", false)
-    -- Quest 1 has objectives on the instance's map, quest 2 sits under its
-    -- header, quest 3 belongs to another dungeon. No quest has a distance here.
+-- Inside the Deadmines (instance 36). Quest 1 has objectives on the instance's
+-- map, quest 2 (untagged) sits under a header of its area, quest 3 belongs to
+-- Wailing Caverns. Headers are matched by area, not by name: the client's
+-- don't match the instance's ("La Prison" in the "Prison de Hurlevent"). No
+-- quest has a distance here.
+local function InDeadmines(world)
     world:SetQuests({
-        { isHeader = true, title = "Westfall" },
+        { isHeader = true, title = "Westfall", areaID = 40 },
         { questID = 1, tagID = Enum.QuestTag.Dungeon, onMap = true },
         { questID = 4 },
-        { isHeader = true, title = "The Deadmines" },
-        { questID = 2, tagID = Enum.QuestTag.Dungeon },
-        { isHeader = true, title = "Wailing Caverns" },
+        { isHeader = true, title = "Les Mortemines", areaID = 1581 },
+        { questID = 2 },
+        { isHeader = true, title = "Wailing Caverns", areaID = 718 },
         { questID = 3, tagID = Enum.QuestTag.Dungeon },
     })
     world.watches = { 4 }
     world:StandAt(0, 0, 0, 36)
     world:Fire("ZONE_CHANGED_NEW_AREA")
+end
+
+test("inside an instance, tracks its quests first", function(world)
+    Enable(world)
+    InDeadmines(world)
+    world:NextFrame()
+    equal(world:Watched(), "1 2", "watched inside the Deadmines")
+end)
+
+test("inside an instance, tracks only its dungeon quests when asked to", function(world)
+    Enable(world)
+    Set(world, "dungeons", false)
+    InDeadmines(world)
     world:NextFrame()
     equal(world:Watched(), "1 2", "watched inside the Deadmines")
 
@@ -153,7 +167,71 @@ test("inside an instance, tracks its dungeon quests first when asked to", functi
     world:MoveTo({ [1] = 10, [2] = 20, [3] = 30, [4] = 40 })
     world:Fire("ZONE_CHANGED_NEW_AREA")
     world:NextFrame()
-    equal(world:Watched(), "4", "watched after leaving")
+    equal(world:Watched(), "2 4", "watched after leaving")
+end)
+
+test("inside an instance, tracks its quests in the current zone scope", function(world)
+    Enable(world)
+    Set(world, "scope", "zone")
+    InDeadmines(world)
+    world:NextFrame()
+    equal(world:Watched(), "1 2", "watched inside the Deadmines")
+
+    world.mapQuestsUnavailable = true
+    world:Fire("ZONE_CHANGED_NEW_AREA")
+    world:NextFrame()
+    equal(world:Watched(), "2", "watched while the map has no quest data")
+end)
+
+test("inside an instance without a map, tracks the quests of its area", function(world)
+    Enable(world)
+    Set(world, "scope", "zone")
+    world:SetQuests({
+        { isHeader = true, title = "Hurlevent", areaID = 1519 },
+        { questID = 1, distance = 10 },
+        { isHeader = true, title = "La Prison", areaID = 717 },
+        { questID = 2, tagID = Enum.QuestTag.Dungeon },
+        { questID = 3, tagID = Enum.QuestTag.Dungeon },
+    })
+    world.watches = { 1 }
+    world:StandAt(0, 0, 0, 34)
+    world:Fire("ZONE_CHANGED_NEW_AREA")
+    world:NextFrame()
+    equal(world:Watched(), "2 3", "watched inside the Stockade")
+end)
+
+test("inside an instance, tracks the quests of its entrance's area", function(world)
+    Enable(world)
+    -- The quest log files Gnomeregan's quests under the Gnomeregan of Dun
+    -- Morogh (133), not the instance's own area (721).
+    world:SetQuests({
+        { isHeader = true, title = "Dun Morogh", areaID = 1 },
+        { questID = 1, distance = 10 },
+        { isHeader = true, title = "Gnomeregan", areaID = 133 },
+        { questID = 2, tagID = Enum.QuestTag.Dungeon },
+    })
+    world.watches = { 1 }
+    world:StandAt(0, 0, 0, 90)
+    world:Fire("ZONE_CHANGED_NEW_AREA")
+    world:NextFrame()
+    equal(world:Watched(), "2", "watched inside Gnomeregan")
+end)
+
+test("in the current zone, leaves the tracker alone while the client names the continent", function(world)
+    Enable(world)
+    WithQuests(world)
+    for _, quest in ipairs(world.questLog) do
+        quest.onMap = true
+    end
+    world.questLog[2].onMap = nil
+    Set(world, "scope", "zone")
+    world.onContinentMap = true
+    world:NextFrame()
+    equal(world:Watched(), "5", "watched on the continent's map")
+
+    world.onContinentMap = nil
+    world:Elapse(TICK_SECONDS)
+    equal(world:Watched(), "1 3 4 5", "watched once the zone is known")
 end)
 
 test("leaves the tracker alone when no quest has a location", function(world)

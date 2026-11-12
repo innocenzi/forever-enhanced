@@ -1,7 +1,8 @@
 -- Which quests should be tracked: quest log entries with a known location,
 -- filtered by the chosen scope, closest first, capped at the chosen count.
--- With "dungeons" off, dungeon and raid quests are tracked only inside their
--- instance, ahead of every other quest there.
+-- Inside an instance, its quests come first whatever the scope (no quest has
+-- a distance there). With "dungeons" off, dungeon and raid quests are tracked
+-- only inside their instance.
 -- With "sort" on, also the order the tracker shows them in.
 
 local _, ns = ...
@@ -57,10 +58,16 @@ local function GetDistance(questID)
 end
 
 -- The quests on the player's map, or nil when the client has no quest data
--- for it (it returns nothing for a while after a zone change, e.g. on a boat).
+-- for it: it returns nothing for a while after a zone change (e.g. on a
+-- boat), and names the continent for a moment after a loading screen, which
+-- holds every quest on it.
 local function GetQuestsInCurrentZone()
     local mapID = C_Map.GetBestMapForUnit("player")
-    local pois = mapID and C_QuestLog.GetQuestsOnMap(mapID)
+    local mapInfo = mapID and C_Map.GetMapInfo(mapID)
+    if not mapInfo or mapInfo.mapType < Enum.UIMapType.Zone then
+        return nil
+    end
+    local pois = C_QuestLog.GetQuestsOnMap(mapID)
     if not pois then
         return nil
     end
@@ -71,22 +78,41 @@ local function GetQuestsInCurrentZone()
     return quests
 end
 
+-- A quest log header filed under an area has the area ID in the low bits of
+-- its sort key, with this bit set ("La Prison": 2^30 + 717, measured on build
+-- 70888).
+local AREA_SORT_KEY = 2 ^ 30
+
+local function GetHeaderArea(info)
+    local key = info.headerSortKey
+    if key and key >= AREA_SORT_KEY and key < 2 * AREA_SORT_KEY then
+        return key - AREA_SORT_KEY
+    end
+end
+
 -- The quests of the instance the player is in (none outside one). The client
--- doesn't link quests to instances: these are the quests with objectives on
--- the instance's map, and those under a quest log header named after it.
+-- doesn't link quests to instances, and names headers in words matching
+-- neither the instance's name nor the zone text inside ("La Prison" in the
+-- "Prison de Hurlevent"): these are the quests under a header of one of the
+-- instance's areas (data.lua), and those with objectives on its map, when the
+-- client has one.
 local function GetCurrentInstanceQuests()
     local quests = {}
     if not IsInInstance() then
         return quests
     end
-    local instanceName = GetInstanceInfo()
+    local areas = {}
+    for _, areaID in ipairs(Helpers.InstanceAreas[select(8, GetInstanceInfo())] or {}) do
+        areas[areaID] = true
+    end
     local onMap = GetQuestsInCurrentZone() or {}
-    local header
+    local inInstanceHeader = false
     for index = 1, C_QuestLog.GetNumQuestLogEntries() do
         local info = C_QuestLog.GetInfo(index)
         if info and info.isHeader then
-            header = info.title
-        elseif info and (onMap[info.questID] or header == instanceName) then
+            local areaID = GetHeaderArea(info)
+            inInstanceHeader = areaID ~= nil and areas[areaID] == true
+        elseif info and (onMap[info.questID] or inInstanceHeader) then
             quests[info.questID] = true
         end
     end
@@ -101,14 +127,20 @@ end
 function Ranking:GetQuests()
     local scope = Helpers:GetSetting("scope")
     local range = Helpers:GetSetting("range")
+    local currentInstanceQuests = GetCurrentInstanceQuests()
     local inZone
     if scope == "zone" then
         inZone = GetQuestsInCurrentZone()
         if not inZone then
-            return nil
+            if not next(currentInstanceQuests) then
+                return nil
+            end
+            -- An instance without quest data for its map (the Stockade has
+            -- none): only its own quests.
+            inZone = {}
         end
     end
-    local instanceQuests = not Helpers:GetSetting("dungeons") and GetCurrentInstanceQuests()
+    local skipDungeonQuests = not Helpers:GetSetting("dungeons")
     local Watches = Helpers.Watches
 
     local quests, scores, distances = {}, {}, {}
@@ -122,13 +154,11 @@ function Ranking:GetQuests()
         local info = C_QuestLog.GetInfo(index)
         if info and IsCandidate(info) and not Watches:IsDismissed(info.questID) then
             local questID = info.questID
-            if instanceQuests and IsInstanceQuest(questID) then
-                if instanceQuests[questID] then
-                    anyLocated = true
-                    distances[questID] = 0
-                    Add(questID, 0)
-                end
-            else
+            if currentInstanceQuests[questID] then
+                anyLocated = true
+                distances[questID] = 0
+                Add(questID, 0)
+            elseif not (skipDungeonQuests and IsInstanceQuest(questID)) then
                 local distance = GetDistance(questID)
                 anyLocated = anyLocated or distance ~= nil
                 distances[questID] = distance

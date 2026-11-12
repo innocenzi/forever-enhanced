@@ -10,14 +10,25 @@ const PRODUCT = "wowf";
 
 export type Row = Record<string, string>;
 
-function parseLine(line: string): string[] {
-    const fields: string[] = [];
+// The records of a CSV file: quoted fields may hold commas, doubled quotes and
+// line breaks (text columns like Map's descriptions). Blank lines are skipped.
+function parseRecords(content: string): string[][] {
+    const records: string[][] = [];
+    let fields: string[] = [];
     let field = "";
     let quoted = false;
-    for (let i = 0; i < line.length; i++) {
-        const char = line[i];
+    const endRecord = () => {
+        fields.push(field);
+        if (fields.length > 1 || fields[0] !== "") {
+            records.push(fields);
+        }
+        fields = [];
+        field = "";
+    };
+    for (let i = 0; i < content.length; i++) {
+        const char = content[i];
         if (quoted) {
-            if (char === '"' && line[i + 1] === '"') {
+            if (char === '"' && content[i + 1] === '"') {
                 field += '"';
                 i++;
             } else if (char === '"') {
@@ -30,27 +41,25 @@ function parseLine(line: string): string[] {
         } else if (char === ",") {
             fields.push(field);
             field = "";
-        } else {
+        } else if (char === "\n") {
+            endRecord();
+        } else if (char !== "\r") {
             field += char;
         }
     }
-    fields.push(field);
-    return fields;
+    endRecord();
+    return records;
 }
 
 export function parseCsv(content: string): Row[] {
-    const lines = content
-        .replace(/^﻿/, "")
-        .split(/\r?\n/)
-        .filter((line) => line.length > 0);
-    if (lines.length === 0) {
+    const records = parseRecords(content.replace(/^﻿/, ""));
+    if (records.length === 0) {
         return [];
     }
-    const headers = parseLine(lines[0]);
-    return lines.slice(1).map((line, index) => {
-        const fields = parseLine(line);
+    const headers = records[0];
+    return records.slice(1).map((fields, index) => {
         if (fields.length !== headers.length) {
-            throw new Error(`CSV row ${index + 2} has ${fields.length} fields, expected ${headers.length}`);
+            throw new Error(`CSV record ${index + 2} has ${fields.length} fields, expected ${headers.length}`);
         }
         return Object.fromEntries(headers.map((header, i) => [header, fields[i]]));
     });
