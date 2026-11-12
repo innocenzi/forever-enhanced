@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0 - 2026-11-12
+
+
+### Features
+- **professions:** mark the recipes in reagent tooltips the bags hold the reagents for
+- **inventory:** open an item menu on Alt Right Click, and mark items as junk
+
 ## 0.3.0 - 2026-11-11
 
 
