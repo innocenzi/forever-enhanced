@@ -28,7 +28,13 @@ ns.SettingsPanel = SettingsPanel
 
 local VARIABLE_PREFIX = "ForeverEnhanced."
 -- Our rows, defined in settings.xml: Blizzard's own under our names, so their
--- pages never reuse (and run tainted in) frames our rows used.
+-- pages never reuse (and run tainted in) frames our rows used. The list pools
+-- row frames by template, and a Blizzard row reusing one of ours gets its
+-- protected calls blocked (e.g. the Discord voice option on the Audio page).
+-- So every row, headers included, uses one of these, never Blizzard's builders
+-- (Settings.CreateCheckbox, ...). Rows are added with
+-- Settings.RegisterInitializer, never layout:AddInitializer, and nested with
+-- SetParent below, never SetParentInitializer, which taints the settings search.
 local TEMPLATES = {
     header = "ForeverEnhancedSettingsSectionHeaderTemplate",
     checkbox = "ForeverEnhancedSettingsCheckboxControlTemplate",

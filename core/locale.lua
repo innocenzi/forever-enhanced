@@ -8,6 +8,8 @@
 local _, ns = ...
 
 -- The supported locales, in the options' order, with their names in their own language.
+-- Adding a language: append it here and its native name to LANGUAGE_NAMES, and add it
+-- to LOCALES in tests/run.lua.
 ns.LANGUAGES = { "enUS", "frFR" }
 local LANGUAGE_NAMES = {
     enUS = "English",
