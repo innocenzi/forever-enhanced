@@ -32,6 +32,10 @@ ns:RegisterLocale("enUS", {
     ["inventory.bank.transfers.stacks"] = "Fill existing stacks",
     ["inventory.bank.transfers.all"] = "All matching items",
     ["inventory.bank.transfers.marked"] = "Items marked for the bank",
+    ["inventory.bank.autoRefill"] = "Refill bag stacks",
+    ["inventory.bank.autoRefill.tooltip"] = "Fills the partial stacks in your bags from your bank when you open it.",
+    ["inventory.bank.autoDeposit"] = "Deposit marked items",
+    ["inventory.bank.autoDeposit.tooltip"] = "Moves the items marked for the bank into it when you open it.",
 })
 
 ns:RegisterLocale("frFR", {
@@ -65,5 +69,9 @@ ns:RegisterLocale("frFR", {
     ["inventory.bank.transfers.stacks"] = "Compléter les piles existantes",
     ["inventory.bank.transfers.all"] = "Tous les objets correspondants",
     ["inventory.bank.transfers.marked"] = "Objets marqués pour la banque",
+    ["inventory.bank.autoRefill"] = "Compléter les piles des sacs",
+    ["inventory.bank.autoRefill.tooltip"] = "Complète les piles incomplètes de vos sacs depuis votre banque quand vous l’ouvrez.",
+    ["inventory.bank.autoDeposit"] = "Déposer les objets marqués",
+    ["inventory.bank.autoDeposit.tooltip"] = "Dépose les objets marqués pour la banque quand vous l’ouvrez.",
     ["inventory.bank.forgetConfirm"] = "Voulez-vous vraiment oublier la banque enregistrée de %s ?",
 })

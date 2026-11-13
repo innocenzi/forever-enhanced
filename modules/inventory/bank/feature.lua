@@ -11,7 +11,8 @@
 -- the bags and the bank, either onto the other side's partial stacks only, or
 -- every item the other side already holds (partial stacks first, then empty
 -- slots). Deposit also moves the items marked for the bank (Item marks). Locked
--- items (Item Locking) never move.
+-- items (Item Locking) never move. Opening the bank can refill the bags'
+-- partial stacks ("autoRefill") and deposit the marked items ("autoDeposit").
 --
 -- Files of this slice:
 --   feature.lua    registration, schema and lifecycle (this file)
@@ -43,10 +44,26 @@ local Bank = ns:RegisterFeature("inventory", "bank", {
             requires = { savedBank = true },
         },
         { key = "transfers", type = "toggle", default = true },
+        { key = "autoRefill", type = "toggle", default = false, requires = { transfers = true } },
+        { key = "autoDeposit", type = "toggle", default = false, requires = { transfers = true } },
     },
     presets = {
-        minimal = { enabled = true, savedBank = true, openWithBags = false },
-        enhanced = { enabled = true, savedBank = true, openWithBags = true },
+        minimal = {
+            enabled = true,
+            savedBank = true,
+            openWithBags = false,
+            transfers = true,
+            autoRefill = false,
+            autoDeposit = false,
+        },
+        enhanced = {
+            enabled = true,
+            savedBank = true,
+            openWithBags = true,
+            transfers = true,
+            autoRefill = true,
+            autoDeposit = true,
+        },
     },
 })
 

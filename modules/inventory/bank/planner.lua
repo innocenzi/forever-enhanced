@@ -8,6 +8,8 @@
 --             destination holds go to empty slots that accept them.
 --   "marked": (deposit) like "all", for the bag items marked for the bank
 --             (Item marks), whether or not the bank holds them.
+--   "refill": (withdraw, automatic) like "stacks", except for the items marked
+--             for the bank, which the automatic deposit takes back.
 -- Locked items (Item Locking) never move, but their stacks are filled like any
 -- other: a merge keeps the receiving stack (and its lock) in place.
 
@@ -125,19 +127,26 @@ local function PlanItem(moves, itemID, sources, destinations, emptySlots, useEmp
 end
 
 -- The item IDs a mode moves: the ones the destination holds, or for "marked"
--- the source's items marked for the bank (Item marks, loaded after this slice).
+-- the source's items marked for the bank (Item marks, loaded after this slice);
+-- "refill" leaves those out while the bank mark is on.
 local function GetItemIDs(mode, sources, destinations)
-    if mode ~= "marked" then
-        return destinations.itemIDs
-    end
     local Marks = ns:GetFeature("inventory", "marks")
-    local itemIDs = {}
-    for _, itemID in ipairs(sources.itemIDs) do
-        if Marks:IsMarked(itemID, "bank") then
-            table.insert(itemIDs, itemID)
+    local function Filter(itemIDs, marked)
+        local filtered = {}
+        for _, itemID in ipairs(itemIDs) do
+            if Marks:IsMarked(itemID, "bank") == marked then
+                table.insert(filtered, itemID)
+            end
         end
+        return filtered
     end
-    return itemIDs
+    if mode == "marked" then
+        return Filter(sources.itemIDs, true)
+    end
+    if mode == "refill" and Marks:IsPartActive("bank") then
+        return Filter(destinations.itemIDs, false)
+    end
+    return destinations.itemIDs
 end
 
 function Planner:Plan(direction, mode)
@@ -146,7 +155,7 @@ function Planner:Plan(direction, mode)
     local destinations, emptySlots = Scan(destinationIDs)
     local moves = {}
     for _, itemID in ipairs(GetItemIDs(mode, sources, destinations)) do
-        PlanItem(moves, itemID, sources, destinations, emptySlots, mode ~= "stacks")
+        PlanItem(moves, itemID, sources, destinations, emptySlots, mode == "all" or mode == "marked")
     end
     return moves
 end

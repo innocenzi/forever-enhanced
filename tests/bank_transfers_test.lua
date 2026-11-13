@@ -6,8 +6,8 @@ local function Transfers(world)
     return world.ns:GetFeature("inventory", "bank").Transfers
 end
 
--- items: { guid = { itemID, count } }
-local function Setup(world, bags, bank, tab2, items)
+-- Fills the bags and the bank; items: { guid = { itemID, count } }
+local function Stock(world, bags, bank, tab2, items)
     world.maxStacks = { linen = 20, wool = 20, peacebloom = 20, potion = 20 }
     world.counts = {}
     for guid, item in pairs(items) do
@@ -15,6 +15,10 @@ local function Setup(world, bags, bank, tab2, items)
         world.counts[guid] = item[2]
     end
     world.bags[0], world.bags[6], world.bags[7] = bags, bank, tab2
+end
+
+local function Setup(world, bags, bank, tab2, items)
+    Stock(world, bags, bank, tab2, items)
     world:OpenBank()
 end
 
@@ -320,4 +324,86 @@ test("turning the bank feature off hides the buttons too", function(world)
     expect(not world:TransferButton("deposit").shown, "hidden")
     world:Setting("inventory.bank.enabled"):SetValue(true)
     expect(world:TransferButton("deposit").shown, "back")
+end)
+
+test("opening the bank moves nothing by default", function(world)
+    Setup(world, { "L1" }, { "L3" }, {}, {
+        L1 = { "linen", 15 },
+        L3 = { "linen", 12 },
+    })
+    world:Elapse(5)
+    equal(world:Slots(0), "L1(15) - - -", "bags")
+    equal(world:Slots(6), "L3(12) - - -", "bank")
+end)
+
+test("opening the bank refills the bags' partial stacks", function(world)
+    Stock(world, { "L1", "W1" }, { "L4", "L3" }, {}, {
+        L1 = { "linen", 15 },
+        W1 = { "wool", 5 },
+        L3 = { "linen", 12 },
+        L4 = { "linen", 20 },
+    })
+    world:Setting("inventory.bank.autoRefill"):SetValue(true)
+    world:OpenBank()
+    world:Elapse(5)
+    equal(world:Slots(0), "L1(20) W1(5) - -", "bags")
+    equal(world:Slots(6), "L4(20) L3(7) - -", "bank")
+end)
+
+test("opening the bank deposits the items marked for the bank", function(world)
+    Stock(world, { "L1", "W1", "P1" }, { "L3" }, {}, {
+        L1 = { "linen", 15 },
+        W1 = { "wool", 5 },
+        P1 = { "potion", 3 },
+        L3 = { "linen", 12 },
+    })
+    world:OpenBags()
+    MarkForBank(world, 2)
+    world:Setting("inventory.bank.autoDeposit"):SetValue(true)
+    world:OpenBank()
+    world:Elapse(5)
+    equal(world:Slots(0), "L1(15) - P1(3) -", "only the marked item leaves")
+    equal(world:Slots(6), "L3(12) W1(5) - -", "bank")
+end)
+
+test("the automatic refill leaves the items marked for the bank", function(world)
+    Stock(world, { "L1", "W1" }, { "L3", "W2" }, {}, {
+        L1 = { "linen", 15 },
+        W1 = { "wool", 5 },
+        L3 = { "linen", 12 },
+        W2 = { "wool", 4 },
+    })
+    world:OpenBags()
+    MarkForBank(world, 2)
+    world:Setting("inventory.bank.autoRefill"):SetValue(true)
+    world:Setting("inventory.bank.autoDeposit"):SetValue(true)
+    world:OpenBank()
+    world:Elapse(5)
+    equal(world:Slots(0), "L1(20) - - -", "linen refilled, wool deposited")
+    equal(world:Slots(6), "L3(7) W2(9) - -", "bank")
+end)
+
+test("the automatic deposit waits for the bank mark", function(world)
+    Stock(world, { "W1" }, {}, {}, {
+        W1 = { "wool", 5 },
+    })
+    world:OpenBags()
+    MarkForBank(world, 1)
+    world:Setting("inventory.bank.autoDeposit"):SetValue(true)
+    world:Setting("inventory.marks.bank"):SetValue(false)
+    world:OpenBank()
+    world:Elapse(5)
+    equal(world:Slots(0), "W1(5) - - -", "bags")
+end)
+
+test("the automatic transfers need the Deposit and Withdraw buttons", function(world)
+    Stock(world, { "L1" }, { "L3" }, {}, {
+        L1 = { "linen", 15 },
+        L3 = { "linen", 12 },
+    })
+    world:Setting("inventory.bank.autoRefill"):SetValue(true)
+    world:Setting("inventory.bank.transfers"):SetValue(false)
+    world:OpenBank()
+    world:Elapse(5)
+    equal(world:Slots(0), "L1(15) - - -", "bags")
 end)
