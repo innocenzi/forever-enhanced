@@ -32,11 +32,13 @@
 -- CheckMouseButtonPassthrough and UpdateMousePropagation, which wait out combat,
 -- into every pin mixin made from Blizzard's (MapCanvasPinMixin and
 -- SuperTrackablePinMixin themselves, other addons' global mixins too) and into
--- every pin made from one.
+-- every pin made from one. Shift Click on the map pin copies its /mappin command
+-- (CopyToClipboard), which the game blocks from tainted code at any time: waypoint.lua
+-- shares the pin in chat without the copy.
 -- What we replaced and wrote can't be put back: turning the feature off hands
 -- every replaced method over to Blizzard's and restores Blizzard's zoom levels,
 -- view, art and mouse wheel, but the map stays tainted until a /reload, and so
--- combat.lua's waiting stays on for the session (the one thing OnDisable leaves).
+-- combat.lua's waiting and waypoint.lua's sharing stay on for the session (all OnDisable leaves).
 -- The map never changes map underneath in combat.
 --
 -- Files of this slice:
@@ -48,6 +50,7 @@
 --   art.lua            the stitched art: layers, zoom fades, what's near the view, file loading
 --   arrow.lua          the player's arrow while the map underneath can't show it
 --   combat.lua         map pins' mouse input deferred to the end of combat
+--   waypoint.lua       Shift Click on the map pin: shared in chat without Blizzard's blocked copy
 --   view.lua           hosting the art in Blizzard's map: zoom, pan, clicks, the map underneath
 --   quests.lua         every quest of the log on a continent, where Blizzard's shows only the super-tracked one
 --   quests.xml         their pin template
@@ -77,6 +80,7 @@ Seamless.MEDIA = "Interface\\AddOns\\ForeverEnhanced\\modules\\map\\seamless\\me
 function Seamless:OnEnable()
     self.Art:SetUnexploredShown(self.db.unexplored)
     self.Combat:Enable()
+    self.Waypoint:Enable()
     self.View:Enable()
     self.Quests:Enable()
 end
@@ -84,6 +88,7 @@ end
 function Seamless:OnDisable()
     self.Quests:Disable()
     self.View:Disable()
+    self.Waypoint:Disable()
     self.Combat:Disable()
 end
 

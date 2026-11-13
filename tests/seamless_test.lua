@@ -269,6 +269,38 @@ test("places map pins past the map underneath on the map they're over", function
     Near(world.waypoint.position.y, 0.5, "where it was clicked on Westfall")
 end)
 
+local function WaypointPin()
+    return WorldMapFrame:EnumeratePinsByTemplate("WaypointLocationPinTemplate")()
+end
+
+test("leaves Shift Click on the map pin to Blizzard's until turned on", function(world)
+    world:OpenMap(1)
+    C_Map.SetUserWaypoint(UiMapPoint.CreateFromCoordinates(1, 0.2, 0.4))
+    world.modifiedClick = "CHATLINK"
+    world:ClickPin(WaypointPin())
+    equal(#world.chatLinks, 1, "its link in chat")
+    equal(world.clipboard, "/mappin 1 20.0 40.0", "its command copied")
+end)
+
+test("shares the map pin in chat with Shift Click, without Blizzard's blocked copy", function(world)
+    Setup(world)
+    world:OpenMap(1)
+    -- (as the map underneath follows the view: Blizzard's map code runs tainted until a /reload)
+    world.mapTainted = true
+    C_Map.SetUserWaypoint(UiMapPoint.CreateFromCoordinates(1, 0.2, 0.4))
+    world.modifiedClick = "CHATLINK"
+    world:ClickPin(WaypointPin())
+    equal(#world.chatLinks, 1, "its link in chat")
+    equal(world.chatLinks[1], C_Map.GetUserWaypointHyperlink(), "the map pin's link")
+    equal(#world.forbidden, 0, "nothing blocked")
+    world.modifiedClick = nil
+    Set(world, "enabled", false)
+    world.modifiedClick = "CHATLINK"
+    world:ClickPin(WaypointPin())
+    equal(#world.chatLinks, 2, "turned off, the map still tainted: still shared")
+    equal(#world.forbidden, 0, "and still nothing blocked")
+end)
+
 test("keeps a quest's details open as the map moves", function(world)
     Setup(world)
     world:OpenMap(1)

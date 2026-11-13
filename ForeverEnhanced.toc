@@ -140,6 +140,7 @@ modules\map\seamless\geometry.lua
 modules\map\seamless\art.lua
 modules\map\seamless\arrow.lua
 modules\map\seamless\combat.lua
+modules\map\seamless\waypoint.lua
 modules\map\seamless\view.lua
 modules\map\seamless\quests.lua
 modules\map\seamless\quests.xml

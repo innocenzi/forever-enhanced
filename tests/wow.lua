@@ -109,6 +109,9 @@ local world = {
     party = false,
     instanceGroup = false,
     sentChat = {},
+    chatLinks = {},
+    forbidden = {},
+    mapTainted = false,
     chatFilters = {},
     chatBubbles = {},
     bubblesForbidden = false,
@@ -408,6 +411,11 @@ end
 -- Forbidden frames (the store, secure dialogs) aren't modelled.
 function Region:IsForbidden()
     return false
+end
+
+-- world.mouseOver: the frame under the mouse (only pins are modelled).
+function Region:IsMouseOver()
+    return world.mouseOver == self
 end
 
 function Region:GetFrameLevel()
@@ -2431,6 +2439,14 @@ C_Map = {
     GetUserWaypoint = function()
         return world.waypoint
     end,
+    GetUserWaypointHyperlink = function()
+        local waypoint = world.waypoint
+        return ("|cffffff00|Hworldmap:%d:%d:%d|h[Map Pin Location]|h|r"):format(
+            waypoint.uiMapID,
+            waypoint.position.x * 10000,
+            waypoint.position.y * 10000
+        )
+    end,
     GetWorldPosFromMapPos = function(uiMapID, position)
         local continentID = MAP_CONTINENTS[uiMapID]
         if continentID then
@@ -2675,7 +2691,19 @@ end
 -- acquires a pin. The game blocks them in combat when the map's code runs tainted.
 world.mouseInputs = {}
 
+MapCanvasMixin = { MouseAction = { Up = 1, Down = 2, Click = 3 } }
+
 MapCanvasPinMixin = {
+    -- A click: the map's global pin mouse handlers first (one returning true handles it), then the pin's own.
+    OnClick = function(self, button)
+        local map = self:GetMap()
+        if map and map:ProcessGlobalPinMouseActionHandlers(MapCanvasMixin.MouseAction.Click, button) then
+            return
+        end
+        if self.OnMouseClickAction then
+            self:OnMouseClickAction(button)
+        end
+    end,
     OnLoad = NoOp,
     OnAcquired = NoOp,
     UseFrameLevelType = NoOp,
@@ -2982,6 +3010,77 @@ WorldMapFrame.clickHandlers = {
         end,
     },
 }
+
+-- Global pin mouse handlers (MapCanvasSecureUtil's registry): higher priority first.
+WorldMapFrame.pinMouseActionHandlers = {}
+
+function WorldMapFrame:AddGlobalPinMouseActionHandler(handler, priority)
+    table.insert(self.pinMouseActionHandlers, { handler = handler, priority = priority or 0 })
+    table.sort(self.pinMouseActionHandlers, function(a, b)
+        return a.priority > b.priority
+    end)
+end
+
+function WorldMapFrame:ProcessGlobalPinMouseActionHandlers(mouseAction, button)
+    for _, entry in ipairs(self.pinMouseActionHandlers) do
+        if entry.handler(self, mouseAction, button) then
+            return true
+        end
+    end
+    return false
+end
+
+-- Blizzard's map pin (Blizzard_SharedMapDataProviders/WaypointLocationDataProvider.lua):
+-- on the map it was placed on (not on its parents, unlike the game), put up again as it
+-- changes. Shift Click puts its link in chat and copies its /mappin command, which the
+-- game blocks while the map's code runs tainted (world.mapTainted: in game, once the
+-- seamless map has changed the map underneath, until a /reload).
+WaypointLocationPinMixin = CreateFromMixins(MapCanvasPinMixin)
+
+function WaypointLocationPinMixin:OnMouseClickAction()
+    if IsModifiedClick("CHATLINK") then
+        ChatFrameUtil.InsertLink(C_Map.GetUserWaypointHyperlink())
+        local waypoint = C_Map.GetUserWaypoint()
+        local command = ("/mappin %d %.1f %.1f"):format(
+            waypoint.uiMapID,
+            waypoint.position.x * 100,
+            waypoint.position.y * 100
+        )
+        if world.mapTainted then
+            table.insert(world.forbidden, "CopyToClipboard")
+        else
+            world.clipboard = command
+        end
+    end
+end
+
+templates.WaypointLocationPinTemplate = function(frame)
+    Mixin(frame, WaypointLocationPinMixin)
+end
+
+do
+    local provider = CreateFromMixins(MapCanvasDataProviderMixin)
+    function provider:RemoveAllData()
+        self:GetMap():RemoveAllPinsByTemplate("WaypointLocationPinTemplate")
+    end
+    function provider:RefreshAllData()
+        self:RemoveAllData()
+        local waypoint = world.waypoint
+        if waypoint and waypoint.uiMapID == self:GetMap():GetMapID() then
+            self:GetMap()
+                :AcquirePin("WaypointLocationPinTemplate")
+                :SetPosition(waypoint.position.x, waypoint.position.y)
+        end
+    end
+    WorldMapFrame:AddDataProvider(provider)
+    local events = CreateFrame("Frame")
+    events:RegisterEvent("USER_WAYPOINT_UPDATED")
+    events:SetScript("OnEvent", function()
+        if WorldMapFrame:IsShown() then
+            provider:RefreshAllData()
+        end
+    end)
+end
 
 -- Blizzard's own click: into the map under the cursor.
 function WorldMapFrame:NavigateToCursor()
@@ -3541,6 +3640,12 @@ end
 CHAT_FRAMES = { "ChatFrame1", "ChatFrame2" }
 DEFAULT_CHAT_FRAME = CreateChatFrame("ChatFrame1", { "SAY", "PARTY", "GUILD", "WHISPER", "SYSTEM", "LOOT" })
 CreateChatFrame("ChatFrame2", { "COMBAT_XP_GAIN", "COMBAT_HONOR_GAIN" })
+
+-- world.chatLinks: links put in the chat edit box (Shift Click on a link).
+function ChatFrameUtil.InsertLink(link)
+    table.insert(world.chatLinks, link)
+    return true
+end
 
 function ChatFrameUtil.ForEachChatFrame(func)
     for _, frameName in pairs(CHAT_FRAMES) do
@@ -4985,6 +5090,12 @@ function world:MapClick(button)
     local scroll = WorldMapFrame.ScrollContainer
     scroll:RunScript("OnMouseDown", button or "LeftButton")
     scroll:RunScript("OnMouseUp", button or "LeftButton")
+end
+
+-- Clicks a map pin, the mouse over it.
+function world:ClickPin(pin, button)
+    self.mouseOver = pin
+    pin:OnClick(button or "LeftButton")
 end
 
 local function IsDrawn(region)
