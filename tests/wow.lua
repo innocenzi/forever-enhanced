@@ -4287,6 +4287,17 @@ function world:ReceiveChat(event, message, author)
     return false
 end
 
+-- The text a bubble shows for a chat message, as measured: links by their
+-- name, without brackets or color, and {rt1} as the star icon.
+local function BubbleText(message)
+    return (
+        message
+            :gsub("|c%x%x%x%x%x%x%x%x|H.-|h%[(.-)%]|h|r", "%1")
+            :gsub("|H.-|h%[(.-)%]|h", "%1")
+            :gsub("{rt1}", "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:0|t")
+    )
+end
+
 -- Shows `message` in a chat bubble (a ChatBubbleTemplate under the client's
 -- frame), reusing a hidden one like the client.
 function world:ShowChatBubble(message)
@@ -4307,7 +4318,7 @@ function world:ShowChatBubble(message)
         end
         table.insert(self.chatBubbles, bubble)
     end
-    bubble:GetChildren().String:SetText(message)
+    bubble:GetChildren().String:SetText(BubbleText(message))
     bubble:Show()
 end
 
@@ -4318,11 +4329,11 @@ function world:ExpireChatBubbles()
     end
 end
 
--- Whether the player sees a bubble with this text.
+-- Whether the player sees a bubble for this chat message.
 function world:IsChatBubbleVisible(message)
     for _, bubble in ipairs(self.chatBubbles) do
         local content = bubble:GetChildren()
-        if bubble:IsShown() and content.String:GetText() == message and content:GetAlpha() > 0 then
+        if bubble:IsShown() and content.String:GetText() == BubbleText(message) and content:GetAlpha() > 0 then
             return true
         end
     end

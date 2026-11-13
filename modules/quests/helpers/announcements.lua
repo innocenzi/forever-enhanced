@@ -12,8 +12,9 @@
 --
 -- Chat filters don't reach chat bubbles: the client draws those itself. After
 -- an announcement, the bubble showing its text is faded out until the client
--- hides it or reuses it for another message. Bubbles in dungeons and raids are
--- forbidden to addons, so those stay.
+-- reuses it for another message or keeps it hidden (it hides a bubble for a
+-- moment while reusing it, so a short hide keeps it faded). Bubbles in
+-- dungeons and raids are forbidden to addons, so those stay.
 
 local _, ns = ...
 
@@ -42,6 +43,9 @@ local PATTERNS = {
 
 -- How long after an announcement its bubble may still show up.
 local BUBBLE_WAIT_SECONDS = 1
+-- How long a faded bubble may stay hidden and still be the same message: the
+-- client hides a bubble for a moment after reusing it for a new message.
+local HIDDEN_GRACE_SECONDS = 2
 
 -- The announcement's text after the prefix, or nil for any other message.
 local function GetAnnouncement(message)
@@ -65,14 +69,23 @@ end
 
 -- Bubbles ---------------------------------------------------------------------
 
--- Text without color, link and texture codes, as bubbles and chat may differ in those.
+-- Text without color, link and texture codes, as bubbles and chat differ in
+-- those: bubbles show a link as its bare name, without its brackets.
 local function StripCodes(text)
-    return (text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|H.-|h", ""):gsub("|h", ""):gsub("|T.-|t", ""))
+    return (
+        text:gsub("|H.-|h%[(.-)%]|h", "%1")
+            :gsub("|H.-|h", "")
+            :gsub("|h", "")
+            :gsub("|c%x%x%x%x%x%x%x%x", "")
+            :gsub("|r", "")
+            :gsub("|T.-|t", "")
+    )
 end
 
 -- Announcements whose bubble hasn't been found yet: { text, expires }.
 local pending = {}
--- Faded bubbles: bubble frame -> the text it showed when faded.
+-- Faded bubbles: bubble frame -> { text (shown when faded), hiddenSince (when
+-- the client hid it, nil while shown) }.
 local fadedBubbles = setmetatable({}, { __mode = "k" })
 
 local watcher = CreateFrame("Frame")
@@ -103,14 +116,20 @@ local function FindPending(text)
 end
 
 local function UpdateBubbles()
-    for bubble, text in pairs(fadedBubbles) do
+    local now = GetTime()
+    for bubble, faded in pairs(fadedBubbles) do
         local content = GetBubbleContent(bubble)
-        if not bubble:IsShown() or not content or content.String:GetText() ~= text then
+        if not content or content.String:GetText() ~= faded.text then
+            RestoreBubble(bubble)
+        elseif bubble:IsShown() then
+            faded.hiddenSince = nil
+        elseif not faded.hiddenSince then
+            faded.hiddenSince = now
+        elseif now - faded.hiddenSince > HIDDEN_GRACE_SECONDS then
             RestoreBubble(bubble)
         end
     end
 
-    local now = GetTime()
     for index = #pending, 1, -1 do
         if pending[index].expires < now then
             table.remove(pending, index)
@@ -125,7 +144,7 @@ local function UpdateBubbles()
                 if index then
                     table.remove(pending, index)
                     content:SetAlpha(0)
-                    fadedBubbles[bubble] = text
+                    fadedBubbles[bubble] = { text = text }
                 end
             end
         end
