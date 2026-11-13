@@ -74,7 +74,7 @@ modules\quests\helpers\sparkle.lua
 modules\quests\helpers\needs.lua
 modules\quests\helpers\leftovers.lua
 modules\quests\helpers\tooltip.lua
-modules\quests\helpers\questie.lua
+modules\quests\helpers\announcements.lua
 modules\quests\announce\feature.lua
 modules\quests\announce\locales.lua
 modules\quests\announce\message.lua

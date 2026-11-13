@@ -1,6 +1,6 @@
 -- Objective Announcements: tells the group when one of the player's quest
 -- objectives is completed, with a message the player writes (like Questie).
--- Hiding other players' Questie announcements is Quest helpers' "hideQuestie".
+-- Hiding other players' Questie and Polestar announcements is Quest helpers' "hideAnnouncements".
 --
 -- Files of this slice:
 --   feature.lua     registration, schema and lifecycle (this file)

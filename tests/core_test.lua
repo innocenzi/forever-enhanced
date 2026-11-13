@@ -175,7 +175,7 @@ test("settings of earlier versions are brought up to date", function(world)
     equal(modules.interface.features.windows.modifier, "alt", "features that stayed keep theirs")
 
     equal(modules.quests.features.announce.hideQuestie, nil, "moved settings leave their old feature")
-    equal(modules.quests.features.helpers.hideQuestie, true, "and stay on where they were in effect")
+    equal(modules.quests.features.helpers.hideAnnouncements, true, "and stay on where they were in effect")
 end, {
     savedVariables = function()
         return {
@@ -200,11 +200,24 @@ end, {
 test("a moved setting that had no effect stays off", function(world)
     local quests = world.env.ForeverEnhancedDB.modules.quests.features
     equal(quests.announce.hideQuestie, nil, "left its old feature")
-    equal(quests.helpers.hideQuestie, false, "off in the new one")
+    equal(quests.helpers.hideAnnouncements, false, "off in the new one")
 end, {
     savedVariables = function()
         return {
             modules = { quests = { features = { announce = { enabled = false, hideQuestie = true } } } },
+        }
+    end,
+})
+
+test("hiding Questie announcements carries over to hiding quest addon announcements", function(world)
+    local helpers = world.env.ForeverEnhancedDB.modules.quests.features.helpers
+    equal(helpers.hideQuestie, nil, "old key dropped")
+    equal(helpers.hideAnnouncements, true, "kept on")
+    expect(world.ns:GetFeature("quests", "helpers"):IsPartActive("hideAnnouncements"), "and in effect")
+end, {
+    savedVariables = function()
+        return {
+            modules = { quests = { features = { helpers = { enabled = true, hideQuestie = true } } } },
         }
     end,
 })

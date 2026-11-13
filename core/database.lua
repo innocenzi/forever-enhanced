@@ -171,9 +171,19 @@ local function Migrate(savedModules)
     local announce = quests and quests.announce
     if type(announce) == "table" and announce.hideQuestie ~= nil then
         if announce.enabled == true and announce.hideQuestie == true then
-            GetOrCreateTable(quests, "helpers").hideQuestie = true
+            GetOrCreateTable(quests, "helpers").hideAnnouncements = true
         end
         announce.hideQuestie = nil
+    end
+
+    -- Hiding Questie announcements became hiding quest addon announcements
+    -- (Questie and Polestar).
+    local helpers = quests and quests.helpers
+    if type(helpers) == "table" and helpers.hideQuestie ~= nil then
+        if helpers.hideAnnouncements == nil then
+            helpers.hideAnnouncements = helpers.hideQuestie
+        end
+        helpers.hideQuestie = nil
     end
 end
 

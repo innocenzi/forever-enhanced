@@ -12,8 +12,8 @@
 -- tooltip, with a check mark in the bags ("leftoverMark"). The client has no
 -- quest database: which quests use an item is learned as the player plays,
 -- account-wide.
--- "hideQuestie": hides other players' Questie announcements in group chat
--- (whether or not the player announces their own objectives).
+-- "hideAnnouncements": hides other players' Questie and Polestar announcements
+-- in group chat (whether or not the player announces their own objectives).
 --
 -- Files of this slice:
 --   feature.lua    registration, schema and lifecycle (this file)
@@ -25,7 +25,7 @@
 --   needs.lua      objectives, leftovers: the item objectives of the quest log, by item name
 --   leftovers.lua  leftovers: which quests use each quest item, and the bag mark
 --   tooltip.lua    objectives, leftovers: the tooltip lines
---   questie.lua    hideQuestie: the group chat filter for Questie announcements
+--   announcements.lua  hideAnnouncements: the group chat filter for Questie and Polestar announcements
 
 local _, ns = ...
 
@@ -57,7 +57,7 @@ local Helpers = ns:RegisterFeature("quests", "helpers", {
         { key = "sort", type = "toggle", default = false, requires = { nearby = true } },
         { key = "dungeons", type = "toggle", default = true, requires = { nearby = true } },
         { key = "keepManual", type = "toggle", default = false, requires = { nearby = true } },
-        { key = "hideQuestie", type = "toggle", default = false },
+        { key = "hideAnnouncements", type = "toggle", default = false },
     },
     presets = {
         minimal = {
@@ -67,7 +67,7 @@ local Helpers = ns:RegisterFeature("quests", "helpers", {
             leftoverMark = true,
             sparkles = true,
             nearby = false,
-            hideQuestie = false,
+            hideAnnouncements = false,
         },
         enhanced = {
             enabled = true,
@@ -76,7 +76,7 @@ local Helpers = ns:RegisterFeature("quests", "helpers", {
             leftoverMark = true,
             sparkles = true,
             nearby = true,
-            hideQuestie = true,
+            hideAnnouncements = true,
         },
     },
 })
@@ -109,7 +109,7 @@ function Helpers:SyncParts()
     self:SyncPart("sparkles", self.Sparkle)
     self:SyncPart("objectives", Objectives)
     self:SyncPart("leftovers", self.Leftovers)
-    self:SyncPart("hideQuestie", self.QuestieFilter)
+    self:SyncPart("hideAnnouncements", self.AnnouncementFilter)
 end
 
 function Helpers:OnEnable()

@@ -1,11 +1,14 @@
--- Hide Questie announcements (the "hideQuestie" part): hides other players'
--- Questie announcements in group chat, and their chat bubbles.
+-- Hide quest addon announcements (the "hideAnnouncements" part): hides other
+-- players' Questie and Polestar announcements in group chat, and their chat
+-- bubbles.
 --
--- Questie starts every group announcement with a fixed prefix: "{rt1} Questie: "
--- ("{rt1} Questie : " from French clients, "{звезда} Questie: " from Russian
--- ones). A receiver who runs Questie too may see it already rewritten to
--- Questie's logo by Questie's own filter. Matching only at the start keeps
--- ordinary chat that mentions Questie. The player's own messages stay.
+-- Both addons start every group announcement with a fixed prefix:
+-- "{rt1} Questie: " and "{rt1} Polestar: " ("{rt1} Questie : " from French
+-- clients, "{звезда} Questie: " from Russian ones, and the same for Polestar).
+-- A receiver who runs the addon too may see it already rewritten to the
+-- addon's logo by the addon's own filter (Questie drops its name, Polestar
+-- keeps it). Matching only at the start keeps ordinary chat that mentions
+-- them. The player's own messages stay.
 --
 -- Chat filters don't reach chat bubbles: the client draws those itself. After
 -- an announcement, the bubble showing its text is faded out until the client
@@ -16,8 +19,8 @@ local _, ns = ...
 
 local Helpers = ns:GetFeature("quests", "helpers")
 
-local QuestieFilter = {}
-Helpers.QuestieFilter = QuestieFilter
+local AnnouncementFilter = {}
+Helpers.AnnouncementFilter = AnnouncementFilter
 
 local EVENTS = {
     "CHAT_MSG_PARTY",
@@ -32,13 +35,16 @@ local PATTERNS = {
     "^{rt1} Questie ?: ",
     "^{звезда} Questie ?: ",
     "^|TInterface\\Addons\\Questie\\Icons\\questie%.png:0|t ",
+    "^{rt1} Polestar ?: ",
+    "^{звезда} Polestar ?: ",
+    "^|TInterface\\AddOns\\Polestar\\Media\\UI\\logo:0|t Polestar ?: ",
 }
 
 -- How long after an announcement its bubble may still show up.
 local BUBBLE_WAIT_SECONDS = 1
 
 -- The announcement's text after the prefix, or nil for any other message.
-local function GetQuestieAnnouncement(message)
+local function GetAnnouncement(message)
     for _, pattern in ipairs(PATTERNS) do
         local _, finish = message:find(pattern)
         if finish then
@@ -53,8 +59,8 @@ local function IsFromOtherPlayer(author)
 end
 
 -- Chat filter: returning true hides the message.
-local function HideQuestieAnnouncement(_, _, message, author)
-    return GetQuestieAnnouncement(message) ~= nil and IsFromOtherPlayer(author)
+local function HideAnnouncement(_, _, message, author)
+    return GetAnnouncement(message) ~= nil and IsFromOtherPlayer(author)
 end
 
 -- Bubbles ---------------------------------------------------------------------
@@ -133,7 +139,7 @@ end
 watcher:SetScript("OnUpdate", UpdateBubbles)
 
 local function OnGroupChat(_, message, author)
-    local announcement = GetQuestieAnnouncement(message)
+    local announcement = GetAnnouncement(message)
     if announcement and IsFromOtherPlayer(author) then
         table.insert(pending, { text = StripCodes(announcement), expires = GetTime() + BUBBLE_WAIT_SECONDS })
         watcher:Show()
@@ -146,16 +152,16 @@ for _, event in ipairs(EVENTS) do
 end
 local listener = ns:CreateEventListener(handlers)
 
-function QuestieFilter:Enable()
+function AnnouncementFilter:Enable()
     for _, event in ipairs(EVENTS) do
-        ChatFrameUtil.AddMessageEventFilter(event, HideQuestieAnnouncement)
+        ChatFrameUtil.AddMessageEventFilter(event, HideAnnouncement)
     end
     listener:Start()
 end
 
-function QuestieFilter:Disable()
+function AnnouncementFilter:Disable()
     for _, event in ipairs(EVENTS) do
-        ChatFrameUtil.RemoveMessageEventFilter(event, HideQuestieAnnouncement)
+        ChatFrameUtil.RemoveMessageEventFilter(event, HideAnnouncement)
     end
     listener:Stop()
     watcher:Hide()
