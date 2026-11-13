@@ -23,7 +23,8 @@
 -- The player can target a unit (world.target, a GUID) that may have a
 -- nameplate (world.namePlates). Like Forever, combo points are held per unit
 -- (world.comboPoints, by GUID): a unit keeps its points when the player
--- targets another or builds points on another.
+-- targets another or builds points on another. Units have health
+-- (world.health, by GUID), shown on the target frame and their nameplates.
 --
 -- Console variables live in world.cvars. The soft interact target (what the
 -- Interact Key would act on) is world.softInteract, picked from
@@ -85,7 +86,16 @@ local world = {
     bankTabs = { 6, 7 },
     maxBankTabs = 3,
     bankBags = { [2] = "GBAG" },
-    player = { guid = "Player-1-00000001", name = "Hylmew", class = "MAGE", realm = "Forever", level = 12 },
+    player = {
+        guid = "Player-1-00000001",
+        name = "Hylmew",
+        class = "MAGE",
+        realm = "Forever",
+        level = 12,
+        attackPower = 0,
+        spellPower = {},
+        talents = {},
+    },
     itemSearch = "",
     modifiedClicks = {},
     sortRequested = false,
@@ -105,6 +115,11 @@ local world = {
     target = nil,
     comboPoints = {},
     namePlates = {},
+    health = {},
+    dead = {},
+    auras = {},
+    -- Unit GUIDs whose identity the client keeps secret (restricted units).
+    secretIdentities = {},
     SERVER_CONFIRM_SECONDS = SERVER_CONFIRM_SECONDS,
 }
 
@@ -246,7 +261,6 @@ for _, name in ipairs({
     "SetIgnoreParentAlpha",
     "SetWordWrap",
     "SetFontObject",
-    "SetColorTexture",
     "AddMaskTexture",
 }) do
     Region[name] = NoOp
@@ -532,6 +546,26 @@ end
 function Region:GetHeight()
     CheckMeasurable(self)
     return select(4, self:GetScreenRect()) or self.height or 0
+end
+
+-- A texture of one color (the overlay's line).
+function Region:SetColorTexture(r, g, b, a)
+    self.color = { r, g, b, a }
+end
+
+-- Textures draw in a layer and sublevel ("ARTWORK", 0 unless set).
+function Region:SetDrawLayer(layer, subLevel)
+    assert(subLevel == nil or (subLevel >= -8 and subLevel <= 7), "draw sublevels range from -8 to 7")
+    self.drawLayer, self.drawSubLevel = layer, subLevel or 0
+end
+
+function Region:GetDrawLayer()
+    return self.drawLayer or "ARTWORK", self.drawSubLevel or 0
+end
+
+-- A frame on its parent's frame level instead of the one above.
+function Region:SetUsingParentLevel(using)
+    self.usingParentLevel = using
 end
 
 -- The region's bottom left corner on screen. Fake only, like GetScreenRect.
@@ -833,8 +867,15 @@ local templates = {
     end,
 }
 
+-- Status bars: Region's methods, and their own (defined with the health bars).
+local StatusBar = setmetatable({}, { __index = Region })
+StatusBar.__index = StatusBar
+
 function CreateFrame(frameType, name, parent, template)
     local frame = NewRegion({ frameType = frameType, name = name, parent = parent, template = template })
+    if frameType == "StatusBar" then
+        setmetatable(frame, StatusBar)
+    end
     -- Like the client, several templates apply in order ("A, B").
     for each in (template or ""):gmatch("[^,%s]+") do
         assert(templates[each], "unknown template " .. each)(frame)
@@ -1759,13 +1800,101 @@ C_Bank = {
 
 -- Player ----------------------------------------------------------------------------------
 
+local function UnitGUIDOf(unit)
+    if unit == "player" then
+        return world.player.guid
+    elseif unit == "target" then
+        return world.target
+    end
+    local namePlate = assert(unit:match("^nameplate%d+$"), "unknown unit " .. unit) and world.namePlates[unit]
+    return namePlate and namePlate.guid
+end
+
 function UnitGUID(unit)
-    assert(unit == "player", "only the player is modelled")
-    return world.player.guid
+    local guid = UnitGUIDOf(unit)
+    if guid and world.secretIdentities[guid] then
+        return world:Secret(guid)
+    end
+    return guid
 end
 
 function UnitName()
     return world.player.name
+end
+
+-- Base, positive and negative buffs: secret in combat, like Forever's.
+function UnitAttackPower(unit)
+    assert(unit == "player", "only the player's attack power is modelled")
+    if world.inCombat then
+        return world:Secret(world.player.attackPower), world:Secret(0), world:Secret(0)
+    end
+    return world.player.attackPower, 0, 0
+end
+
+-- Spell power by school (2 holy to 7 arcane): secret in combat, like attack power.
+function GetSpellBonusDamage(school)
+    assert(school >= 2 and school <= 7, "no spell power for school " .. tostring(school))
+    local power = world.player.spellPower[school] or 0
+    return world.inCombat and world:Secret(power) or power
+end
+
+function world:SetSpellPower(school, power)
+    assert(not self.inCombat, "modelled out of combat only")
+    self.player.spellPower[school] = power
+end
+
+-- The talent tree (traits, like Forever's): world.player.talents, talent spell ID -> rank.
+C_ClassTalents = {
+    GetActiveConfigID = function()
+        return 1
+    end,
+}
+
+-- Every talent is a node of tree 1, its entry and definition numbered like it.
+local function TalentNodes()
+    local spellIDs = {}
+    for spellID in pairs(world.player.talents) do
+        table.insert(spellIDs, spellID)
+    end
+    table.sort(spellIDs)
+    return spellIDs
+end
+
+C_Traits = {
+    GetConfigInfo = function(configID)
+        return configID == 1 and { treeIDs = { 1 } } or nil
+    end,
+    GetTreeNodes = function()
+        local nodes = {}
+        for index in ipairs(TalentNodes()) do
+            nodes[index] = index
+        end
+        return nodes
+    end,
+    GetNodeInfo = function(_, nodeID)
+        local spellID = TalentNodes()[nodeID]
+        return { currentRank = world.player.talents[spellID], activeEntry = { entryID = nodeID } }
+    end,
+    GetEntryInfo = function(_, entryID)
+        return { definitionID = entryID }
+    end,
+    GetDefinitionInfo = function(definitionID)
+        return { spellID = TalentNodes()[definitionID] }
+    end,
+}
+
+-- Learns a talent rank, out of combat like the client allows.
+function world:LearnTalent(spellID, rank)
+    assert(not self.inCombat, "talents don't change in combat")
+    self.player.talents[spellID] = rank
+    self:Fire("TRAIT_CONFIG_UPDATED", 1)
+end
+
+-- Out of combat like the client allows (gear, buffs).
+function world:SetAttackPower(attackPower)
+    assert(not self.inCombat, "modelled out of combat only")
+    self.player.attackPower = attackPower
+    self:Fire("UNIT_ATTACK_POWER", "player")
 end
 
 function UnitClass()
@@ -1798,11 +1927,15 @@ local function NamePlateToken(guid)
     end
 end
 
--- The shown nameplate of a nameplate token ("nameplate1"), or of the soft
--- interact object: nil while it has none, or when world.softInteractPlateByUnit
--- is false (then only its nameplate token finds it).
+-- The shown nameplate of a nameplate token ("nameplate1"), of the target (nil
+-- while it has none), or of the soft interact object: nil while it has none,
+-- or when world.softInteractPlateByUnit is false (then only its nameplate
+-- token finds it).
 local function NamePlateOf(unit)
-    if unit == "softinteract" then
+    if unit == "target" then
+        local token = world.target and NamePlateToken(world.target)
+        return token and world.namePlates[token]
+    elseif unit == "softinteract" then
         local object = world.softInteract
         local token = object and world.softInteractPlateByUnit ~= false and NamePlateToken(object.guid)
         return token and world.namePlates[token]
@@ -1812,7 +1945,194 @@ end
 
 function GetComboPoints(unit, target)
     assert(unit == "player", "only the player's points are modelled")
+    if target == "target" then
+        return world.comboPoints[world.target] or 0
+    end
     return world.comboPoints[NamePlateOf(target).guid] or 0
+end
+
+-- Status bars keep their value within their range, like the client's. They
+-- take secret values (addon code included); once given one, the bar's values
+-- read back secret (its BarValue aspect).
+function StatusBar:SetMinMaxValues(min, max)
+    self.secret = self.secret or issecretvalue(min) or issecretvalue(max)
+    self.minValue, self.maxValue = world:Reveal(min), world:Reveal(max)
+    if self.value then
+        self.value = math.max(self.minValue, math.min(self.maxValue, self.value))
+    end
+end
+
+local function BarValue(bar, value)
+    return bar.secret and world:Secret(value) or value
+end
+
+function StatusBar:GetMinMaxValues()
+    return BarValue(self, self.minValue or 0), BarValue(self, self.maxValue or 1)
+end
+
+function StatusBar:SetValue(value)
+    self.secret = self.secret or issecretvalue(value)
+    self.value = math.max(self.minValue or 0, math.min(self.maxValue or 1, world:Reveal(value)))
+end
+
+function StatusBar:GetValue()
+    return BarValue(self, self.value or 0)
+end
+
+function StatusBar:GetStatusBarTexture()
+    self.statusBarTexture = self.statusBarTexture or self:CreateTexture()
+    return self.statusBarTexture
+end
+
+function StatusBar:SetStatusBarTexture(texture)
+    self:GetStatusBarTexture():SetTexture(texture)
+end
+
+function StatusBar:SetStatusBarColor(r, g, b, a)
+    self.statusBarColor = { r, g, b, a }
+end
+
+function StatusBar:SetReverseFill(reverse)
+    self.reverseFill = reverse
+end
+
+-- The target frame: the parts around its health bar.
+TargetFrame = CreateFrame("Frame", "TargetFrame", UIParent)
+do
+    local content = CreateFrame("Frame", nil, TargetFrame)
+    local main = CreateFrame("Frame", nil, content)
+    local healthBars = CreateFrame("Frame", nil, main)
+    -- Its health text is on the container, in the OVERLAY layer.
+    healthBars.HealthBar = CreateFrame("StatusBar", nil, healthBars)
+    healthBars.HealthBar:SetSize(126, 20)
+    healthBars.HealthBar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
+    healthBars.HealthBar:GetStatusBarTexture():SetDrawLayer("BACKGROUND", 0)
+    healthBars.HealthBarMask = healthBars:CreateTexture()
+    main.HealthBarsContainer = healthBars
+    content.TargetFrameContentMain = main
+    TargetFrame.TargetFrameContent = content
+end
+
+-- A unit's health, { current, max }: full at 100 unless set.
+local function HealthOf(guid)
+    return world.health[guid] or { current = 100, max = 100 }
+end
+
+-- Health is secret at all times on Forever, its bars' values with it.
+local function ShowHealth(bar, guid)
+    local health = HealthOf(guid)
+    bar:SetMinMaxValues(0, world:Secret(health.max))
+    bar:SetValue(world:Secret(health.current))
+end
+
+-- The health bars showing the unit: the target frame's, its nameplate's.
+local function UpdateHealthBars(guid)
+    if guid and world.target == guid then
+        ShowHealth(TargetFrame.TargetFrameContent.TargetFrameContentMain.HealthBarsContainer.HealthBar, guid)
+    end
+    for _, namePlate in pairs(world.namePlates) do
+        if namePlate.guid == guid then
+            ShowHealth(namePlate.frame.UnitFrame.HealthBarsContainer.healthBar, guid)
+        end
+    end
+end
+
+function world:SetHealth(guid, current, max)
+    self.health[guid] = { current = current, max = max or HealthOf(guid).max }
+    UpdateHealthBars(guid)
+end
+
+function world:Kill(guid)
+    self.dead[guid] = true
+    self:SetHealth(guid, 0)
+end
+
+function UnitIsDead(unit)
+    local guid = world:Reveal(UnitGUID(unit))
+    return guid ~= nil and world.dead[guid] == true
+end
+
+-- The player's auras on units (readable out of combat only), by unit GUID
+-- then spell name: { duration, expirationTime }.
+function world:SetAura(guid, spellID, duration, expirationTime)
+    local name = C_Spell.GetSpellName(spellID)
+    self.auras[guid] = self.auras[guid] or {}
+    self.auras[guid][name] = { name = name, duration = duration, expirationTime = expirationTime }
+    self:Fire("UNIT_AURA", "target")
+end
+
+function world:RemoveAura(guid, spellID)
+    (self.auras[guid] or {})[C_Spell.GetSpellName(spellID)] = nil
+    self:Fire("UNIT_AURA", "target")
+end
+
+C_Secrets = {
+    ShouldAurasBeSecret = function()
+        return world.inCombat
+    end,
+}
+
+C_UnitAuras = {
+    -- Like the client's, nothing while auras are secret (RequiresNonSecretAura;
+    -- GetAuraDataByIndex errors instead, unused).
+    GetAuraDataBySpellName = function(unit, name, filter)
+        assert(filter == "HARMFUL|PLAYER", "only the player's debuffs are modelled")
+        if world.inCombat then
+            return nil
+        end
+        local guid = world:Reveal(UnitGUID(unit))
+        return guid and (world.auras[guid] or {})[name]
+    end,
+}
+
+-- The target frame's health bar, and a nameplate's (its unit frame's).
+function world:TargetHealthBar()
+    return TargetFrame.TargetFrameContent.TargetFrameContentMain.HealthBarsContainer.HealthBar
+end
+
+function world:NamePlateHealthBar(plate)
+    return plate.UnitFrame.HealthBarsContainer.healthBar
+end
+
+-- What a status bar drawn over the health bar's fill shows, or nil without
+-- one: { value, range (its max), fromLeft, overFill (anchored to the fill's
+-- corners), underText (on the bar's frame level, its fill drawn above the
+-- bar's but below the OVERLAY layer of the health text), marker (the size of
+-- the texture with `atlas` on it, if any: { width, height }), line (the width
+-- of a texture of one color on it, if any) }, secrets revealed.
+function world:HealthBarOverlay(healthBar, atlas)
+    for _, frame in ipairs(self.frames) do
+        if frame.parent == healthBar and frame.frameType == "StatusBar" and frame:IsVisible() then
+            local fill = healthBar:GetStatusBarTexture()
+            local topLeft, topLeftTo = frame:GetPoint(1)
+            local bottomRight, bottomRightTo = frame:GetPoint(2)
+            local barLayer, barSubLevel = fill:GetDrawLayer()
+            local layer, subLevel = frame:GetStatusBarTexture():GetDrawLayer()
+            local marker, line
+            for _, texture in ipairs(self.textures) do
+                if texture.owner == frame and atlas and texture.atlas == atlas then
+                    marker = { width = texture.width, height = texture.height }
+                elseif texture.owner == frame and texture.color then
+                    line = texture.width
+                end
+            end
+            return {
+                value = self:Reveal(frame:GetValue()),
+                range = self:Reveal(select(2, frame:GetMinMaxValues())),
+                fromLeft = not frame.reverseFill,
+                overFill = topLeft == "TOPLEFT"
+                    and topLeftTo == fill
+                    and bottomRight == "BOTTOMRIGHT"
+                    and bottomRightTo == fill,
+                underText = frame.usingParentLevel == true
+                    and layer == barLayer
+                    and subLevel > barSubLevel
+                    and layer ~= "OVERLAY",
+                marker = marker,
+                line = line,
+            }
+        end
+    end
 end
 
 C_NamePlate = {
@@ -2981,6 +3301,43 @@ end
 world.secretValues = {}
 function issecretvalue(value)
     return value ~= nil and world.secretValues[value] == true
+end
+
+local function ReadSecret()
+    error("attempt to read a secret value")
+end
+
+-- Like the client's, addon code can hold a secret value and hand it to the
+-- client (a status bar), but arithmetic, ordering comparisons and concatenation
+-- throw. Equality isn't modelled: Lua compares a table to a string as unequal.
+local SecretValue = {
+    __add = ReadSecret,
+    __sub = ReadSecret,
+    __mul = ReadSecret,
+    __div = ReadSecret,
+    __mod = ReadSecret,
+    __pow = ReadSecret,
+    __unm = ReadSecret,
+    __concat = ReadSecret,
+    __lt = ReadSecret,
+    __le = ReadSecret,
+    __tostring = function()
+        return "<secret>"
+    end,
+}
+
+function world:Secret(value)
+    local secret = setmetatable({ revealed = value }, SecretValue)
+    self.secretValues[secret] = true
+    return secret
+end
+
+-- The value behind a secret, as the client reads it (any other value as is).
+function world:Reveal(value)
+    if type(value) == "table" and getmetatable(value) == SecretValue then
+        return value.revealed
+    end
+    return value
 end
 
 function IsModifierKeyDown()
@@ -4394,6 +4751,7 @@ end
 
 function world:Target(guid)
     self.target = guid
+    UpdateHealthBars(guid)
     self:Fire("PLAYER_TARGET_CHANGED")
 end
 
@@ -4417,14 +4775,14 @@ world.HIGHLIGHT_OVERFLOW = 4
 -- hidden until the unit casts), then the health bar, narrower to leave room
 -- for the level badge on its right. Like the client's, its regions can't be
 -- measured in combat.
-local function NewNamePlate()
-    local frame = CreateFrame("Frame", nil, UIParent)
-    frame.restrictedInCombat = true
-    frame:SetSize(120, 40)
-    frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
-    local unitFrame = CreateFrame("Button", nil, frame)
+-- Like the client's, unit frames are pooled apart from plates: a plate takes
+-- one as its unit is added and gives it back as it's removed, so a unit frame
+-- (and its health bar) moves from plate to plate.
+local freeUnitFrames = {}
+
+local function NewUnitFrame()
+    local unitFrame = CreateFrame("Button", nil, UIParent)
     unitFrame:SetSize(120, 40)
-    unitFrame:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
     local castBars = CreateFrame("Frame", nil, unitFrame)
     castBars:SetSize(120, world.CAST_BARS_HEIGHT)
     castBars:SetPoint("BOTTOMLEFT", unitFrame, "BOTTOMLEFT", 0, 0)
@@ -4441,7 +4799,14 @@ local function NewNamePlate()
     healthBars.healthBar.selectedBorder = highlight
     unitFrame.CastBarsContainer = castBars
     unitFrame.HealthBarsContainer = healthBars
-    frame.UnitFrame = unitFrame
+    return unitFrame
+end
+
+local function NewNamePlate()
+    local frame = CreateFrame("Frame", nil, UIParent)
+    frame.restrictedInCombat = true
+    frame:SetSize(120, 40)
+    frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
     -- NamePlateBaseMixin
     function frame:GetUnit()
         return self.unitToken
@@ -4453,18 +4818,30 @@ end
 function world:ShowNamePlate(guid, gameObject)
     namePlateCount = namePlateCount + 1
     local frame = table.remove(freeNamePlates) or NewNamePlate()
+    local unitFrame = table.remove(freeUnitFrames) or NewUnitFrame()
+    unitFrame:SetParent(frame)
+    unitFrame:ClearAllPoints()
+    unitFrame:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
+    unitFrame:Show()
+    frame.UnitFrame = unitFrame
     local token = "nameplate" .. namePlateCount
     frame.unitToken = token
     self.namePlates[token] = { guid = guid, frame = frame, gameObject = gameObject == true }
+    UpdateHealthBars(guid)
     self:Fire("NAME_PLATE_UNIT_ADDED", token)
     return frame
 end
 
+-- Like the client, the plate gives its unit frame back before addons hear
+-- of it (Blizzard's handler runs first), while the plate is still listed.
 function world:HideNamePlate(guid)
     local token = assert(NamePlateToken(guid), "no nameplate for " .. guid)
-    self:Fire("NAME_PLATE_UNIT_REMOVED", token)
     local frame = self.namePlates[token].frame
     frame.unitToken = nil
+    frame.UnitFrame:Hide()
+    table.insert(freeUnitFrames, frame.UnitFrame)
+    frame.UnitFrame = nil
+    self:Fire("NAME_PLATE_UNIT_REMOVED", token)
     table.insert(freeNamePlates, frame)
     self.namePlates[token] = nil
 end
@@ -4746,6 +5123,11 @@ local SPELL_NAMES = {
         [703] = "Garrote",
         [1766] = "Kick",
         [674] = "Dual Wield",
+        [1943] = "Rupture",
+        [16511] = "Hemorrhage",
+        [772] = "Rend",
+        [589] = "Shadow Word: Pain",
+        [172] = "Corruption",
     },
     frFR = {
         [53] = "Attaque sournoise",
@@ -4754,6 +5136,11 @@ local SPELL_NAMES = {
         [703] = "Garrot",
         [1766] = "Coup de pied",
         [674] = "Ambidextrie",
+        [1943] = "Rupture",
+        [16511] = "Hémorragie",
+        [772] = "Pourfendre",
+        [589] = "Mot de l’ombre : Douleur",
+        [172] = "Corruption",
     },
 }
 world.spells = {
@@ -4764,6 +5151,28 @@ world.spells = {
     [703] = { icon = 132297 },
     [1766] = { icon = 132219 },
     [674] = { icon = 132147 },
+    [8632] = { base = 703 },
+    [1943] = { icon = 132302 },
+    [8639] = { base = 1943 },
+    [11275] = { base = 1943 },
+    [16511] = { icon = 136168 },
+    [772] = { icon = 132155 },
+    [6546] = { base = 772 },
+    [589] = { icon = 136207 },
+    [172] = { icon = 136118 },
+}
+
+-- Finishing moves' descriptions (the only ones read), as Forever writes them
+-- (measured in game; where French no-break spaces go is a guess), by spell rank.
+local SPELL_DESCRIPTIONS = {
+    enUS = {
+        [8639] = "Finishing move that causes damage over time, increased by your Attack Power.  Lasts longer per combo point:\n   1 point  : 44 damage over 8 secs\n   2 points: 63 damage over 10 secs\n   3 points: 87 damage over 12 secs\n   4 points: 114 damage over 14 secs\n   5 points: 144 damage over 16 secs",
+        [11275] = "Finishing move that causes damage over time, increased by your Attack Power.  Lasts longer per combo point:\n   1 point  : 512 damage over 8 secs\n   2 points: 640 damage over 10 secs\n   3 points: 768 damage over 12 secs\n   4 points: 896 damage over 14 secs\n   5 points: 1,032 damage over 16 secs",
+    },
+    frFR = {
+        [8639] = "Coup de grâce qui inflige des dégâts sur la durée. Les dégâts augmentent avec votre puissance d’attaque et l’effet dure plus longtemps selon le nombre de points de combo :\r\n 1 point\194\160: 44\194\160points de dégâts en 8\194\160s\r\n 2 points\194\160: 63\194\160points de dégâts en 10\194\160s\r\n 3 points\194\160: 87\194\160points de dégâts en 12\194\160s\r\n 4 points\194\160: 114\194\160points de dégâts en 14\194\160s\r\n 5 points\194\160: 144\194\160points de dégâts en 16\194\160s",
+        [11275] = "Coup de grâce qui inflige des dégâts sur la durée. Les dégâts augmentent avec votre puissance d’attaque et l’effet dure plus longtemps selon le nombre de points de combo :\r\n 1 point : 512 points de dégâts en 8 s\r\n 2 points : 640 points de dégâts en 10 s\r\n 3 points : 768 points de dégâts en 12 s\r\n 4 points : 896 points de dégâts en 14 s\r\n 5 points : 1\194\160032 points de dégâts en 16 s",
+    },
 }
 
 -- The spellbook's tabs (skill lines), in order: { name, icon, hidden, spells }
@@ -5100,6 +5509,9 @@ local function SpellByName(name)
 end
 
 C_Spell = {
+    GetSpellDescription = function(spellID)
+        return SPELL_DESCRIPTIONS[TEST_LOCALE][spellID] or ""
+    end,
     GetSpellName = function(spellID)
         local base = BaseSpell(spellID)
         if base then
@@ -5146,6 +5558,33 @@ local function SpellBookItem(slot)
         end
         slot = slot - #line.spells
     end
+end
+
+local castCount = 0
+
+-- The player starts casting the spell on the target: the cast is sent. Returns
+-- the cast, for world:EndCast.
+function world:BeginCast(spellID)
+    castCount = castCount + 1
+    local cast = { castGUID = "Cast-3-0-0-0-" .. spellID .. "-" .. castCount, spellID = spellID }
+    self:Fire("UNIT_SPELLCAST_SENT", "player", "", cast.castGUID, spellID)
+    return cast
+end
+
+-- The cast succeeds, then (`miss`: "DODGE", "MISS", "RESIST"...) a miss on
+-- `missUnit` ("target" unless given) comes in the same frame, like the client
+-- logs it. The next frame follows.
+function world:EndCast(cast, miss, missUnit)
+    self:Fire("UNIT_SPELLCAST_SUCCEEDED", "player", cast.castGUID, cast.spellID)
+    if miss then
+        self:Fire("UNIT_COMBAT", missUnit or "target", miss, "", 0, 1)
+    end
+    self:NextFrame()
+end
+
+-- The player casts an instant spell on the target.
+function world:Cast(spellID, miss)
+    self:EndCast(self:BeginCast(spellID), miss)
 end
 
 C_SpellBook = {

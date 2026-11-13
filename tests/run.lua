@@ -27,6 +27,7 @@ local TEST_FILES = {
     "tests/waypoint_test.lua",
     "tests/way_test.lua",
     "tests/combopoints_test.lua",
+    "tests/dots_test.lua",
     "tests/glow_test.lua",
     "tests/swaps_test.lua",
     "tests/ranks_test.lua",

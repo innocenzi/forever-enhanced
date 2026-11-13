@@ -101,6 +101,14 @@ modules\combat\ranks\locales.lua
 modules\combat\combopoints\feature.lua
 modules\combat\combopoints\locales.lua
 modules\combat\combopoints\bar.lua
+modules\combat\dots\feature.lua
+modules\combat\dots\locales.lua
+modules\combat\dots\data.lua
+modules\combat\dots\measured.lua
+modules\combat\dots\spells.lua
+modules\combat\dots\stats.lua
+modules\combat\dots\tracker.lua
+modules\combat\dots\overlays.lua
 modules\combat\swaps\feature.lua
 modules\combat\swaps\locales.lua
 modules\combat\swaps\buttons.lua

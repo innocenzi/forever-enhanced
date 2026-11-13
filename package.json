@@ -2,6 +2,7 @@
   "version": "1.0.2",
   "scripts": {
     "changelog": "bun run tools/changelog.ts",
+    "dots": "bun run tools/dots.ts",
     "format": "stylua core modules tests",
     "icon": "bun run tools/icon.ts",
     "instances": "bun run tools/instances.ts",

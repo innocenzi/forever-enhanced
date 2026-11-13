@@ -23,6 +23,7 @@ A lightweight utility addon for Forever. It keeps the default UI familiar while 
 - Quick bank deposit and withdraw
 - Automatic junk selling and repairs at merchants, optionally with guild funds
 - Combo points on enemy nameplates
+- Show how much health your damage over time effects will still take on enemy health bars
 - Allow Rogues to replace Backstab with Ambush or Sinister Strike with Garrote when Ghostly Strike is active
 - Spell ranks on your action bars upgrade when you learn a new one
 - A seamless world map you can zoom and pan across zones, continents and the whole world
@@ -44,3 +45,4 @@ If you install a large addon for only one or two of its features, Forever Enhanc
 - **Leatrix Plus**: automatic repairs and junk selling, movable windows
 - **Questie**: nearby quest tracking, quest item sparkles, objectives in tooltips, objective announcements
 - **TomTom**: `/way` commands from guides
+- **Does It Die?**, **DoT Lethal**: the damage your DoTs will still deal, on health bars
