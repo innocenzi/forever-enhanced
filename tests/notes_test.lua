@@ -181,6 +181,14 @@ test("the Wowhead address can't be edited, and Enter closes it", function(world)
     equal(world:Dialog(), nil, "closed")
 end)
 
+test("the Wowhead entry ignores an item that left its slot", function(world)
+    EnableWowhead(world)
+    local entry = WowheadEntry(world, 1)
+    world.bags[0][1], world.bags[0][3] = nil, "G1"
+    entry.callback()
+    expect(not world:Dialog(), "no dialog")
+end)
+
 test("turning Wowhead link off removes the entry and closes its dialog", function(world)
     EnableWowhead(world)
     WowheadEntry(world, 1).callback()

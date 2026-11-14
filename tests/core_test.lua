@@ -197,6 +197,22 @@ end, {
     end,
 })
 
+test("a moved feature's saved data follows it", function(world)
+    local character = world.env.ForeverEnhancedCharacterDB
+    equal(character.interface.swaps, nil, "character data leaves the old module")
+    equal(character.combat.swaps.marker, "character", "and is in the new one")
+    local stores = world.env.ForeverEnhancedDB.stores
+    equal(stores.interface.ranks, nil, "account data leaves the old module")
+    equal(stores.combat.ranks.marker, "account", "and is in the new one")
+end, {
+    savedVariables = function()
+        return { stores = { interface = { ranks = { marker = "account" } } } }
+    end,
+    characterSavedVariables = function()
+        return { interface = { swaps = { marker = "character" } } }
+    end,
+})
+
 test("a moved setting that had no effect stays off", function(world)
     local quests = world.env.ForeverEnhancedDB.modules.quests.features
     equal(quests.announce.hideQuestie, nil, "left its old feature")

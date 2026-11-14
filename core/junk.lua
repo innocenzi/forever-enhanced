@@ -72,14 +72,9 @@ local function GetJunkState(bagID, slot, info)
     return AnyActive("IsKept", itemLocation) and "kept" or "sold"
 end
 
-local isBag = {}
-for _, bagID in ipairs(ns.Containers.BAG_IDS) do
-    isBag[bagID] = true
-end
-
 -- Whether Sell All Junk would sell the item at this slot (never in the bank).
 function ns:IsSoldAsJunk(bagID, slot)
-    if not isBag[bagID] or IsBagExcluded(bagID) then
+    if not ns.Containers:IsBag(bagID) or IsBagExcluded(bagID) then
         return false
     end
     return GetJunkState(bagID, slot, C_Container.GetContainerItemInfo(bagID, slot)) == "sold"
@@ -106,20 +101,42 @@ function ns:CollectJunk()
     return junk, keptCount, addedCount
 end
 
--- Re-collects on accept: bags may have changed while the confirmation was up.
-local function SellJunk()
-    if not MerchantFrame:IsShown() then
+-- Sells junk from ns:CollectJunk() at the open merchant: in one server call
+-- when it is exactly Blizzard's junk, else one C_Container.UseContainerItem
+-- per item, as a right-click at the merchant would.
+function ns:SellJunk(junk, keptCount, addedCount)
+    if keptCount == 0 and addedCount == 0 and C_MerchantFrame.IsSellAllJunkEnabled() then
+        C_MerchantFrame.SellAllJunkItems()
         return
     end
-    for _, item in ipairs((ns:CollectJunk())) do
+    for _, item in ipairs(junk) do
         C_Container.UseContainerItem(item.bagID, item.slot)
     end
 end
 
+-- Re-collects on accept: bags may have changed while the confirmation was up.
+local function SellOnAccept()
+    if MerchantFrame:IsShown() then
+        ns:SellJunk(ns:CollectJunk())
+    end
+end
+
+local function HasActiveHandler()
+    for _, entry in ipairs(handlers) do
+        if entry.feature:IsHandlerActive(entry.handler.part) then
+            return true
+        end
+    end
+    return false
+end
+
 local function OnSellAllJunkClicked()
+    if not HasActiveHandler() then
+        return -- exactly Blizzard's junk: its own sale runs
+    end
     local junk, keptCount, addedCount = ns:CollectJunk()
     if keptCount == 0 and addedCount == 0 then
-        return -- exactly Blizzard's junk: its own sale runs
+        return
     end
 
     StaticPopup_Hide("GENERIC_CONFIRMATION")
@@ -133,13 +150,13 @@ local function OnSellAllJunkClicked()
             text = L["core.junk.sellConfirmKept"],
             text_arg1 = #junk,
             text_arg2 = keptCount,
-            callback = SellJunk,
+            callback = SellOnAccept,
         })
     else
         StaticPopup_ShowCustomGenericConfirmation({
             text = L["core.junk.sellConfirm"],
             text_arg1 = #junk,
-            callback = SellJunk,
+            callback = SellOnAccept,
         })
     end
 end
@@ -151,15 +168,19 @@ function ns:RefreshJunk()
     if not MerchantFrame:IsShown() or not MerchantSellAllJunkButton:IsShown() then
         return
     end
-    local _, _, addedCount = ns:CollectJunk()
-    local hasJunk = C_MerchantFrame.GetNumJunkItems() > 0 or addedCount > 0
+    local hasJunk = C_MerchantFrame.GetNumJunkItems() > 0
+    if not hasJunk and HasActiveHandler() then
+        local _, _, addedCount = ns:CollectJunk()
+        hasJunk = addedCount > 0
+    end
     if MerchantSellAllJunkButton:IsEnabled() ~= hasJunk then
         MerchantSellAllJunkButton:SetEnabled(hasJunk)
         MerchantSellAllJunkButton.Icon:SetDesaturated(not hasJunk)
     end
 end
 
--- Both run for every player, and do nothing unless a feature adds or keeps junk.
+-- Both run for every player, and leave Blizzard's sale and button alone while
+-- no feature's junk handler runs.
 EventRegistry:RegisterCallback(SELL_ALL_JUNK_CLICKED, OnSellAllJunkClicked, {})
 hooksecurefunc("MerchantFrame_Update", function()
     ns:RefreshJunk()

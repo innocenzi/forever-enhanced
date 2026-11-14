@@ -44,7 +44,11 @@ StaticPopupDialogs[DIALOG] = {
     whileDead = 1,
 }
 
-local function ShowLink(itemLocation)
+-- `guid`: the item the menu was opened on, ignored if it has left `itemLocation` since.
+local function ShowLink(itemLocation, guid)
+    if ns.Containers:GetItemGUID(itemLocation) ~= guid then
+        return
+    end
     local url = ns.L["inventory.marks.wowheadURL"]:format(C_Item.GetItemID(itemLocation))
     StaticPopupDialogs[DIALOG].text = ns.L["inventory.marks.wowheadPrompt"]
     StaticPopup_Show(DIALOG, C_Item.GetItemLink(itemLocation), nil, { url = url })
@@ -56,7 +60,7 @@ ns:AddItemButtonHandler(Marks, {
     AddMenuEntries = function(rootDescription, itemLocation, guid)
         if guid then
             rootDescription:CreateButton(ns.L["inventory.marks.wowheadLink"], function()
-                ShowLink(itemLocation)
+                ShowLink(itemLocation, guid)
             end)
         end
     end,

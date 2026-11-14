@@ -318,7 +318,9 @@ function Region:SetHeight(height)
     self.height = height
 end
 
+-- A path the client can't resolve shows nothing: catch one that lost its separators.
 function Region:SetTexture(texture)
+    assert(type(texture) ~= "string" or texture:find("[\\/]"), "texture path without separators: " .. tostring(texture))
     self.texture = texture
 end
 

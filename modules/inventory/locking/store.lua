@@ -13,13 +13,6 @@ local function GetStore()
     return store
 end
 
--- Returns the GUID of the item at `itemLocation`, or nil for an empty or invalid location.
-function Locking:GetItemGUID(itemLocation)
-    if itemLocation and itemLocation:IsValid() and C_Item.DoesItemExist(itemLocation) then
-        return C_Item.GetItemGUID(itemLocation)
-    end
-end
-
 -- Public API: other features may ask whether an item is locked.
 -- Always false while the feature is inactive.
 function Locking:IsGUIDLocked(guid)
@@ -27,7 +20,7 @@ function Locking:IsGUIDLocked(guid)
 end
 
 function Locking:IsLocked(itemLocation)
-    return self:IsGUIDLocked(self:GetItemGUID(itemLocation))
+    return self:IsGUIDLocked(ns.Containers:GetItemGUID(itemLocation))
 end
 
 -- Whether Alt Left Click locks: unless Item marks (loaded after this slice)
@@ -48,7 +41,7 @@ local function SetLocked(guid, locked)
 end
 
 function Locking:ToggleLock(itemLocation)
-    local guid = self:GetItemGUID(itemLocation)
+    local guid = ns.Containers:GetItemGUID(itemLocation)
     if guid then
         SetLocked(guid, not GetStore().locks[guid])
     end

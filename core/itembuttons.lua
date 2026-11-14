@@ -164,18 +164,12 @@ local function GetItemLocation(button)
     return decorations[button].source.GetItemLocation(button)
 end
 
-local function GetItemGUID(itemLocation)
-    if itemLocation and itemLocation:IsValid() and C_Item.DoesItemExist(itemLocation) then
-        return C_Item.GetItemGUID(itemLocation)
-    end
-end
-
 -- The item menu: the item's name as a title, in Blizzard's gold title color to
 -- stand apart from the entries, then each active feature's entries. Its shield
 -- stays up while it's open. Returns false when no active feature adds entries.
 local function OpenMenu(shield, itemLocation)
     local addEntries = GetMenuEntries()
-    local guid = GetItemGUID(itemLocation)
+    local guid = ns.Containers:GetItemGUID(itemLocation)
     if #addEntries == 0 or not guid then
         return false
     end
@@ -292,7 +286,7 @@ local function UpdateButton(button, source, context)
     decoration.source = source
 
     local itemLocation = source.GetItemLocation(button)
-    local guid = GetItemGUID(itemLocation)
+    local guid = ns.Containers:GetItemGUID(itemLocation)
     for _, Update in ipairs(context.updates) do
         Update(button, itemLocation, guid)
     end

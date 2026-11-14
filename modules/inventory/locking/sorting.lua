@@ -35,7 +35,7 @@ local hooksInstalled = false
 local function FindLockedItems()
     local found = {}
     ns.Containers:ForEachSlot(ns.Containers.ALL_CONTAINER_IDS, function(bagID, slot)
-        local guid = Locking:GetItemGUID(ItemLocation:CreateFromBagAndSlot(bagID, slot))
+        local guid = ns.Containers:GetItemGUID(ItemLocation:CreateFromBagAndSlot(bagID, slot))
         if Locking:IsGUIDLocked(guid) then
             found[guid] = { bagID = bagID, slot = slot }
         end

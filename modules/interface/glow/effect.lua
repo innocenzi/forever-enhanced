@@ -12,7 +12,7 @@ local ObjectGlow = ns:GetFeature("interface", "glow")
 local Effect = {}
 ObjectGlow.Effect = Effect
 
-local TEXTURE = "InterfaceCooldownstar4"
+local TEXTURE = "Interface\\Cooldown\\star4"
 local GLINT_COUNT = 6
 local GLINT_SIZE = 30
 local SPREAD_X = 36

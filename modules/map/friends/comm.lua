@@ -177,14 +177,18 @@ function Comm:Send(guid, message)
     channel:Send(guid, message)
 end
 
+-- Drops what an earlier session of the feature left waiting.
 function Comm:Enable()
+    for _, each in ipairs(channels) do
+        each:Clear()
+    end
     channel:Start()
 end
 
--- Stops every channel and drops what still waits on each.
+-- Stops receiving on every channel. What still waits (the parts' goodbyes)
+-- goes out at the usual pace.
 function Comm:Disable()
     for _, each in ipairs(channels) do
         each:Stop()
-        each:Clear()
     end
 end

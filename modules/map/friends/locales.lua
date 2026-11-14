@@ -6,7 +6,7 @@ ns:RegisterLocale("enUS", {
     ["map.friends.share"] = "Share my position",
     ["map.friends.share.tooltip"] = "Shows you on your friends' map while they look at it.",
     ["map.friends.openmap"] = "Include OpenMap",
-    ["map.friends.openmap.tooltip"] = "Also shows your friends who use OpenMap. While you share your position, they always see you on their map.",
+    ["map.friends.openmap.tooltip"] = "Shows your friends who use OpenMap too. While you share your position, they always see you on their map.",
 })
 
 ns:RegisterLocale("frFR", {

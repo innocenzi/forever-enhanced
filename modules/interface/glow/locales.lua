@@ -7,7 +7,7 @@ ns:RegisterLocale("enUS", {
     ["interface.glow.ore"] = "Ore veins",
     ["interface.glow.quest"] = "Quest objects",
     ["interface.glow.other"] = "Other objects",
-    ["interface.glow.other.tooltip"] = "Also makes chests, doors and other objects you can use glow.",
+    ["interface.glow.other.tooltip"] = "Makes chests, doors and other objects you can use glow too.",
     ["interface.glow.icon"] = "Show icon",
     ["interface.glow.icon.tooltip"] = "Shows the interaction icon above glowing objects.",
     ["interface.glow.range"] = "Range",

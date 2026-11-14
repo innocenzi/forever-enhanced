@@ -421,3 +421,16 @@ test("reagent marks work when professions loaded while the feature was off", fun
     world:Setting("inventory.bank.enabled"):SetValue(true)
     equal(Mark(world, "linen", 1), BankLine(world, 12), "mark")
 end)
+
+-- Pools keep their slots: one created while the feature was off is reused after.
+test("reagent slots created while the feature was off get marks once it's on", function(world)
+    SetUpLinen(world)
+    VisitBank(world)
+    world:Setting("inventory.bank.enabled"):SetValue(false)
+    world:LoadProfessions()
+    local slot = world:ShowReagentSlot(world:Reagent("linen", 1))
+    world:Setting("inventory.bank.enabled"):SetValue(true)
+    equal(world:ReagentMark(slot), BankLine(world, 12), "marked on enable")
+    world:ShowReagentSlot(world:Reagent("linen", 1), slot)
+    equal(world:ReagentMark(slot), BankLine(world, 12), "still marked when reused")
+end)

@@ -6,7 +6,7 @@ ns:RegisterLocale("enUS", {
     ["inventory.auction.scan"] = "Scan on opening",
     ["inventory.auction.scan.tooltip"] = "Records the price of every auction when you open the auction house, at most every 15 minutes.",
     ["inventory.auction.stack"] = "Stack price",
-    ["inventory.auction.stack.tooltip"] = "Also shows the price of the whole stack while you hold Shift.",
+    ["inventory.auction.stack.tooltip"] = "Shows the price of the whole stack too while you hold Shift.",
     ["inventory.auction.age"] = "Price age",
     ["inventory.auction.age.tooltip"] = "Shows how long ago the price was seen, once it is over an hour old.",
     ["inventory.auction.price"] = "Auction price: %s",

@@ -11,11 +11,17 @@ local function GetDestinations()
     return store.destinations
 end
 
+-- Public API: whether items can be marked for `destination` ("junk" | "auction"
+-- | "bank"): its mark is on.
+function Marks:IsDestinationActive(destination)
+    return self:IsPartActive(destination)
+end
+
 -- Public API: where every copy of `itemID` goes, or nil. Only destinations whose
 -- part (toggle) is active.
 function Marks:GetDestination(itemID)
     local destination = itemID ~= nil and GetDestinations()[itemID] or nil
-    if destination and self:IsPartActive(destination) then
+    if destination and self:IsDestinationActive(destination) then
         return destination
     end
 end

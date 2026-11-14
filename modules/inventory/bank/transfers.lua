@@ -47,7 +47,7 @@ local function GetAutomaticJobs()
     if Bank:GetSetting("autoRefill") then
         table.insert(automatic, { direction = "withdraw", mode = "refill" })
     end
-    if Bank:GetSetting("autoDeposit") and ns:GetFeature("inventory", "marks"):IsPartActive("bank") then
+    if Bank:GetSetting("autoDeposit") and ns:GetFeature("inventory", "marks"):IsDestinationActive("bank") then
         table.insert(automatic, { direction = "deposit", mode = "marked" })
     end
     return automatic

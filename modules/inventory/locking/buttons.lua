@@ -40,7 +40,7 @@ ns:AddItemButtonHandler(Locking, {
         rootDescription:CreateCheckbox(L["inventory.locking.lock"], function()
             return Locking:IsGUIDLocked(guid)
         end, function()
-            if Locking:GetItemGUID(itemLocation) == guid then
+            if ns.Containers:GetItemGUID(itemLocation) == guid then
                 Locking:ToggleLock(itemLocation)
             end
         end)

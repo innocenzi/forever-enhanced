@@ -17,15 +17,17 @@ local pricesAdded = setmetatable({}, { __mode = "k" })
 
 -- handler(tooltip, data): data is Blizzard's tooltip data (id = item ID, guid when
 -- the item is in a container). options.price: the handler adds price lines,
--- shown right under the sell price.
+-- shown right under the sell price. options.part: the toggle key of the part
+-- the handler belongs to, which runs it only while that part does.
 function ns:AddItemTooltipHandler(feature, handler, options)
-    local list = options and options.price and priceHandlers or handlers
-    table.insert(list, { feature = feature, handler = handler })
+    options = options or {}
+    local list = options.price and priceHandlers or handlers
+    table.insert(list, { feature = feature, handler = handler, part = options.part })
 end
 
 local function Run(list, tooltip, data)
     for _, entry in ipairs(list) do
-        if entry.feature:IsActive() then
+        if entry.feature:IsHandlerActive(entry.part) then
             entry.handler(tooltip, data)
         end
     end

@@ -41,7 +41,7 @@ local function OnDragStart(handle)
         return
     end
     if not Windows.Placement:CanMove(frame) then
-        UIErrorsFrame:AddExternalErrorMessage(ERR_NOT_IN_COMBAT)
+        ns:Error(ERR_NOT_IN_COMBAT)
         return
     end
     Windows.Placement:StartMoving(frame)

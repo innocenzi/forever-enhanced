@@ -25,11 +25,6 @@ local Locking = ns:GetFeature("inventory", "locking")
 local Buttons = {}
 Marks.Buttons = Buttons
 
-local isBag = {}
-for _, bagID in ipairs(ns.Containers.BAG_IDS) do
-    isBag[bagID] = true
-end
-
 local function IsPoor(info)
     return info.quality == Enum.ItemQuality.Poor
 end
@@ -131,7 +126,7 @@ local function ShowsIcon(destination, itemLocation, guid)
     if mark.ShowsIcon then
         return mark.ShowsIcon(itemLocation, guid)
     end
-    if Locking:IsGUIDLocked(guid) or (mark.bagsOnly and not isBag[itemLocation:GetBagAndSlot()]) then
+    if Locking:IsGUIDLocked(guid) or (mark.bagsOnly and not ns.Containers:IsBag((itemLocation:GetBagAndSlot()))) then
         return false
     end
     return Marks:IsMarked(C_Item.GetItemID(itemLocation), destination)
@@ -207,7 +202,7 @@ local function ShowsGlow(destination, itemLocation, guid)
     local glow = GLOWS[destination]
     return Marks:GetSetting(glow.setting)
         and glow.IsOpen()
-        and isBag[itemLocation:GetBagAndSlot()]
+        and ns.Containers:IsBag((itemLocation:GetBagAndSlot()))
         and ShowsIcon(destination, itemLocation, guid)
 end
 

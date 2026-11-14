@@ -143,7 +143,7 @@ local function GetItemIDs(mode, sources, destinations)
     if mode == "marked" then
         return Filter(sources.itemIDs, true)
     end
-    if mode == "refill" and Marks:IsPartActive("bank") then
+    if mode == "refill" and Marks:IsDestinationActive("bank") then
         return Filter(destinations.itemIDs, false)
     end
     return destinations.itemIDs

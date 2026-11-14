@@ -129,13 +129,24 @@ local function InitializeModule(savedModules, module)
     KeepOnly(savedFeatures, knownFeatures)
 end
 
--- Features that moved to another module: their settings follow them (these
--- slices keep no stores).
+-- Features that moved to another module: their settings and stores follow them.
 local MOVED_FEATURES = {
     { id = "ranks", from = "interface", to = "combat" },
     { id = "combopoints", from = "interface", to = "combat" },
     { id = "swaps", from = "interface", to = "combat" },
 }
+
+-- Moves `container[from][id]` to `container[to][id]`, unless one is there already.
+local function MoveFeatureEntry(container, move)
+    local from = container[move.from]
+    if type(from) == "table" and from[move.id] ~= nil then
+        local to = GetOrCreateTable(container, move.to)
+        if to[move.id] == nil then
+            to[move.id] = from[move.id]
+        end
+        from[move.id] = nil
+    end
+end
 
 -- The saved features of a module, if any.
 local function SavedFeatures(savedModules, moduleId)
@@ -143,8 +154,9 @@ local function SavedFeatures(savedModules, moduleId)
     return type(moduleDb) == "table" and type(moduleDb.features) == "table" and moduleDb.features or nil
 end
 
--- Brings settings saved by earlier versions up to date, before the schemas apply.
-local function Migrate(savedModules)
+-- Brings settings and account stores saved by earlier versions up to date,
+-- before the schemas apply.
+local function Migrate(savedModules, stores)
     -- Modules had their own toggle: one turned off turns off its features.
     for moduleId, moduleDb in pairs(savedModules) do
         if type(moduleDb) == "table" and moduleDb.enabled == false then
@@ -163,6 +175,7 @@ local function Migrate(savedModules)
             to[move.id] = to[move.id] or from[move.id]
             from[move.id] = nil
         end
+        MoveFeatureEntry(stores, move)
     end
 
     -- Hiding Questie announcements moved from Objective announcements to Quest
@@ -189,6 +202,10 @@ end
 
 -- Brings character data saved by earlier versions up to date.
 local function MigrateCharacter(characterDb)
+    for _, move in ipairs(MOVED_FEATURES) do
+        MoveFeatureEntry(characterDb, move)
+    end
+
     -- Item notes moved from Item locking to Item marks. Item locking showed a
     -- note only while its item was locked: those notes follow.
     local inventory = characterDb.inventory
@@ -216,7 +233,7 @@ function Database:Initialize()
 
     local savedModules = GetOrCreateTable(ForeverEnhancedDB, "modules")
     local knownModules = {}
-    Migrate(savedModules)
+    Migrate(savedModules, GetOrCreateTable(ForeverEnhancedDB, "stores"))
 
     for _, module in ns:EnumerateModules() do
         knownModules[module.id] = true

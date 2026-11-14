@@ -27,12 +27,6 @@ local function GetStore()
     return store
 end
 
-local function GetItemGUID(itemLocation)
-    if itemLocation and itemLocation:IsValid() and C_Item.DoesItemExist(itemLocation) then
-        return C_Item.GetItemGUID(itemLocation)
-    end
-end
-
 -- Public API: the player's note on an item, or nil (always nil while the part is off).
 function Marks:GetGUIDNote(guid)
     if self:IsPartActive("notes") and guid then
@@ -78,7 +72,7 @@ StaticPopupDialogs[DIALOG] = {
 -- `guid`: the item the menu was opened on, ignored if it has left `itemLocation`
 -- since. Keyed by the GUID: the item may move while the dialog is up.
 local function EditNote(itemLocation, guid)
-    if not guid or GetItemGUID(itemLocation) ~= guid then
+    if not guid or ns.Containers:GetItemGUID(itemLocation) ~= guid then
         return
     end
     StaticPopupDialogs[DIALOG].text = ns.L["inventory.marks.notePrompt"]
@@ -103,7 +97,7 @@ ns:AddItemTooltipHandler(Marks, function(tooltip, data)
         tooltip:AddLine(" ")
         tooltip:AddLine(ns.L["inventory.marks.noteLine"]:format(note), r, g, b, true)
     end
-end)
+end, { part = "notes" })
 
 -- The click shield takes Alt clicks only while some feature adds menu entries.
 function Notes:Enable()

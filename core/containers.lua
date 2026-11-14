@@ -20,6 +20,23 @@ for _, bagID in pairs(Enum.BagIndex) do
 end
 table.sort(Containers.ALL_CONTAINER_IDS)
 
+local isBag = {}
+for _, bagID in ipairs(Containers.BAG_IDS) do
+    isBag[bagID] = true
+end
+
+-- Whether `bagID` is one of the player's bags.
+function Containers:IsBag(bagID)
+    return isBag[bagID] == true
+end
+
+-- The GUID of the item at `itemLocation`, or nil for an empty or invalid location.
+function Containers:GetItemGUID(itemLocation)
+    if itemLocation and itemLocation:IsValid() and C_Item.DoesItemExist(itemLocation) then
+        return C_Item.GetItemGUID(itemLocation)
+    end
+end
+
 -- The character bank's purchased tabs, in tab order (index N is tab N; tabs 2
 -- and up hold the bank bags). Their slots only exist while the bank is open.
 function Containers:GetBankContainerIDs()

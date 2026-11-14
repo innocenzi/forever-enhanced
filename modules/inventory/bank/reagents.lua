@@ -8,9 +8,10 @@
 --
 -- Reagent slots come from Blizzard_ProfessionsTemplates (load-on-demand), from
 -- frame pools created on the first recipe shown. ProfessionsReagentSlotMixin is
--- copied into each slot when it is created, so hooking its Update once the
--- templates load reaches every slot; slots another addon created earlier get no
--- mark. Update runs on every fill (also when items finish loading), reagent
+-- copied into each slot when it is created, so its Update is hooked as soon as
+-- the templates load, whether or not the part runs: a slot created before the
+-- hook never gets it, and pools keep their slots for the session. Slots another
+-- addon created earlier get no mark. Update runs on every fill (also when items finish loading), reagent
 -- change and bag update, and rewrites the name first. Slots are reused across
 -- recipes, so each update sets the mark either way.
 
@@ -29,7 +30,6 @@ local ICON_SIZE = 18
 -- nameBase, nameWithLine }), false until a mark was needed.
 -- Weak keys: we never stamp fields onto Blizzard frames.
 local decorations = setmetatable({}, { __mode = "k" })
-local hookInstalled = false
 
 -- Total of the slot's reagent items (quality tiers are several items), by countItem(itemID).
 local function CountReagent(schematic, countItem)
@@ -122,22 +122,23 @@ local function UpdateSlot(slot)
     SetNameLine(slot, decoration, style == "line" and Bank:FormatCount(inBank) or nil)
 end
 
--- hooksecurefunc hooks can't be removed: install once, UpdateSlot checks IsPartActive().
+-- hooksecurefunc hooks can't be removed: installed once, UpdateSlot checks IsPartActive().
 local function InstallHook()
-    if not hookInstalled then
-        hookInstalled = true
-        hooksecurefunc(ProfessionsReagentSlotMixin, "Update", UpdateSlot)
-    end
+    hooksecurefunc(ProfessionsReagentSlotMixin, "Update", UpdateSlot)
 end
 
-local listener = ns:CreateEventListener({
-    ADDON_LOADED = function(self, addonName)
-        if addonName == TEMPLATES_ADDON then
-            self:Stop()
-            InstallHook()
-        end
-    end,
-})
+if C_AddOns.IsAddOnLoaded(TEMPLATES_ADDON) then
+    InstallHook()
+else
+    ns:CreateEventListener({
+        ADDON_LOADED = function(self, addonName)
+            if addonName == TEMPLATES_ADDON then
+                self:Stop()
+                InstallHook()
+            end
+        end,
+    }):Start()
+end
 
 -- Re-marks every slot seen so far (after a setting or lifecycle change).
 function Reagents:Refresh()
@@ -147,15 +148,9 @@ function Reagents:Refresh()
 end
 
 function Reagents:Enable()
-    if C_AddOns.IsAddOnLoaded(TEMPLATES_ADDON) then
-        InstallHook()
-    elseif not hookInstalled then
-        listener:Start()
-    end
     self:Refresh()
 end
 
 function Reagents:Disable()
-    listener:Stop()
     self:Refresh()
 end

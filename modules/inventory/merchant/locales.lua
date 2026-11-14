@@ -13,7 +13,7 @@ ns:RegisterLocale("enUS", {
     ["inventory.merchant.repairFunds.guild"] = "Guild funds first",
     ["inventory.merchant.announce"] = "Announce in chat",
     ["inventory.merchant.announce.tooltip"] = "Shows in chat what you earned from junk and spent on repairs.",
-    ["inventory.merchant.sold"] = "Sold %d junk |4item:items; for %s.",
+    ["inventory.merchant.sold"] = "Sold %d |4junk item:junk items; for %s.",
     ["inventory.merchant.repaired"] = "Repaired your items for %s.",
     ["inventory.merchant.repairedGuild"] = "Repaired your items for %s with guild funds.",
     ["inventory.merchant.notEnoughMoney"] = "You don't have enough money to repair.",

@@ -323,6 +323,32 @@ test("turning it off removes the pins, hides the player and stops sending", func
     equal(world:TickerCount(), 0, "tickers")
 end)
 
+test("turning it off hides the player from every watching friend, past the burst", function(world)
+    AddFriends(world)
+    for index = 1, 12 do
+        local guid = ("Player-1-%08d"):format(index)
+        table.insert(world.friends, { guid = guid, name = "Friend" .. index })
+        world.players[guid] = { name = "Friend" .. index, realm = "Forever", class = "ROGUE" }
+    end
+    Set(world, "enabled", true)
+    world:StandAt(250, 500)
+    world:Elapse(60)
+    for index = 1, 12 do
+        world:ReceiveWhisperAddon("1W", "Friend" .. index .. "-Forever")
+    end
+    world:Elapse(10)
+    Sent(world)
+
+    Set(world, "enabled", false)
+    world:Elapse(60)
+    local hidden = 0
+    for _, record in ipairs(world.sentAddon) do
+        hidden = hidden + (record.message == "1H" and 1 or 0)
+    end
+    equal(hidden, 12, "hidden from every watcher")
+    equal(world:TickerCount(), 0, "tickers")
+end)
+
 -- OpenMap's protocol ---------------------------------------------------------------------
 
 local OPENMAP = "OpenMapLoc"

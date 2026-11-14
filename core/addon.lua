@@ -174,6 +174,7 @@ local bootListener = ns:CreateEventListener({
         listener:Unregister("PLAYER_LOGIN")
         ns.ready = true
         ns:RefreshAll()
+        ns:RestoreLeftoverCVars()
     end,
 })
 bootListener:Start()

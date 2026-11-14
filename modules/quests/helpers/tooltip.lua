@@ -7,7 +7,7 @@ local _, ns = ...
 local Helpers = ns:GetFeature("quests", "helpers")
 
 ns:AddItemTooltipHandler(Helpers, function(tooltip, data)
-    if not Helpers:IsPartActive("objectives") or not data.id then
+    if not data.id then
         return
     end
     -- Nil until the item is cached; the tooltip refreshes once it is.
@@ -20,7 +20,7 @@ ns:AddItemTooltipHandler(Helpers, function(tooltip, data)
         local line = ns.L["quests.helpers.objectives.line"]:format(need.title, need.numFulfilled, need.numRequired)
         tooltip:AddLine(NORMAL_FONT_COLOR:WrapTextInColorCode(line))
     end
-end)
+end, { part = "objectives" })
 
 -- Leftovers: "Quest completed: Bat Wings" for the quests of a quest item once
 -- they are all completed (leftovers.lua), "Quest completed" when none was
@@ -28,9 +28,6 @@ end)
 local MAX_LEFTOVER_LINES = 2
 
 ns:AddItemTooltipHandler(Helpers, function(tooltip, data)
-    if not Helpers:IsPartActive("leftovers") then
-        return
-    end
     local quests = Helpers.Leftovers:GetCompletedQuests(data.id)
     if not quests then
         return
@@ -48,4 +45,4 @@ ns:AddItemTooltipHandler(Helpers, function(tooltip, data)
     for _, line in ipairs(lines) do
         tooltip:AddLine(NORMAL_FONT_COLOR:WrapTextInColorCode(line))
     end
-end)
+end, { part = "leftovers" })

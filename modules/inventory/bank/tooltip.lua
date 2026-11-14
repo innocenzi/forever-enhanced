@@ -6,7 +6,7 @@ local _, ns = ...
 local Bank = ns:GetFeature("inventory", "bank")
 
 ns:AddItemTooltipHandler(Bank, function(tooltip, data)
-    if not Bank:IsPartActive("savedBank") or not Bank:GetSetting("tooltipCount") or not data.id then
+    if not Bank:GetSetting("tooltipCount") or not data.id then
         return
     end
 
@@ -14,4 +14,4 @@ ns:AddItemTooltipHandler(Bank, function(tooltip, data)
     if count > 0 then
         tooltip:AddLine(Bank:FormatCount(count))
     end
-end)
+end, { part = "savedBank" })

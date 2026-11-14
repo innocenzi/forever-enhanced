@@ -546,7 +546,7 @@ local function PlacePin(u, v)
             return true
         end
     end
-    UIErrorsFrame:AddMessage(MAP_PIN_INVALID_MAP, RED_FONT_COLOR:GetRGBA())
+    ns:Error(MAP_PIN_INVALID_MAP)
     return true
 end
 

@@ -30,7 +30,7 @@ local updateRequested = false
 -- the bank, while that mark is on (Item marks, loaded after this slice).
 local function GetModes(direction)
     local modes = { unpack(MODES[direction]) }
-    if direction == "deposit" and ns:GetFeature("inventory", "marks"):IsPartActive("bank") then
+    if direction == "deposit" and ns:GetFeature("inventory", "marks"):IsDestinationActive("bank") then
         table.insert(modes, "marked")
     end
     return modes
@@ -125,6 +125,7 @@ function Buttons:Enable()
     end
     listener:Start()
     UpdateButtons()
+    ns:RefreshItemButtons()
 end
 
 function Buttons:Disable()
@@ -132,6 +133,7 @@ function Buttons:Disable()
     for _, button in pairs(buttons) do
         button:Hide()
     end
+    ns:RefreshItemButtons()
 end
 
 ns:AddItemButtonHandler(Bank, {

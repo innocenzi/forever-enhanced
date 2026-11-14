@@ -21,3 +21,8 @@ end
 function ns:Error(message)
     UIErrorsFrame:AddExternalErrorMessage(message)
 end
+
+-- Yellow text in the middle of the screen, like the game's own notices.
+function ns:Warning(message)
+    UIErrorsFrame:AddExternalWarningMessage(message)
+end

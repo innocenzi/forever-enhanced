@@ -160,7 +160,6 @@ local function Apply(ranked, distances)
     end
 
     local changed = false
-    applying = true
     for _, questID in ipairs(GetWatchedQuests()) do
         if not wanted[questID] then
             C_QuestLog.RemoveQuestWatch(questID)
@@ -179,23 +178,25 @@ local function Apply(ranked, distances)
         C_QuestLog.AddQuestWatch(added[index])
         changed = true
     end
-    local sort = Helpers:GetSetting("sort")
-    if sort then
+    if Helpers:GetSetting("sort") then
         Reorder(Helpers.Ranking:Order(GetWatchedQuests(), distances))
-    end
-    applying = false
-
-    if changed and not sort then
+    elseif changed then
         C_QuestLog.SortQuestWatches()
     end
 end
 
 -- Untracks every quest that isn't ranked or kept, then tracks the ranked ones
 -- (closest first) while there is room. With "sort" on, orders the watch list
--- by distance; otherwise the game sorts it.
+-- by distance; otherwise the game sorts it. The watch list events this fires
+-- aren't the player's, even when the change errors halfway.
 function Watches:Apply(ranked, distances)
     ns:ShieldObjectiveTracker(function()
-        Apply(ranked, distances)
+        applying = true
+        local ok, err = pcall(Apply, ranked, distances)
+        applying = false
+        if not ok then
+            error(err, 0)
+        end
     end)
 end
 

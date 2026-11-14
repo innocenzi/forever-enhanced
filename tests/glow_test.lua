@@ -216,6 +216,34 @@ test("disabled in combat, puts the settings back after it", function(world)
     equal(CVar("SoftTargetInteract"), "1", "restored after combat")
 end)
 
+-- Turned off in combat, then reloaded before it ended: the settings it left
+-- are put back at the next login, as the player had them.
+test("puts back at login what it left set", function(world)
+    equal(CVar("SoftTargetInteract"), "2", "ours put back")
+    equal(CVar("SoftTargetInteractArc"), "0", "changed by the player since")
+    equal(CVar("SoftTargetInteractRange"), "25", "saved before ours were kept")
+    local store = world.env.ForeverEnhancedDB.stores.interface.glow
+    equal(next(store.cvars), nil, "nothing left to restore")
+    equal(next(store.ourCVars), nil, "nor of ours")
+end, {
+    savedVariables = function()
+        return {
+            stores = {
+                interface = {
+                    glow = {
+                        cvars = {
+                            SoftTargetInteract = "2",
+                            SoftTargetInteractArc = "1",
+                            SoftTargetInteractRange = "25",
+                        },
+                        ourCVars = { SoftTargetInteract = "1", SoftTargetInteractArc = "2" },
+                    },
+                },
+            },
+        }
+    end,
+})
+
 test("can glow without the interaction icon", function(world)
     Enable(world)
     Set(world, "icon", false)

@@ -49,7 +49,7 @@ local function Check()
         armed = false
         ns:ShieldObjectiveTracker(C_Map.ClearUserWaypoint)
         if Pin:GetSetting("announce") then
-            UIErrorsFrame:AddExternalWarningMessage(NAVIGATION_DESTINATION_REACHED_MESSAGE)
+            ns:Warning(NAVIGATION_DESTINATION_REACHED_MESSAGE)
         end
     end
 end

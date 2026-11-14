@@ -1,10 +1,5 @@
 -- Sells the junk Sell All Junk Items would sell (core/junk.lua: marked items
--- are added, locked items kept).
---
--- When that is exactly Blizzard's junk, C_MerchantFrame.SellAllJunkItems()
--- sells it in one server call. It can't add or skip items, so otherwise the
--- junk is sold one C_Container.UseContainerItem per item, as a right-click at
--- the merchant would.
+-- are added, locked items kept), through ns:SellJunk.
 
 local _, ns = ...
 
@@ -34,14 +29,7 @@ function Junk:Sell()
     for _, item in ipairs(junk) do
         value = value + GetSellValue(item.info)
     end
-
-    if keptCount == 0 and addedCount == 0 and C_MerchantFrame.IsSellAllJunkEnabled() then
-        C_MerchantFrame.SellAllJunkItems()
-    else
-        for _, item in ipairs(junk) do
-            C_Container.UseContainerItem(item.bagID, item.slot)
-        end
-    end
+    ns:SellJunk(junk, keptCount, addedCount)
 
     Merchant:Announce(L["inventory.merchant.sold"]:format(#junk, GetMoneyString(value, true)))
     return value
