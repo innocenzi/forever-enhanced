@@ -3606,6 +3606,12 @@ GameTooltip = {
     AddLine = function(_, text)
         table.insert(world.tooltipLines, text)
     end,
+    NumLines = function()
+        return #world.tooltipLines
+    end,
+    GetName = function()
+        return "GameTooltip"
+    end,
     Show = NoOp,
     Hide = NoOp,
     IsOwned = function()
@@ -3613,6 +3619,18 @@ GameTooltip = {
     end,
 }
 GameTooltip_Hide = NoOp
+
+-- The font strings of its lines (SharedTooltipTemplates' $parentTextLeft<n>).
+for index = 1, 30 do
+    _G["GameTooltipTextLeft" .. index] = {
+        GetText = function()
+            return world.tooltipLines[index]
+        end,
+        SetText = function(_, text)
+            world.tooltipLines[index] = text
+        end,
+    }
+end
 
 function GameTooltip_AddNormalLine(tooltip, text)
     tooltip:AddLine(text)
@@ -4576,25 +4594,21 @@ end
 
 -- The player points at a world object (a herb or ore node) named `name`: the
 -- lines of its tooltip. Like the client, its data lines are the name, then the
--- profession it needs (`profession`, optional); the post-calls add theirs.
+-- profession it needs (`profession`, optional), in GameTooltip; the post-calls
+-- add theirs.
 function world:ObjectTooltip(name, profession)
     local data = { type = Enum.TooltipDataType.Object, lines = { { leftText = name } } }
     if profession then
         table.insert(data.lines, { leftText = profession })
     end
-    local lines = {}
-    local tooltip = {
-        AddLine = function(_, text)
-            table.insert(lines, text)
-        end,
-    }
+    self.tooltipLines = {}
     for _, line in ipairs(data.lines) do
-        tooltip:AddLine(line.leftText)
+        GameTooltip:AddLine(line.leftText)
     end
     for _, callback in ipairs(self.objectTooltipPostCalls) do
-        callback(tooltip, data)
+        callback(GameTooltip, data)
     end
-    return lines
+    return self.tooltipLines
 end
 
 C_TradeSkillUI = {

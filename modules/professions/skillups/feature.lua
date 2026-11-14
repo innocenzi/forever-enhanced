@@ -13,7 +13,7 @@
 --   data.lua     generated: recipe spell ID -> { yellow, grey }
 --   nodes.lua    herbs and ore nodes by name -> required skill
 --   chance.lua   the chance of a recipe or a node
---   tooltip.lua  the line in the arrow's and the node's tooltips
+--   tooltip.lua  the chance in the arrow's and the node's tooltips
 
 local _, ns = ...
 
