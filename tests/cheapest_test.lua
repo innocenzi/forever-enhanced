@@ -123,15 +123,51 @@ test("bank items are left out", function(world)
 end)
 
 test("free slots of special bags don't count", function(world)
-    -- The fake client's only bag stands in for a quiver.
-    SetPrices(world, { G1 = 10, G2 = 20, GJUNK = 50 })
-    world.bagFamilies[0] = 1
+    SetPrices(world, { G1 = 10, G2 = 20, G3 = 30, GJUNK = 50 })
+    world.bags[0][3] = "G3"
+    world.bags[1], world.bagSizes[1], world.bagFamilies[1] = {}, 2, 1
     Enable(world, true)
-    equal(Marked(world), "1", "full despite the quiver's free slot")
+    equal(Marked(world), "1", "full despite the quiver's free slots")
 
-    world.bagFamilies[0] = 0
+    world.bagFamilies[1] = 0
     BagsChanged(world)
     equal(Marked(world), "", "a regular bag's free slots count")
+end)
+
+-- The reagent bag (container 5) holds R1 (1c) and a free slot; the backpack is full.
+local function WithReagentBag(world)
+    SetPrices(world, { G1 = 10, G2 = 20, G3 = 30, GJUNK = 50, R1 = 1 })
+    world.bags[0][3] = "G3"
+    world.bags[5], world.bagSizes[5] = { "R1" }, 2
+end
+
+local function Collect(world)
+    local guids = {}
+    for guid in pairs(world.ns:GetFeature("inventory", "cheapest").Value:Collect()) do
+        table.insert(guids, guid)
+    end
+    table.sort(guids)
+    return table.concat(guids, " ")
+end
+
+test("the reagent bag is left out by default", function(world)
+    WithReagentBag(world)
+    Enable(world, true)
+    equal(Marked(world), "1", "full despite its free slot, its cheaper item skipped")
+    equal(Collect(world), "G1", "only bag items")
+end)
+
+test("the reagent bag counts like the other bags when not excluded", function(world)
+    WithReagentBag(world)
+    Enable(world, true)
+    world:Setting("inventory.cheapest.excludeReagentBag"):SetValue(false)
+    equal(Marked(world), "", "its free slot counts")
+
+    world.bags[5][2] = "R2"
+    world.sellPrices.R2 = 5
+    BagsChanged(world)
+    equal(Collect(world), "R1", "its items count")
+    equal(Marked(world), "", "nothing in the backpack")
 end)
 
 test("the glow is red by default, the other indicators are bottom-left icons", function(world)

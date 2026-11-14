@@ -12,9 +12,23 @@ Cheapest.Value = Value
 -- Bag family of a regular bag: any other only holds some items (quivers, soul bags).
 local REGULAR_BAG_FAMILY = 0
 
+-- The bags looked at: all of them, but the reagent bag with "excludeReagentBag".
+local function GetBagIDs()
+    if not Cheapest:GetSetting("excludeReagentBag") then
+        return ns.Containers.BAG_IDS
+    end
+    local bagIDs = {}
+    for _, bagID in ipairs(ns.Containers.BAG_IDS) do
+        if bagID ~= Enum.BagIndex.ReagentBag then
+            table.insert(bagIDs, bagID)
+        end
+    end
+    return bagIDs
+end
+
 -- Whether every slot of the regular bags is taken.
 function Value:IsFull()
-    for _, bagID in ipairs(ns.Containers.BAG_IDS) do
+    for _, bagID in ipairs(GetBagIDs()) do
         local free, family = C_Container.GetContainerNumFreeSlots(bagID)
         if free > 0 and family == REGULAR_BAG_FAMILY then
             return false
@@ -41,7 +55,7 @@ end
 -- lowest value, locked items left out.
 function Value:Collect()
     local lowest, items = nil, {}
-    ns.Containers:ForEachSlot(ns.Containers.BAG_IDS, function(bagID, slot)
+    ns.Containers:ForEachSlot(GetBagIDs(), function(bagID, slot)
         local info = C_Container.GetContainerItemInfo(bagID, slot)
         local value = info and GetStackValue(info)
         if not value then

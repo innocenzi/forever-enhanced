@@ -3,9 +3,12 @@
 -- higher of its sell price and its auction price (Auction prices, unbound
 -- items only). Every item tied for the lowest value is marked; locked items
 -- and items without a sell price never are, nor are bank items.
---   "onlyWhenFull": marks only while every slot of the regular bags is taken
---                   (free slots of special bags, like quivers, don't count);
---   "indicator":    a red glow, a red cross or a coin (bottom-left corner).
+--   "onlyWhenFull":      marks only while every slot of the regular bags is
+--                        taken (free slots of special bags, like quivers,
+--                        don't count);
+--   "indicator":         a red glow, a red cross or a coin (bottom-left corner);
+--   "excludeReagentBag": leaves the reagent bag out: its items aren't marked
+--                        and its free slots don't count.
 --
 -- Files of this slice:
 --   feature.lua  registration, schema and lifecycle (this file)
@@ -21,10 +24,11 @@ local Cheapest = ns:RegisterFeature("inventory", "cheapest", {
     settings = {
         { key = "onlyWhenFull", type = "toggle", default = true },
         { key = "indicator", type = "dropdown", default = "glow", options = { "glow", "cross", "coin" } },
+        { key = "excludeReagentBag", type = "toggle", default = true },
     },
     presets = {
         minimal = { enabled = false },
-        enhanced = { enabled = true, onlyWhenFull = true, indicator = "glow" },
+        enhanced = { enabled = true, onlyWhenFull = true, indicator = "glow", excludeReagentBag = true },
     },
 })
 

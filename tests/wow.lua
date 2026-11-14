@@ -2,9 +2,11 @@
 -- outside the game. Loaded fresh, in its own environment, for every test.
 -- Returns `world`: the test's handle to drive and inspect the fake client.
 --
--- The world has one bag (ID 0) of BAG_SIZE slots holding item GUID strings, a
--- cursor, a fake clock, and a server that applies sorts on demand and confirms
--- item swaps after SERVER_CONFIRM_SECONDS. It also has a quest log (entries
+-- The world has one bag (ID 0) of BAG_SIZE slots holding item GUID strings
+-- (bags 1 to 5, 5 being the reagent bag, have no slots until a test gives them
+-- a world.bags entry and a world.bagSizes size), a cursor, a fake clock, and a
+-- server that applies sorts on demand and confirms item swaps after
+-- SERVER_CONFIRM_SECONDS. It also has a quest log (entries
 -- with a distance to the player and objectives), a quest watch list and a
 -- combat flag, plus a player position (world.position) and the map pin
 -- (world.waypoint). The player can be in a party and/or an instance group
@@ -1222,6 +1224,7 @@ Enum = {
     BagIndex = {
         Characterbanktab = -2,
         Backpack = 0,
+        ReagentBag = 5,
         CharacterBankTab_1 = 6,
         CharacterBankTab_2 = 7,
         CharacterBankTab_3 = 8,
@@ -1238,7 +1241,7 @@ Enum = {
     UIMapType = { Cosmic = 0, World = 1, Continent = 2, Zone = 3, Dungeon = 4, Micro = 5, Orphan = 6 },
     ItemClass = { Questitem = 12, Miscellaneous = 15 },
 }
-NUM_TOTAL_EQUIPPED_BAG_SLOTS = 0
+NUM_TOTAL_EQUIPPED_BAG_SLOTS = 5
 
 local ItemLocationMixin = {}
 ItemLocationMixin.__index = ItemLocationMixin
