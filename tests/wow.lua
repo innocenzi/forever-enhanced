@@ -4402,9 +4402,10 @@ function world:Chat(text)
 end
 
 -- A group chat message from `author` ("Name-Realm"); true when a filter hid it.
+-- Either may be secret (world:Secret); the bubble shows the text all the same.
 function world:ReceiveChat(event, message, author)
     self:Fire(event, message, author)
-    self:ShowChatBubble(message)
+    self:ShowChatBubble(self:Reveal(message))
     for _, filter in ipairs(self.chatFilters[event] or {}) do
         if filter(DEFAULT_CHAT_FRAME, event, message, author) then
             return true

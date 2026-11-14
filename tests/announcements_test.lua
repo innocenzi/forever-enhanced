@@ -38,6 +38,14 @@ test("hides other players' quest addon announcements in group chat", function(wo
     expect(world:ReceiveChat("CHAT_MSG_INSTANCE_CHAT", MESSAGES[1], "Jaina-Other"), "hidden in instances")
 end)
 
+test("leaves group chat the client keeps secret", function(world)
+    HideAnnouncements(world)
+    local message, author = world:Secret(MESSAGES[1]), world:Secret("Arthas-Forever")
+    expect(not world:ReceiveChat("CHAT_MSG_PARTY", message, author), "shown")
+    world:NextFrame()
+    expect(world:IsChatBubbleVisible(MESSAGES[1]), "bubble shown")
+end)
+
 test("hides quest addon announcements whether or not the player announces", function(world)
     HideAnnouncements(world)
     expect(not world.ns:GetFeature("quests", "announce"):IsActive(), "announcements off")

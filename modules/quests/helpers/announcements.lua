@@ -47,8 +47,13 @@ local BUBBLE_WAIT_SECONDS = 1
 -- client hides a bubble for a moment after reusing it for a new message.
 local HIDDEN_GRACE_SECONDS = 2
 
--- The announcement's text after the prefix, or nil for any other message.
+-- The announcement's text after the prefix, or nil for any other message. The
+-- client may keep group chat secret from addons (seen in game): such messages
+-- can't be read, so they stay.
 local function GetAnnouncement(message)
+    if issecretvalue(message) then
+        return nil
+    end
     for _, pattern in ipairs(PATTERNS) do
         local _, finish = message:find(pattern)
         if finish then
@@ -119,7 +124,8 @@ local function UpdateBubbles()
     local now = GetTime()
     for bubble, faded in pairs(fadedBubbles) do
         local content = GetBubbleContent(bubble)
-        if not content or content.String:GetText() ~= faded.text then
+        local text = content and content.String:GetText()
+        if not content or issecretvalue(text) or text ~= faded.text then
             RestoreBubble(bubble)
         elseif bubble:IsShown() then
             faded.hiddenSince = nil
@@ -140,7 +146,7 @@ local function UpdateBubbles()
             local content = GetBubbleContent(bubble)
             if content and not fadedBubbles[bubble] and bubble:IsShown() then
                 local text = content.String:GetText()
-                local index = text and FindPending(text)
+                local index = text and not issecretvalue(text) and FindPending(text)
                 if index then
                     table.remove(pending, index)
                     content:SetAlpha(0)

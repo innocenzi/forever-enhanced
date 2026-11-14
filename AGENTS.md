@@ -9,7 +9,7 @@ Forever Enhanced: a World of Warcraft Forever addon of small, independent qualit
 - `ForeverEnhanced.toc` defines load order: add every new runtime file there, after its dependencies.
 - Every file starts with `local _, ns = ...` (the shared namespace, also `_G.ForeverEnhanced`).
 - Secret values (measured in game):
-  - Secret: unit health always; attack power and cooldowns in combat (spell power presumably, unmeasured); `UnitGUID` for restricted units (instances), so `combat.dots` tells units apart by nameplate token there.
+  - Secret: unit health always; attack power and cooldowns in combat (spell power presumably, unmeasured); `UnitGUID` for restricted units (instances), so `combat.dots` tells units apart by nameplate token there; group chat messages at times (`CHAT_MSG_PARTY` and the like: check `issecretvalue` before reading them).
   - Unreadable in combat: unit auras (`GetAuraDataByIndex` errors, `GetAuraDataBySpellName` returns nothing); the combat log is restricted.
   - Readable in combat: the player's casts (`UNIT_SPELLCAST_*`), combo points, unit GUIDs (nameplates included), spell descriptions, `UNIT_COMBAT`'s action (not its amount).
   - Status bars accept secret values (`SetMinMaxValues`, `SetValue`): `combat.dots` draws over health that way. Comparing a secret value with a plain one through status bars and clipping frames (Does It Die?'s skull trick) never showed in game, with an empty or a full 10000 px bar: don't build on it without measuring first.
