@@ -193,6 +193,13 @@ test("bound items show no price", function(world)
     same(LinkTooltip(world, "G1"), { PriceLine(world, 10) }, "the link still shows it")
 end)
 
+test("buyback items show their price", function(world)
+    world:OpenAuctionHouse()
+    world:ReceiveBrowseResults({ { itemKey = { itemID = "SOLD" }, minPrice = 10 } })
+    world.buyback.SOLD = true
+    same(Tooltip(world, "SOLD"), { PriceLine(world, 10) }, "unit price")
+end)
+
 test("prices belong to the realm and faction they were seen in", function(world)
     world:OpenAuctionHouse()
     world:ReceiveBrowseResults({ { itemKey = { itemID = "G1" }, minPrice = 10 } })

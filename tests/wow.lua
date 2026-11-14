@@ -74,6 +74,7 @@ local world = {
     quality = { GJUNK = 0 },
     noValue = {},
     bound = {},
+    buyback = {},
     counts = { B2 = 20 },
     itemIDs = {},
     maxStacks = {},
@@ -1344,6 +1345,8 @@ C_Item = {
         return ItemID(ItemAt(location))
     end,
     -- The location of the item with this GUID in the bags or bank, nil elsewhere.
+    -- A buyback item (world.buyback[guid]) gets an invalid location, which
+    -- IsBound rejects (seen in game; GetStackCount presumably too).
     GetItemLocation = function(guid)
         for bagID, bag in pairs(world.bags) do
             for slot = 1, BAG_SIZE do
@@ -1352,11 +1355,16 @@ C_Item = {
                 end
             end
         end
+        if world.buyback[guid] then
+            return setmetatable({}, ItemLocationMixin)
+        end
     end,
     GetStackCount = function(location)
+        assert(location:IsValid(), "Usage: local stackCount = C_Item.GetStackCount(itemLocation)")
         return StackCount(ItemAt(location))
     end,
     IsBound = function(location)
+        assert(location:IsValid(), "Usage: local isBound = C_Item.IsBound(itemLocation)")
         return world.bound[ItemAt(location)] == true
     end,
     GetItemName = function(location)
