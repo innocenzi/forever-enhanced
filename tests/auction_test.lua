@@ -147,7 +147,16 @@ end)
 
 -- Tooltip ----------------------------------------------------------------------------------------
 
-test("shows how old the price is once it is over an hour old", function(world)
+test("shows no price age by default", function(world)
+    world:OpenAuctionHouse()
+    world:ReceiveBrowseResults({ { itemKey = { itemID = "G1" }, minPrice = 120 } })
+    world:CloseAuctionHouse()
+    world:Elapse(2 * 24 * HOUR)
+    same(Tooltip(world, "G1"), { PriceLine(world, 120) }, "no age")
+end)
+
+test("shows how old the price is once it is over an hour old, when enabled", function(world)
+    world:Setting("inventory.auction.age"):SetValue(true)
     world:OpenAuctionHouse()
     world:ReceiveBrowseResults({ { itemKey = { itemID = "G1" }, minPrice = 120 } })
     world:CloseAuctionHouse()
@@ -214,15 +223,40 @@ test("disabling stops the scan, the recording and the tooltip lines", function(w
     same(Tooltip(world, "G2"), {}, "nothing recorded while disabled")
 end)
 
-test("the price lines come right under the sell price, before other features' lines", function(world)
+-- B1 is in the bank: once the bank is saved, its tooltip ends with the bank count.
+local function SaveBankAndPriceB1(world)
     world:OpenBank()
     world:NextFrame()
     world:CloseBank()
     world:OpenAuctionHouse()
     world:ReceiveBrowseResults({ { itemKey = { itemID = "B1" }, minPrice = 10 } })
-    same(
-        Tooltip(world, "B1"),
-        { PriceLine(world, 10), world.L["inventory.bank.countLine"]:format(1) },
-        "price, then the bank count"
-    )
+    world:SetShift(true)
+end
+
+test("the price lines come right under the sell price, before the item's next lines", function(world)
+    world.counts.B1 = 3
+    SaveBankAndPriceB1(world)
+    local lines = world:ItemTooltip({
+        guid = "B1",
+        id = "B1",
+        lines = {
+            { leftText = "B1" },
+            { type = Enum.TooltipDataLineType.SellPrice, price = 5 },
+            { leftText = "You haven't collected this appearance" },
+        },
+    })
+    same(lines, {
+        "B1",
+        "Sell Price: 5c",
+        PriceLine(world, 10),
+        StackLine(world, 3, 30),
+        "You haven't collected this appearance",
+        world.L["inventory.bank.countLine"]:format(3),
+    }, "under the sell price")
+end)
+
+test("without a sell price, the price lines come before other features' lines", function(world)
+    SaveBankAndPriceB1(world)
+    local lines = world:ItemTooltip({ guid = "B1", id = "B1", lines = { { leftText = "B1" } } })
+    same(lines, { "B1", PriceLine(world, 10), world.L["inventory.bank.countLine"]:format(1) }, "price, then bank count")
 end)

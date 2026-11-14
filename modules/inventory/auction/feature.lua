@@ -29,11 +29,11 @@ local Auction = ns:RegisterFeature("inventory", "auction", {
     settings = {
         { key = "scan", type = "toggle", default = true },
         { key = "stack", type = "toggle", default = true },
-        { key = "age", type = "toggle", default = true },
+        { key = "age", type = "toggle", default = false },
     },
     presets = {
-        minimal = { enabled = true, scan = true, stack = false, age = true },
-        enhanced = { enabled = true, scan = true, stack = true, age = true },
+        minimal = { enabled = true, scan = true, stack = false, age = false },
+        enhanced = { enabled = true, scan = true, stack = true, age = false },
     },
 })
 

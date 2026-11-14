@@ -1228,6 +1228,7 @@ Enum = {
     BagSlotFlags = { ExcludeJunkSell = 64 },
     ItemQuality = { Poor = 0 },
     TooltipDataType = { Item = 0 },
+    TooltipDataLineType = { None = 0, SellPrice = 11 },
     PowerType = { ComboPoints = 4 },
     CraftingReagentType = { Optional = 0, Basic = 1, Finishing = 2 },
     TradeskillRelativeDifficulty = { Optimal = 0, Medium = 1, Easy = 2, Trivial = 3 },
@@ -3786,10 +3787,15 @@ end
 
 -- Item tooltip post-calls, in registration order.
 world.tooltipPostCalls = {}
+world.sellPriceLinePostCalls = {}
 TooltipDataProcessor = {
     AddTooltipPostCall = function(dataType, callback)
         assert(dataType == Enum.TooltipDataType.Item, "only item tooltips are modelled")
         table.insert(world.tooltipPostCalls, callback)
+    end,
+    AddLinePostCall = function(lineType, callback)
+        assert(lineType == Enum.TooltipDataLineType.SellPrice, "only the sell price line is modelled")
+        table.insert(world.sellPriceLinePostCalls, callback)
     end,
 }
 
@@ -4728,14 +4734,32 @@ function world:ReagentMark(slot)
     return "none"
 end
 
--- Shows an item tooltip ({ guid, id }): the lines the post-calls added.
+-- Shows an item tooltip ({ guid, id, lines }): the lines it shows, those of its
+-- data first (lines = { { leftText }, { type = SellPrice, price }, ... }; none
+-- by default), then those the post-calls added. Like the client, Blizzard's
+-- line post-call draws the sell price ("Sell Price: 5c"), then the addons' run.
 function world:ItemTooltip(data)
+    data.type = Enum.TooltipDataType.Item
     local lines = {}
     local tooltip = {
         AddLine = function(_, text)
             table.insert(lines, StripColors(text))
         end,
+        GetProcessingTooltipInfo = function()
+            return { tooltipData = data }
+        end,
     }
+    for _, line in ipairs(data.lines or {}) do
+        if line.leftText then
+            tooltip:AddLine(line.leftText)
+        end
+        if line.type == Enum.TooltipDataLineType.SellPrice then
+            tooltip:AddLine("Sell Price: " .. line.price .. "c")
+            for _, callback in ipairs(self.sellPriceLinePostCalls) do
+                callback(tooltip, line)
+            end
+        end
+    end
     for _, callback in ipairs(self.tooltipPostCalls) do
         callback(tooltip, data)
     end
