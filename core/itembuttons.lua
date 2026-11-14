@@ -62,6 +62,8 @@ local sources = {
 -- { feature, handler } in registration order. Handler fields, all optional:
 --   part                                the feature's part (toggle key) the handler
 --                                       belongs to: it runs only while that part does
+--   Prepare()                           called once per refresh, before its Update
+--                                       calls: gathers what they share (e.g. a bag scan)
 --   Update(button, itemLocation, guid)  draws the feature's marks on the button
 --                                       (guid is nil for an empty slot)
 --   IsGuarded(guid, context)            shields the item without Alt; context.protect:
@@ -144,8 +146,12 @@ local function IsProtecting()
     return CursorHasItem() or IsSinkOpen()
 end
 
--- What the shields depend on, gathered once per refresh.
+-- What the shields depend on, gathered once per refresh, after the active
+-- handlers' Prepare.
 local function GetContext()
+    for _, Prepare in ipairs(GetActive("Prepare")) do
+        Prepare()
+    end
     return {
         alt = IsAltKeyDown(),
         protect = IsProtecting(),

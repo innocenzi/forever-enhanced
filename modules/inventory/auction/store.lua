@@ -38,6 +38,14 @@ function Store:GetPrice(itemID)
     end
 end
 
+-- Public API: the item's copper per unit at the auction house, or nil when
+-- never seen or while Auction prices is off.
+function Auction:GetPrice(itemID)
+    if self:IsActive() then
+        return (Store:GetPrice(itemID))
+    end
+end
+
 -- Puts a price per unit in prices = { [itemID] = copper } unless it holds a
 -- lower one. Battle pets are left out.
 function Store:KeepLowest(prices, itemID, price)

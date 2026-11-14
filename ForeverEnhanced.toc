@@ -68,6 +68,10 @@ modules\inventory\auction\store.lua
 modules\inventory\auction\scan.lua
 modules\inventory\auction\results.lua
 modules\inventory\auction\tooltip.lua
+modules\inventory\cheapest\feature.lua
+modules\inventory\cheapest\locales.lua
+modules\inventory\cheapest\value.lua
+modules\inventory\cheapest\buttons.lua
 
 # Quests
 modules\quests\module.lua
