@@ -80,7 +80,7 @@ local hooked = false
 function Tooltip:Start()
     if not hooked then
         hooked = true
-        hooksecurefunc("GameTooltip_AddNormalLine", AddChance)
+        ns:HookSecureFunc("GameTooltip_AddNormalLine", AddChance)
         TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Object, AddNodeChance)
     end
 end

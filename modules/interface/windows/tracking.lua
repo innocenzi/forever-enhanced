@@ -97,23 +97,23 @@ end
 
 local function InstallHooks()
     hooksInstalled = true
-    hooksecurefunc("ShowUIPanel", function(frame)
+    ns:HookSecureFunc("ShowUIPanel", function(frame)
         if Windows:IsActive() and frame and IsMovablePanel(frame) then
             Attach(frame, "panel")
             Windows.Placement:Apply(frame)
         end
     end)
-    hooksecurefunc("UpdateUIPanelPositions", function()
+    ns:HookSecureFunc("UpdateUIPanelPositions", function()
         if Windows:IsActive() then
             ApplyShownPanels()
         end
     end)
-    hooksecurefunc("RestoreUIPanelArea", function(frame)
+    ns:HookSecureFunc("RestoreUIPanelArea", function(frame)
         if Windows:IsActive() and managed[frame] then
             Windows.Placement:Apply(frame)
         end
     end)
-    hooksecurefunc("UpdateContainerFrameAnchors", function()
+    ns:HookSecureFunc("UpdateContainerFrameAnchors", function()
         if Windows:IsActive() then
             LayOutBags()
         end

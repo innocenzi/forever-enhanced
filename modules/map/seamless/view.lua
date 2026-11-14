@@ -637,8 +637,8 @@ local function Install()
     wheelMode = sc.mouseWheelZoomMode
     scalingMode = sc:ScalingMode()
     map:GetPinFrameLevelsManager():InsertFrameLevelAbove(FRAME_LEVEL, "PIN_FRAME_LEVEL_MAP_EXPLORATION", ART_RANGE)
-    hooksecurefunc(sc, "CreateZoomLevels", OnCreateZoomLevels)
-    hooksecurefunc(sc, "ResetZoom", OnResetZoom)
+    ns:HookSecureFunc(sc, "CreateZoomLevels", OnCreateZoomLevels)
+    ns:HookSecureFunc(sc, "ResetZoom", OnResetZoom)
     local blizzardExtents = sc.CalculateScrollExtentsAtScale
     sc.CalculateScrollExtentsAtScale = function(self, scale)
         if active then
@@ -646,7 +646,7 @@ local function Install()
         end
         return blizzardExtents(self, scale)
     end
-    hooksecurefunc(map, "RefreshDetailLayers", function()
+    ns:HookSecureFunc(map, "RefreshDetailLayers", function()
         if Seamless:IsActive() then
             BlizzardArt()
         end

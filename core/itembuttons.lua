@@ -150,7 +150,7 @@ end
 -- handlers' Prepare.
 local function GetContext()
     for _, Prepare in ipairs(GetActive("Prepare")) do
-        Prepare()
+        securecallfunction(Prepare)
     end
     return {
         alt = IsAltKeyDown(),
@@ -276,7 +276,7 @@ end
 
 local function IsGuarded(guid, context)
     for _, Guards in ipairs(context.guards) do
-        if Guards(guid, context) then
+        if securecallfunction(Guards, guid, context) then
             return true
         end
     end
@@ -293,8 +293,9 @@ local function UpdateButton(button, source, context)
 
     local itemLocation = source.GetItemLocation(button)
     local guid = ns.Containers:GetItemGUID(itemLocation)
+    -- One feature's error is reported without leaving the others' marks and guards undrawn.
     for _, Update in ipairs(context.updates) do
-        Update(button, itemLocation, guid)
+        securecallfunction(Update, button, itemLocation, guid)
     end
 
     decoration.guarded = guid ~= nil and IsGuarded(guid, context)
@@ -341,7 +342,7 @@ local function InstallHooks()
         source.frames = source.GetFrames()
         for _, frame in ipairs(source.frames) do
             for _, method in ipairs(source.refreshMethods) do
-                hooksecurefunc(frame, method, function(self)
+                ns:HookSecureFunc(frame, method, function(self)
                     OnFrameRefreshed(self, source)
                 end)
             end

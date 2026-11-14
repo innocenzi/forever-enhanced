@@ -147,7 +147,7 @@ local function Install()
     Sweep()
     ScanPools()
     WorldMapFrame:HookScript("OnShow", PointPins)
-    hooksecurefunc(WorldMapFrame.ScrollContainer, "MarkCanvasDirty", ScanPools)
+    ns:HookSecureFunc(WorldMapFrame.ScrollContainer, "MarkCanvasDirty", ScanPools)
     listener:Start()
 end
 

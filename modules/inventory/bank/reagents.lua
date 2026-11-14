@@ -124,7 +124,7 @@ end
 
 -- hooksecurefunc hooks can't be removed: installed once, UpdateSlot checks IsPartActive().
 local function InstallHook()
-    hooksecurefunc(ProfessionsReagentSlotMixin, "Update", UpdateSlot)
+    ns:HookSecureFunc(ProfessionsReagentSlotMixin, "Update", UpdateSlot)
 end
 
 if C_AddOns.IsAddOnLoaded(TEMPLATES_ADDON) then

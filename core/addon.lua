@@ -153,12 +153,30 @@ function ns:RefreshFeature(feature)
     end
 end
 
+-- A feature failing to enable reports its error without keeping the next ones off.
 function ns:RefreshAll()
     for _, module in ipairs(sortedModules) do
         for _, feature in ipairs(module.sortedFeatures) do
-            self:RefreshFeature(feature)
+            securecallfunction(self.RefreshFeature, self, feature)
         end
     end
+end
+
+-- hooksecurefunc([tbl,] name, hook), with the hook's errors reported instead
+-- of thrown: thrown from a post-hook, they would abort the Blizzard code that
+-- called the hooked function (a bag update, ShowUIPanel...). Every hook on a
+-- Blizzard function goes through here.
+function ns:HookSecureFunc(tbl, name, hook)
+    if type(tbl) == "string" then
+        local globalName, globalHook = tbl, name
+        hooksecurefunc(globalName, function(...)
+            securecallfunction(globalHook, ...)
+        end)
+        return
+    end
+    hooksecurefunc(tbl, name, function(...)
+        securecallfunction(hook, ...)
+    end)
 end
 
 local bootListener = ns:CreateEventListener({

@@ -97,7 +97,7 @@ function Sorting:Enable()
     end
     hooksInstalled = true
     for _, name in ipairs(SORT_FUNCTIONS) do
-        hooksecurefunc(C_Container, name, OnSortStarted)
+        ns:HookSecureFunc(C_Container, name, OnSortStarted)
     end
 end
 

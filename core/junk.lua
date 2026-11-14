@@ -182,6 +182,6 @@ end
 -- Both run for every player, and leave Blizzard's sale and button alone while
 -- no feature's junk handler runs.
 EventRegistry:RegisterCallback(SELL_ALL_JUNK_CLICKED, OnSellAllJunkClicked, {})
-hooksecurefunc("MerchantFrame_Update", function()
+ns:HookSecureFunc("MerchantFrame_Update", function()
     ns:RefreshJunk()
 end)

@@ -194,6 +194,12 @@ function hooksecurefunc(tbl, name, hook)
     end
 end
 
+-- The game reports func's error to the error handler and carries on; here it
+-- propagates, so a test fails on it with its traceback.
+function securecallfunction(func, ...)
+    return func(...)
+end
+
 function CreateColor(r, g, b, a)
     return {
         GetRGB = function()

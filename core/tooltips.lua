@@ -25,10 +25,11 @@ function ns:AddItemTooltipHandler(feature, handler, options)
     table.insert(list, { feature = feature, handler = handler, part = options.part })
 end
 
+-- One feature's error is reported without dropping the other features' lines.
 local function Run(list, tooltip, data)
     for _, entry in ipairs(list) do
         if entry.feature:IsHandlerActive(entry.part) then
-            entry.handler(tooltip, data)
+            securecallfunction(entry.handler, tooltip, data)
         end
     end
 end
