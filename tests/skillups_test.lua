@@ -116,6 +116,11 @@ test("adds nothing to other world objects", function(world)
     equal(#world:ObjectTooltip("Mailbox"), 1, "lines")
 end)
 
+test("adds nothing to nodes whose name is secret", function(world)
+    world.professions = { { skillLine = MINING, rank = 120 } }
+    equal(#world:ObjectTooltip(world:Secret(NODES.tin[TEST_LOCALE]), "Profession"), 2, "lines")
+end)
+
 test("adds nothing to nodes while disabled", function(world)
     world.professions = { { skillLine = MINING, rank = 120 } }
     world:Setting("professions.skillups.enabled"):SetValue(false)

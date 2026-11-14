@@ -9,7 +9,8 @@
 --
 -- A herb or ore node's world tooltip (object tooltip data: its name, then the
 -- profession colored by difficulty) gets the chance at the end, from a tooltip
--- post-call.
+-- post-call. The name can be secret (a secret string can't index a table):
+-- such a tooltip gets nothing.
 
 local _, ns = ...
 
@@ -54,7 +55,7 @@ local function AddNodeChance(tooltip, data)
         return
     end
     local name = data and data.lines and data.lines[1] and data.lines[1].leftText
-    local chance = type(name) == "string" and SkillUps.Chance:GetNode(name)
+    local chance = type(name) == "string" and not issecretvalue(name) and SkillUps.Chance:GetNode(name)
     if chance then
         AddLine(tooltip, chance)
     end
