@@ -13,6 +13,7 @@
 # Core
 core\events.lua
 core\cvars.lua
+core\tracker.lua
 core\containers.lua
 core\moves.lua
 core\tooltips.lua

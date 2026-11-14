@@ -153,10 +153,7 @@ local function Reorder(order)
     end
 end
 
--- Untracks every quest that isn't ranked or kept, then tracks the ranked ones
--- (closest first) while there is room. With "sort" on, orders the watch list
--- by distance; otherwise the game sorts it.
-function Watches:Apply(ranked, distances)
+local function Apply(ranked, distances)
     local wanted = GetKeptQuests()
     for _, questID in ipairs(ranked) do
         wanted[questID] = true
@@ -174,7 +171,7 @@ function Watches:Apply(ranked, distances)
     -- lands at the top of the list, so the closest ends up first.
     local added, room = {}, Constants.QuestWatchConsts.MAX_QUEST_WATCHES - C_QuestLog.GetNumQuestWatches()
     for _, questID in ipairs(ranked) do
-        if #added < room and not self:IsWatched(questID) then
+        if #added < room and not Watches:IsWatched(questID) then
             table.insert(added, questID)
         end
     end
@@ -191,6 +188,15 @@ function Watches:Apply(ranked, distances)
     if changed and not sort then
         C_QuestLog.SortQuestWatches()
     end
+end
+
+-- Untracks every quest that isn't ranked or kept, then tracks the ranked ones
+-- (closest first) while there is room. With "sort" on, orders the watch list
+-- by distance; otherwise the game sorts it.
+function Watches:Apply(ranked, distances)
+    ns:ShieldObjectiveTracker(function()
+        Apply(ranked, distances)
+    end)
 end
 
 -- Forgets session state (pins are kept).

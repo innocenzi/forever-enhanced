@@ -104,6 +104,8 @@ local world = {
     superTracked = 0,
     inCombat = false,
     questSorts = 0,
+    -- Events Blizzard's quest tracker module handled, in order.
+    trackerEvents = {},
     position = { x = 0, y = 0, continentID = 0 },
     onTaxi = false,
     party = false,
@@ -3449,6 +3451,17 @@ RED_FONT_COLOR = CreateColor(1, 0.1, 0.1)
 -- details are open (world:OpenQuestDetails); like the client, they close when the map
 -- shown becomes another.
 QuestMapFrame = { DetailsFrame = {} }
+
+-- Blizzard's objective tracker: its quest module, added to the tracker (its
+-- events registered) before any addon loads; world.trackerEvents lists what it handled.
+QuestObjectiveTracker = CreateFrame("Frame", "QuestObjectiveTracker")
+for _, event in ipairs({ "QUEST_LOG_UPDATE", "QUEST_WATCH_LIST_CHANGED", "SUPER_TRACKING_CHANGED", "QUEST_POI_UPDATE" }) do
+    QuestObjectiveTracker:RegisterEvent(event)
+end
+QuestObjectiveTracker:SetScript("OnEvent", function(_, event)
+    table.insert(world.trackerEvents, event)
+end)
+ObjectiveTrackerManager = { moduleToContainerMap = { [QuestObjectiveTracker] = UIParent } }
 
 -- The map position of a world position (yards on a continent), like the
 -- client: outside 0..1 when it's off the map, nil when the map is elsewhere.

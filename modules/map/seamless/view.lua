@@ -539,8 +539,10 @@ local function PlacePin(u, v)
         if C_Map.CanSetUserWaypointOnMap(mapID) then
             local pinPressed = map.WorldMapTrackingPinButton and map.WorldMapTrackingPinButton.isActive
             PlaySound(pinPressed and SOUNDKIT.UI_MAP_WAYPOINT_CLICK_TO_PLACE or SOUNDKIT.UI_MAP_WAYPOINT_CONTROL_CLICK)
-            C_Map.SetUserWaypoint(UiMapPoint.CreateFromCoordinates(mapID, Geometry:FromWorld(mapID, u, v)))
-            C_SuperTrack.SetSuperTrackedUserWaypoint(false)
+            ns:ShieldObjectiveTracker(function()
+                C_Map.SetUserWaypoint(UiMapPoint.CreateFromCoordinates(mapID, Geometry:FromWorld(mapID, u, v)))
+                C_SuperTrack.SetSuperTrackedUserWaypoint(false)
+            end)
             return true
         end
     end

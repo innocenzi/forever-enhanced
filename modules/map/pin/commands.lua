@@ -24,15 +24,17 @@ local function Place(mapID, x, y)
         ns:Error(MAP_PIN_INVALID_MAP)
         return
     end
-    C_Map.SetUserWaypoint(UiMapPoint.CreateFromCoordinates(mapID, x, y))
-    if Pin:GetSetting("track") then
-        C_SuperTrack.SetSuperTrackedUserWaypoint(true)
-    end
+    ns:ShieldObjectiveTracker(function()
+        C_Map.SetUserWaypoint(UiMapPoint.CreateFromCoordinates(mapID, x, y))
+        if Pin:GetSetting("track") then
+            C_SuperTrack.SetSuperTrackedUserWaypoint(true)
+        end
+    end)
     PlaySound(SOUNDKIT.UI_MAP_WAYPOINT_CONTROL_CLICK)
 end
 
 local function Clear()
-    C_Map.ClearUserWaypoint()
+    ns:ShieldObjectiveTracker(C_Map.ClearUserWaypoint)
     PlaySound(SOUNDKIT.UI_MAP_WAYPOINT_REMOVE)
 end
 
