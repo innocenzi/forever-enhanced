@@ -1,5 +1,5 @@
 {
-  "version": "1.0.2",
+  "version": "1.1.0",
   "scripts": {
     "changelog": "bun run tools/changelog.ts",
     "dots": "bun run tools/dots.ts",

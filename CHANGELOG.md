@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.1.0 - 2026-11-14
+
+
+### Features
+- **professions:** show the chance of gaining skill in a recipe's skill-up arrow tooltip
+- **combat:** show on health bars the damage your damage over time effects will still deal
+- **quests:** hide other players' Polestar announcements along with Questie's
+- **inventory:** refill bag stacks and deposit marked items when opening the bank
+- **inventory:** show the lowest auction house price in item tooltips
+
+
+### Fixes
+- **map:** share the map pin with Shift Click without a blocked action on the seamless map
+- **quests:** hide the chat bubbles of other players' quest addon announcements
+- **core:** keep the objective tracker from erroring on auras in combat after quest tracking or map pin changes
+
 ## 1.0.2 - 2026-11-12
 
 
