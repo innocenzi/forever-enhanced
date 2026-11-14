@@ -30,10 +30,11 @@ end
 
 -- How many items the tooltip's item is (1 outside bags and bank), or nil when
 -- it is bound. A buyback item has a GUID, but its location is neither a bag
--- slot nor an equipment slot, which the item location APIs reject.
+-- slot nor an equipment slot, which the item location APIs reject (IsValid
+-- included: it calls C_Item.DoesItemExist).
 local function StackCount(data)
     local location = data.guid and C_Item.GetItemLocation(data.guid)
-    if not location or not location:IsValid() then
+    if not location or not location:HasAnyLocation() then
         return 1
     end
     if C_Item.IsBound(location) then

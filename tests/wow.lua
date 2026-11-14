@@ -1253,8 +1253,14 @@ NUM_TOTAL_EQUIPPED_BAG_SLOTS = 5
 local ItemLocationMixin = {}
 ItemLocationMixin.__index = ItemLocationMixin
 
+-- Like Blizzard's: IsValid asks DoesItemExist, which rejects a location that
+-- is neither a bag slot nor an equipment slot (a buyback item's, seen in game).
 function ItemLocationMixin:IsValid()
-    return self.bagID ~= nil
+    return C_Item.DoesItemExist(self)
+end
+
+function ItemLocationMixin:HasAnyLocation()
+    return self.bagID ~= nil and self.slot ~= nil
 end
 
 function ItemLocationMixin:GetBagAndSlot()
@@ -1304,6 +1310,7 @@ end
 
 C_Item = {
     DoesItemExist = function(location)
+        assert(location:HasAnyLocation(), "Usage: local itemExists = C_Item.DoesItemExist(emptiableItemLocation)")
         return ItemAt(location) ~= nil
     end,
     GetItemGUID = ItemAt,
