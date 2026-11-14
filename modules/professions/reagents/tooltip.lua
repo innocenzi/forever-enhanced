@@ -21,7 +21,7 @@ local MAX_RECIPES = 8
 -- The uses of the item to show, by skill line, and those skill lines in the
 -- data's order (the generator sorts each item's uses by profession).
 local function GroupUses(uses, playerSkillLines)
-    local mine = Reagents:GetSetting("professions") == "mine"
+    local mine = Reagents:GetSetting("onlyMine")
     local groups, order = {}, {}
     for _, use in ipairs(uses) do
         local skillLine = use[2]

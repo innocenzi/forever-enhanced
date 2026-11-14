@@ -10,7 +10,7 @@ Never edit generated files by hand: change the generator and rerun it.
 | Command | Generator | Output |
 | --- | --- | --- |
 | `bun run professions` | `tools/professions.ts` | `modules/professions/reagents/data.lua`, `modules/professions/skillups/data.lua` |
-| `bun run instances` | `tools/instances.ts` | `modules/quests/helpers/data.lua` |
+| `bun run instances` | `tools/instances.ts` | `modules/quests/tracking/data.lua` |
 | `bun run seamless` | `tools/seamless.ts` | `modules/map/seamless/data.lua`, `modules/map/seamless/media/` |
 | `bun run dots` | `tools/dots.ts` | `modules/combat/dots/data.lua` |
 | `bun run icon` | `tools/icon.ts` | `media/icon.tga`, `tools/icon/logo.png` |
@@ -59,7 +59,7 @@ In combat, addon code can't read ticks (combat log restricted, `UNIT_COMBAT` amo
 
 ## Instances
 
-The client links quests to instances only through quest log headers: `headerSortKey` is the header's area ID with bit 30 set (`modules/quests/helpers/ranking.lua`). So `tools/instances.ts` maps each dungeon and raid map to the area IDs its quests' headers can carry.
+The client links quests to instances only through quest log headers: `headerSortKey` is the header's area ID with bit 30 set (`modules/quests/tracking/ranking.lua`). So `tools/instances.ts` maps each dungeon and raid map to the area IDs its quests' headers can carry.
 
 ## Icon
 

@@ -50,9 +50,9 @@ test("drops unknown keys and resets unknown options", function(world)
     equal(db.indicator, "padlock", "unknown option")
 end)
 
--- The quests page initializer bound to quests.helpers.<key>.
+-- The quests page initializer bound to quests.tracking.<key>.
 local function QuestsInitializer(world, key)
-    local setting = world:Setting("quests.helpers." .. key)
+    local setting = world:Setting("quests.tracking." .. key)
     for _, initializer in ipairs(world.categories[3].items) do
         if initializer.setting == setting then
             return initializer
@@ -61,7 +61,7 @@ local function QuestsInitializer(world, key)
 end
 
 test("resets slider values outside their bounds", function(world)
-    local db = world.env.ForeverEnhancedDB.modules.quests.features.helpers
+    local db = world.env.ForeverEnhancedDB.modules.quests.features.tracking
     equal(db.count, 5, "slider default")
     db.count = 99
     world.ns.Database:Initialize()
@@ -71,22 +71,19 @@ end)
 test("labels slider values with the locale's format", function(world)
     local slider = QuestsInitializer(world, "range").slider
     equal(slider.minValue, 100, "min")
-    equal(slider.formatter(500), world.L["quests.helpers.range.format"]:format(500), "value label")
+    equal(slider.formatter(500), world.L["quests.tracking.range.format"]:format(500), "value label")
     equal(QuestsInitializer(world, "count").slider.formatter(5), "5", "plain number without a format")
 end)
 
 test("a setting that requires another sits under it and greys out", function(world)
-    world:Setting("quests.helpers.nearby"):SetValue(true)
+    world:Setting("quests.tracking.enabled"):SetValue(true)
     local range = QuestsInitializer(world, "range")
     equal(range:GetParentInitializer(), QuestsInitializer(world, "scope"), "parent")
     equal(range.parentInitializer, nil, "parent field the settings search reads left untouched")
     expect(not range.predicate(), "greyed out unless the scope is 'range'")
-    world:Setting("quests.helpers.scope"):SetValue("range")
+    world:Setting("quests.tracking.scope"):SetValue("range")
     expect(range.predicate(), "editable with the scope set to 'range'")
-    world:Setting("quests.helpers.nearby"):SetValue(false)
-    expect(not range.predicate(), "greyed out with the setting above its parent off")
-    world:Setting("quests.helpers.nearby"):SetValue(true)
-    world:Setting("quests.helpers.enabled"):SetValue(false)
+    world:Setting("quests.tracking.enabled"):SetValue(false)
     expect(not range.predicate(), "greyed out with the feature off")
 end)
 
@@ -135,7 +132,7 @@ test("the root page holds the general settings only", function(world)
 end)
 
 test("a feature without settings is one checkbox at the top of its page", function(world)
-    local combat = world.categories[6]
+    local combat = world.categories[7]
     equal(combat.name, world.L["combat.title"], "page")
 
     local ranks = combat.items[1]
@@ -210,6 +207,64 @@ end, {
     end,
     characterSavedVariables = function()
         return { interface = { swaps = { marker = "character" } } }
+    end,
+})
+
+test("nearby quest tracking moves to its own feature with its settings and pins", function(world)
+    local quests = world.env.ForeverEnhancedDB.modules.quests.features
+    equal(quests.helpers.nearby, nil, "part toggle dropped")
+    equal(quests.helpers.count, nil, "settings leave Quest helpers")
+    equal(quests.tracking.enabled, true, "on where it was in effect")
+    equal(quests.tracking.count, 8, "settings kept")
+    equal(quests.tracking.keepManual, true, "toggles kept")
+    equal(quests.tracking.scope, "anywhere", "the closest scope became anywhere")
+    expect(world.ns:GetFeature("quests", "tracking"):IsActive(), "and in effect")
+    local character = world.env.ForeverEnhancedCharacterDB.quests
+    equal(character.helpers.pins, nil, "pins leave Quest helpers")
+    expect(character.tracking.pins[42], "and follow the feature")
+end, {
+    savedVariables = function()
+        return {
+            modules = {
+                quests = {
+                    features = {
+                        helpers = { enabled = true, nearby = true, count = 8, keepManual = true, scope = "closest" },
+                    },
+                },
+            },
+        }
+    end,
+    characterSavedVariables = function()
+        return { quests = { helpers = { pins = { [42] = true } } } }
+    end,
+})
+
+test("nearby quest tracking stays off where Quest helpers was off", function(world)
+    local quests = world.env.ForeverEnhancedDB.modules.quests.features
+    equal(quests.tracking.enabled, false, "off")
+    equal(quests.tracking.scope, "zone", "settings kept")
+end, {
+    savedVariables = function()
+        return {
+            modules = { quests = { features = { helpers = { enabled = false, nearby = true, scope = "zone" } } } },
+        }
+    end,
+})
+
+test("two-option dropdowns carry over to their toggles", function(world)
+    local modules = world.env.ForeverEnhancedDB.modules
+    equal(modules.inventory.features.merchant.repairFunds, nil, "old repair key dropped")
+    equal(modules.inventory.features.merchant.guildFunds, true, "guild funds first")
+    equal(modules.professions.features.reagents.professions, nil, "old reagents key dropped")
+    equal(modules.professions.features.reagents.onlyMine, true, "only the player's professions")
+end, {
+    savedVariables = function()
+        return {
+            modules = {
+                inventory = { features = { merchant = { repairFunds = "guild" } } },
+                professions = { features = { reagents = { professions = "mine" } } },
+            },
+        }
     end,
 })
 
@@ -366,7 +421,7 @@ test("the enhanced preset turns every feature on", function(world)
     end
     local modules = world.env.ForeverEnhancedDB.modules
     equal(modules.inventory.features.bank.openWithBags, true, "bank opens with bags")
-    equal(modules.quests.features.helpers.nearby, true, "nearby tracking")
+    equal(modules.quests.features.helpers.hideAnnouncements, true, "quest addon announcements hidden")
 end)
 
 test("the minimal preset turns chatty features off and keeps what it doesn't list", function(world)
@@ -380,9 +435,9 @@ test("the minimal preset turns chatty features off and keeps what it doesn't lis
     expect(not Feature(world, "interface", "glow"):IsActive(), "glow off")
     expect(Feature(world, "inventory", "locking"):IsActive(), "locking on")
     expect(Feature(world, "professions", "reagents"):IsActive(), "reagent uses on")
+    expect(not Feature(world, "quests", "tracking"):IsActive(), "nearby tracking off")
 
     local modules = world.env.ForeverEnhancedDB.modules
-    equal(modules.quests.features.helpers.nearby, false, "nearby tracking off")
     equal(modules.map.features.pin.announce, false, "waypoint quiet")
     equal(modules.inventory.features.bank.openWithBags, false, "bank opens on its own")
     equal(modules.interface.features.windows.modifier, "alt", "unlisted setting kept")

@@ -98,7 +98,7 @@ test("lists the recipes under each profession while Shift is held, after a blank
 end)
 
 test("lists only the player's professions when asked", function(world)
-    world:Setting("professions.reagents.professions"):SetValue("mine")
+    world:Setting("professions.reagents.onlyMine"):SetValue(true)
     world.shift = true
     equal(#Lines(world), 0, "no profession: nothing")
     LearnFirstAidAndTailoring(world)

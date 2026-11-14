@@ -198,6 +198,37 @@ local function Migrate(savedModules, stores)
         end
         helpers.hideQuestie = nil
     end
+
+    -- Tracking nearby quests moved from Quest helpers to a feature of its own:
+    -- on only if it was in effect. Its "closest" scope became "anywhere".
+    if type(helpers) == "table" and helpers.nearby ~= nil then
+        local tracking = GetOrCreateTable(quests, "tracking")
+        if tracking.enabled == nil then
+            tracking.enabled = helpers.enabled ~= false and helpers.nearby == true
+            for _, key in ipairs({ "scope", "range", "count", "sort", "dungeons", "keepManual" }) do
+                tracking[key] = helpers[key]
+            end
+        end
+        helpers.nearby = nil
+    end
+    local tracking = quests and quests.tracking
+    if type(tracking) == "table" and tracking.scope == "closest" then
+        tracking.scope = "anywhere"
+    end
+
+    -- Two-option dropdowns that became toggles.
+    local inventory = SavedFeatures(savedModules, "inventory")
+    local merchant = inventory and inventory.merchant
+    if type(merchant) == "table" and merchant.repairFunds ~= nil then
+        merchant.guildFunds = merchant.repairFunds == "guild"
+        merchant.repairFunds = nil
+    end
+    local professions = SavedFeatures(savedModules, "professions")
+    local reagents = professions and professions.reagents
+    if type(reagents) == "table" and reagents.professions ~= nil then
+        reagents.onlyMine = reagents.professions == "mine"
+        reagents.professions = nil
+    end
 end
 
 -- Brings character data saved by earlier versions up to date.
@@ -219,6 +250,18 @@ local function MigrateCharacter(characterDb)
             end
         end
         locking.notes = nil
+    end
+
+    -- Tracking nearby quests moved from Quest helpers to a feature of its own:
+    -- the quests the player pinned follow.
+    local quests = characterDb.quests
+    local helpers = type(quests) == "table" and quests.helpers
+    if type(helpers) == "table" and helpers.pins ~= nil then
+        local tracking = GetOrCreateTable(quests, "tracking")
+        if tracking.pins == nil then
+            tracking.pins = helpers.pins
+        end
+        helpers.pins = nil
     end
 end
 

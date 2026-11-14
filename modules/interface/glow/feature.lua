@@ -42,8 +42,6 @@ for _, category in ipairs(CATEGORIES) do
 end
 -- The game's interaction icon (e.g. the herb or pickaxe) above glowing objects.
 table.insert(settings, { key = "icon", type = "toggle", default = true })
--- The game drops soft targets past about 15 yards, whatever the CVar says.
-table.insert(settings, { key = "range", type = "slider", default = 15, min = 5, max = 15, step = 1 })
 
 local ObjectGlow = ns:RegisterFeature("interface", "glow", {
     order = 2,
@@ -68,10 +66,6 @@ function ObjectGlow:OnDisable()
     self.CVars:Restore()
 end
 
-function ObjectGlow:OnSettingChanged(key)
-    if key == "range" then
-        self.CVars:Apply()
-    else
-        self.Target:Refresh()
-    end
+function ObjectGlow:OnSettingChanged()
+    self.Target:Refresh()
 end

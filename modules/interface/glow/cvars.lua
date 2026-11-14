@@ -18,8 +18,10 @@ local FIXED = {
     SoftTargetInteractArc = "2",
     -- Also objects out of reach, which glow dimmer.
     SoftTargetInteractOnlyInRange = "0",
+    -- As far as it goes: the game drops soft targets past about 15 yards,
+    -- whatever the CVar says.
+    SoftTargetInteractRange = "15",
 }
-local RANGE = "SoftTargetInteractRange"
 local NAME_PLATE = "SoftTargetNameplateInteract"
 local ICON = "SoftTargetIconInteract"
 
@@ -29,7 +31,6 @@ function CVars:Apply()
     for name, value in pairs(FIXED) do
         override:Set(name, value)
     end
-    override:Set(RANGE, tostring(ObjectGlow:GetSetting("range")))
 end
 
 -- The game's nameplate on the soft target, which the glow hangs on, and the

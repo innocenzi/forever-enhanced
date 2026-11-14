@@ -3,9 +3,9 @@
 
 local _, ns = ...
 
-local Helpers = ns:GetFeature("quests", "helpers")
+local Tracking = ns:GetFeature("quests", "tracking")
 
-Helpers.InstanceAreas = {
+Tracking.InstanceAreas = {
     [13] = { 13649 },
     [33] = { 209, 236 },
     [34] = { 717 },

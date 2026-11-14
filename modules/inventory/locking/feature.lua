@@ -28,7 +28,6 @@ local Locking = ns:RegisterFeature("inventory", "locking", {
         },
         { key = "keepInPlace", type = "toggle", default = true },
         { key = "showTooltip", type = "toggle", default = true },
-        { key = "sellUnlockedJunk", type = "toggle", default = true },
     },
     presets = {
         minimal = { enabled = true },

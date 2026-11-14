@@ -31,7 +31,7 @@ local function GetCost()
 end
 
 local function CanUseGuildFunds(cost)
-    if Merchant:GetSetting("repairFunds") ~= "guild" or not CanGuildBankRepair() then
+    if not Merchant:GetSetting("guildFunds") or not CanGuildBankRepair() then
         return false
     end
     local limit = GetGuildBankWithdrawMoney()

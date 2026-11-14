@@ -1,4 +1,4 @@
-// Generates modules/quests/helpers/data.lua: for each dungeon and raid map, the
+// Generates modules/quests/tracking/data.lua: for each dungeon and raid map, the
 // areas its quests are filed under in the quest log, from the Forever client's
 // own DB2 tables (Map + AreaTable) as exported by wago.tools. The quest log
 // names headers after areas, in words that match neither the instance's name nor
@@ -13,7 +13,7 @@ import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { integer, latestBuild, parseCsv, table } from "./wago";
 
-const OUTPUT = "modules/quests/helpers/data.lua";
+const OUTPUT = "modules/quests/tracking/data.lua";
 const CACHE = "tools/.cache/quests";
 
 // Map.InstanceType: 1 for a dungeon, 2 for a raid.
@@ -72,9 +72,9 @@ export function renderLua(areas: Map<number, number[]>, build: string): string {
         "",
         "local _, ns = ...",
         "",
-        'local Helpers = ns:GetFeature("quests", "helpers")',
+        'local Tracking = ns:GetFeature("quests", "tracking")',
         "",
-        "Helpers.InstanceAreas = {",
+        "Tracking.InstanceAreas = {",
         ...mapIDs.map((mapID) => `    [${mapID}] = { ${areas.get(mapID)!.join(", ")} },`),
         "}",
         "",

@@ -62,9 +62,6 @@ test("turns on soft targeting all around the player", function(world)
     equal(CVar("SoftTargetInteractOnlyInRange"), "0", "out of reach")
     equal(CVar("SoftTargetInteractRange"), "15", "range")
     equal(CVar("SoftTargetIconInteract"), "0", "no interact icon without a glowing object")
-
-    Set(world, "range", 8)
-    equal(CVar("SoftTargetInteractRange"), "8", "range setting")
 end)
 
 test("makes the nearest herb glow on its nameplate", function(world)

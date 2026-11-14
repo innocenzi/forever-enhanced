@@ -10,10 +10,10 @@
 
 local _, ns = ...
 
-local Helpers = ns:GetFeature("quests", "helpers")
+local Tracking = ns:GetFeature("quests", "tracking")
 
 local Watches = {}
-Helpers.Watches = Watches
+Tracking.Watches = Watches
 
 -- True while we change watches, to ignore the events we cause.
 local applying = false
@@ -26,7 +26,7 @@ local dismissed = {}
 
 -- Pinned quests, per character: [questID] = true.
 local function GetPins()
-    local store = Helpers:GetCharacterStore()
+    local store = Tracking:GetCharacterStore()
     store.pins = store.pins or {}
     return store.pins
 end
@@ -99,7 +99,7 @@ end
 -- "keepManual" is on, the pinned ones.
 local function GetKeptQuests()
     local kept = {}
-    if Helpers:GetSetting("keepManual") then
+    if Tracking:GetSetting("keepManual") then
         for questID in pairs(GetPins()) do
             kept[questID] = true
         end
@@ -178,8 +178,8 @@ local function Apply(ranked, distances)
         C_QuestLog.AddQuestWatch(added[index])
         changed = true
     end
-    if Helpers:GetSetting("sort") then
-        Reorder(Helpers.Ranking:Order(GetWatchedQuests(), distances))
+    if Tracking:GetSetting("sort") then
+        Reorder(Tracking.Ranking:Order(GetWatchedQuests(), distances))
     elseif changed then
         C_QuestLog.SortQuestWatches()
     end

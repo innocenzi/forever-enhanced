@@ -7,10 +7,10 @@
 
 local _, ns = ...
 
-local Helpers = ns:GetFeature("quests", "helpers")
+local Tracking = ns:GetFeature("quests", "tracking")
 
 local Ranking = {}
-Helpers.Ranking = Ranking
+Tracking.Ranking = Ranking
 
 -- A quest must be clearly closer than a tracked one to replace it, or than
 -- the one above it to move up in the tracker, so two quests at similar
@@ -102,7 +102,7 @@ local function GetCurrentInstanceQuests()
         return quests
     end
     local areas = {}
-    for _, areaID in ipairs(Helpers.InstanceAreas[select(8, GetInstanceInfo())] or {}) do
+    for _, areaID in ipairs(Tracking.InstanceAreas[select(8, GetInstanceInfo())] or {}) do
         areas[areaID] = true
     end
     local onMap = GetQuestsInCurrentZone() or {}
@@ -125,8 +125,8 @@ end
 -- yet, or no map here): the tracker should then be left alone rather than
 -- emptied.
 function Ranking:GetQuests()
-    local scope = Helpers:GetSetting("scope")
-    local range = Helpers:GetSetting("range")
+    local scope = Tracking:GetSetting("scope")
+    local range = Tracking:GetSetting("range")
     local currentInstanceQuests = GetCurrentInstanceQuests()
     local inZone
     if scope == "zone" then
@@ -140,8 +140,8 @@ function Ranking:GetQuests()
             inZone = {}
         end
     end
-    local skipDungeonQuests = not Helpers:GetSetting("dungeons")
-    local Watches = Helpers.Watches
+    local skipDungeonQuests = not Tracking:GetSetting("dungeons")
+    local Watches = Tracking.Watches
 
     local quests, scores, distances = {}, {}, {}
     local function Add(questID, score)
@@ -180,7 +180,7 @@ function Ranking:GetQuests()
         end
         return a < b
     end)
-    for index = #quests, Helpers:GetSetting("count") + 1, -1 do
+    for index = #quests, Tracking:GetSetting("count") + 1, -1 do
         quests[index] = nil
     end
     return quests, distances

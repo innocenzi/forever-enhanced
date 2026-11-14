@@ -1,6 +1,6 @@
 local _, ns = ...
 
-ns:RegisterModule("professions", { order = 6 })
+ns:RegisterModule("professions", { order = 5 })
 
 ns:RegisterLocale("enUS", {
     ["professions.title"] = "Professions",

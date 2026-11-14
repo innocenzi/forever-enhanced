@@ -17,13 +17,7 @@ local Merchant = ns:RegisterFeature("inventory", "merchant", {
     settings = {
         { key = "autoSellJunk", type = "toggle", default = true },
         { key = "autoRepair", type = "toggle", default = true },
-        {
-            key = "repairFunds",
-            type = "dropdown",
-            default = "player",
-            options = { "player", "guild" },
-            requires = { autoRepair = true },
-        },
+        { key = "guildFunds", type = "toggle", default = false, requires = { autoRepair = true } },
         { key = "announce", type = "toggle", default = true },
     },
     presets = {

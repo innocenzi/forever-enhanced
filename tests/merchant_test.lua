@@ -96,7 +96,7 @@ end)
 test("uses guild funds first when chosen and allowed", function(world)
     Enable(world)
     world.money, world.repairCost = 100, 30
-    world:Setting("inventory.merchant.repairFunds"):SetValue("guild")
+    world:Setting("inventory.merchant.guildFunds"):SetValue(true)
     world.guildRepair = { allowed = true, withdrawLimit = -1 }
     world:OpenMerchant()
     equal(table.concat(world.repairs, ","), "guild 30", "unlimited withdrawals")

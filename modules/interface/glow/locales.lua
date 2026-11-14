@@ -10,9 +10,6 @@ ns:RegisterLocale("enUS", {
     ["interface.glow.other.tooltip"] = "Makes chests, doors and other objects you can use glow too.",
     ["interface.glow.icon"] = "Show icon",
     ["interface.glow.icon.tooltip"] = "Shows the interaction icon above glowing objects.",
-    ["interface.glow.range"] = "Range",
-    ["interface.glow.range.tooltip"] = "Sets how far away an object can glow.",
-    ["interface.glow.range.format"] = "%d yd",
 })
 
 ns:RegisterLocale("frFR", {
@@ -25,7 +22,4 @@ ns:RegisterLocale("frFR", {
     ["interface.glow.other.tooltip"] = "Fait aussi briller les coffres, les portes et les autres objets utilisables.",
     ["interface.glow.icon"] = "Afficher l’icône",
     ["interface.glow.icon.tooltip"] = "Affiche l’icône d’interaction au-dessus des objets qui brillent.",
-    ["interface.glow.range"] = "Portée",
-    ["interface.glow.range.tooltip"] = "Définit la distance jusqu’à laquelle un objet peut briller.",
-    ["interface.glow.range.format"] = "%d m",
 })

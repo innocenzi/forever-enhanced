@@ -5,10 +5,10 @@
 
 local _, ns = ...
 
-local Helpers = ns:GetFeature("quests", "helpers")
+local Tracking = ns:GetFeature("quests", "tracking")
 
 local Refresh = {}
-Helpers.Refresh = Refresh
+Tracking.Refresh = Refresh
 
 local TICK_SECONDS = 2
 
@@ -18,19 +18,19 @@ local ticker
 
 local function Evaluate()
     queued = false
-    if not Helpers:IsPartActive("nearby") then
+    if not Tracking:IsActive() then
         return
     end
 
-    Helpers.Watches:Classify()
+    Tracking.Watches:Classify()
     if InCombatLockdown() then
         waitingForCombatEnd = true
         return
     end
     waitingForCombatEnd = false
-    local ranked, distances = Helpers.Ranking:GetQuests()
+    local ranked, distances = Tracking.Ranking:GetQuests()
     if ranked then
-        Helpers.Watches:Apply(ranked, distances)
+        Tracking.Watches:Apply(ranked, distances)
     end
 end
 
@@ -46,12 +46,12 @@ local function Request()
 end
 
 local function OnZoneChanged()
-    Helpers.Watches:ClearDismissals()
+    Tracking.Watches:ClearDismissals()
     Refresh:Request()
 end
 
 local function OnQuestProgress(_, questID)
-    Helpers.Watches:OnQuestProgress(questID)
+    Tracking.Watches:OnQuestProgress(questID)
     Refresh:Request()
 end
 
@@ -67,7 +67,7 @@ local listener = ns:CreateEventListener({
     QUEST_ACCEPTED = OnQuestProgress,
     QUEST_WATCH_UPDATE = OnQuestProgress,
     QUEST_WATCH_LIST_CHANGED = function(_, questID)
-        if Helpers.Watches:OnWatchListChanged(questID) then
+        if Tracking.Watches:OnWatchListChanged(questID) then
             Refresh:Request()
         end
     end,

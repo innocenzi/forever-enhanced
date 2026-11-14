@@ -1,0 +1,43 @@
+local _, ns = ...
+
+ns:RegisterLocale("enUS", {
+    ["quests.tracking.title"] = "Nearby quest tracking",
+    ["quests.tracking.description"] = "Tracks the quests closest to you as you move. A quest you untrack stays untracked until you change zones.",
+    ["quests.tracking.scope"] = "Quests to track",
+    ["quests.tracking.scope.tooltip"] = "Controls which quests can be tracked.",
+    ["quests.tracking.scope.anywhere"] = "Anywhere",
+    ["quests.tracking.scope.range"] = "Within range",
+    ["quests.tracking.scope.zone"] = "Current zone",
+    ["quests.tracking.range"] = "Maximum distance",
+    ["quests.tracking.range.tooltip"] = "Sets how far away tracked quests can be.",
+    ["quests.tracking.range.format"] = "%d yd",
+    ["quests.tracking.count"] = "Number of quests",
+    ["quests.tracking.count.tooltip"] = "Sets how many quests are tracked at once.",
+    ["quests.tracking.sort"] = "Sort by distance",
+    ["quests.tracking.sort.tooltip"] = "Lists tracked quests from closest to farthest.",
+    ["quests.tracking.dungeons"] = "Track dungeon quests",
+    ["quests.tracking.dungeons.tooltip"] = "When disabled, dungeon and raid quests are tracked only inside their dungeon or raid.",
+    ["quests.tracking.keepManual"] = "Keep manually tracked quests",
+    ["quests.tracking.keepManual.tooltip"] = "Keeps quests you track yourself, even when they are far away.",
+})
+
+ns:RegisterLocale("frFR", {
+    ["quests.tracking.title"] = "Suivi des quêtes proches",
+    ["quests.tracking.description"] = "Suit les quêtes les plus proches de vous à mesure que vous vous déplacez. Une quête que vous ne suivez plus reste écartée jusqu’au prochain changement de zone.",
+    ["quests.tracking.scope"] = "Quêtes à suivre",
+    ["quests.tracking.scope.tooltip"] = "Contrôle les quêtes qui peuvent être suivies.",
+    ["quests.tracking.scope.anywhere"] = "Partout",
+    ["quests.tracking.scope.range"] = "À portée",
+    ["quests.tracking.scope.zone"] = "Zone actuelle",
+    ["quests.tracking.range"] = "Distance maximale",
+    ["quests.tracking.range.tooltip"] = "Définit jusqu’à quelle distance les quêtes sont suivies.",
+    ["quests.tracking.range.format"] = "%d m",
+    ["quests.tracking.count"] = "Nombre de quêtes",
+    ["quests.tracking.count.tooltip"] = "Définit le nombre de quêtes suivies en même temps.",
+    ["quests.tracking.sort"] = "Trier par distance",
+    ["quests.tracking.sort.tooltip"] = "Classe les quêtes suivies de la plus proche à la plus éloignée.",
+    ["quests.tracking.dungeons"] = "Suivre les quêtes de donjon",
+    ["quests.tracking.dungeons.tooltip"] = "Si cette option est désactivée, les quêtes de donjon et de raid ne sont suivies qu’à l’intérieur de leur donjon ou raid.",
+    ["quests.tracking.keepManual"] = "Garder mes quêtes suivies",
+    ["quests.tracking.keepManual.tooltip"] = "Garde les quêtes que vous suivez vous-même, même si elles sont éloignées.",
+})

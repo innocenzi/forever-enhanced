@@ -17,7 +17,6 @@ ns:RegisterLocale("enUS", {
     ["core.presets.confirm"] = "Are you sure you want to apply the %s preset? It changes many of your options.",
     ["core.junk.sellConfirm"] = "Are you sure you want to sell %d junk |4item:items;?",
     ["core.junk.sellConfirmKept"] = "Are you sure you want to sell %d junk |4item:items;? %d locked |4item:items; will be kept.",
-    ["core.junk.sellBlocked"] = "Some of your junk is locked.",
     ["core.junk.allKept"] = "All of your junk is locked.",
 })
 
@@ -38,6 +37,5 @@ ns:RegisterLocale("frFR", {
     ["core.presets.confirm"] = "Voulez-vous vraiment appliquer le préréglage « %s » ? Il modifie de nombreuses options.",
     ["core.junk.sellConfirm"] = "Voulez-vous vraiment vendre %d |4objet:objets; de camelote ?",
     ["core.junk.sellConfirmKept"] = "Voulez-vous vraiment vendre %d |4objet:objets; de camelote ? %d |4objet verrouillé sera conservé:objets verrouillés seront conservés;.",
-    ["core.junk.sellBlocked"] = "Une partie de votre camelote est verrouillée.",
     ["core.junk.allKept"] = "Toute votre camelote est verrouillée.",
 })

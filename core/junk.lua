@@ -21,7 +21,6 @@ local SELL_ALL_JUNK_CLICKED = "MerchantFrame.SellAllJunkButtonClicked"
 --   part                        the feature's part (toggle key) the handler belongs to
 --   IsJunk(itemLocation, info)  true adds a sellable item that isn't poor quality
 --   IsKept(itemLocation)        true keeps a junk item
---   CanSellAroundKept()         false cancels Sell All Junk when an item is kept
 -- info is the slot's C_Container.GetContainerItemInfo. Only handlers of active
 -- features are called; call ns:RefreshJunk() when what a handler adds or keeps changes.
 local handlers = {}
@@ -38,16 +37,6 @@ local function AnyActive(field, ...)
         end
     end
     return false
-end
-
-local function CanSellAroundKept()
-    for _, entry in ipairs(handlers) do
-        local method = entry.handler.CanSellAroundKept
-        if method and entry.feature:IsHandlerActive(entry.handler.part) and not method() then
-            return false
-        end
-    end
-    return true
 end
 
 -- Mirrors Blizzard's Sell All Junk: the bag's "exclude from Sell All Junk" option.
@@ -141,9 +130,7 @@ local function OnSellAllJunkClicked()
 
     StaticPopup_Hide("GENERIC_CONFIRMATION")
 
-    if keptCount > 0 and not CanSellAroundKept() then
-        ns:Error(L["core.junk.sellBlocked"])
-    elseif #junk == 0 then
+    if #junk == 0 then
         ns:Error(L["core.junk.allKept"])
     elseif keptCount > 0 then
         StaticPopup_ShowCustomGenericConfirmation({
