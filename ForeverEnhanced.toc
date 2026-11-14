@@ -62,6 +62,12 @@ modules\inventory\marks\junk.lua
 modules\inventory\marks\buttons.lua
 modules\inventory\marks\notes.lua
 modules\inventory\marks\wowhead.lua
+modules\inventory\auction\feature.lua
+modules\inventory\auction\locales.lua
+modules\inventory\auction\store.lua
+modules\inventory\auction\scan.lua
+modules\inventory\auction\results.lua
+modules\inventory\auction\tooltip.lua
 
 # Quests
 modules\quests\module.lua

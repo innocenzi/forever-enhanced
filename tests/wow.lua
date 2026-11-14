@@ -86,11 +86,19 @@ local world = {
     bankTabs = { 6, 7 },
     maxBankTabs = 3,
     bankBags = { [2] = "GBAG" },
+    auctions = {},
+    replicateRequests = 0,
+    replicateReads = 0,
+    replicateList = {},
+    browseResults = {},
+    commodityResults = {},
+    itemResults = {},
     player = {
         guid = "Player-1-00000001",
         name = "Hylmew",
         class = "MAGE",
         realm = "Forever",
+        faction = "Horde",
         level = 12,
         attackPower = 0,
         spellPower = {},
@@ -1323,6 +1331,22 @@ C_Item = {
     GetItemID = function(location)
         return ItemID(ItemAt(location))
     end,
+    -- The location of the item with this GUID in the bags or bank, nil elsewhere.
+    GetItemLocation = function(guid)
+        for bagID, bag in pairs(world.bags) do
+            for slot = 1, BAG_SIZE do
+                if bag[slot] == guid then
+                    return ItemLocation:CreateFromBagAndSlot(bagID, slot)
+                end
+            end
+        end
+    end,
+    GetStackCount = function(location)
+        return StackCount(ItemAt(location))
+    end,
+    IsBound = function(location)
+        return world.bound[ItemAt(location)] == true
+    end,
     GetItemName = function(location)
         return ItemAt(location)
     end,
@@ -1918,6 +1942,16 @@ end
 
 function GetNormalizedRealmName()
     return world.player.realm
+end
+
+function UnitFactionGroup(unit)
+    assert(unit == "player", "only the player is modelled")
+    return world.player.faction, world.player.faction
+end
+
+-- Whole seconds, moving with the clock.
+function GetServerTime()
+    return 1700000000 + math.floor(world.now)
 end
 
 -- Target, combo points and nameplates ---------------------------------------------------
@@ -3582,6 +3616,19 @@ function GameTooltip_AddErrorLine(tooltip, text)
     tooltip:AddLine(text)
 end
 
+function GameTooltip_AddHighlightLine(tooltip, text)
+    tooltip:AddLine(text)
+end
+
+-- Plain copper amounts are enough to compare tooltip lines.
+GameTooltipMoneyFormat = {}
+MoneyFormatterUtil = {
+    FormatMoney = function(copper, config)
+        assert(config == GameTooltipMoneyFormat, "tooltip money format")
+        return tostring(copper) .. "c"
+    end,
+}
+
 UIErrorsFrame = {
     AddMessage = function(_, message)
         table.insert(world.errors, message)
@@ -4148,6 +4195,72 @@ end
 function world:CloseAuctionHouse()
     AuctionHouseFrame.shown = false
     self:Fire("AUCTION_HOUSE_CLOSED")
+end
+
+-- Auctions: world.auctions = { { itemID, count, buyout }, ... }, what the
+-- server lists. ReplicateItems sends them all a moment later (the list
+-- REPLICATE_ITEM_LIST_UPDATE announces, read 0-based); browse and search
+-- results arrive through world:ReceiveBrowseResults and its siblings.
+local REPLICATE_SECONDS = 2
+
+C_AuctionHouse = {
+    ReplicateItems = function()
+        world.replicateRequests = world.replicateRequests + 1
+        C_Timer.NewTimer(REPLICATE_SECONDS, function()
+            world:ReceiveReplicateList(world.auctions)
+        end)
+    end,
+    GetNumReplicateItems = function()
+        return #world.replicateList
+    end,
+    -- name, texture, count, qualityID, usable, level, levelType, minBid,
+    -- minIncrement, buyoutPrice, bidAmount, highBidder, bidderFullName, owner,
+    -- ownerFullName, saleStatus, itemID, hasAllInfo
+    GetReplicateItemInfo = function(index)
+        world.replicateReads = world.replicateReads + 1
+        local auction = assert(world.replicateList[index + 1], "replicate index out of range")
+        local itemID, count, buyout = auction[1], auction[2], auction[3]
+        return nil, nil, count, 1, true, 1, "", buyout, 0, buyout, 0, nil, nil, nil, nil, 0, itemID, false
+    end,
+    GetBrowseResults = function()
+        return world.browseResults
+    end,
+    GetNumCommoditySearchResults = function(itemID)
+        return #(world.commodityResults[itemID] or {})
+    end,
+    GetCommoditySearchResultInfo = function(itemID, index)
+        return world.commodityResults[itemID][index]
+    end,
+    GetNumItemSearchResults = function(itemKey)
+        return #(world.itemResults[itemKey.itemID] or {})
+    end,
+    GetItemSearchResultInfo = function(itemKey, index)
+        return world.itemResults[itemKey.itemID][index]
+    end,
+}
+
+-- The full scan's list arrives: { { itemID, count, buyout }, ... }.
+function world:ReceiveReplicateList(auctions)
+    self.replicateList = auctions
+    self:Fire("REPLICATE_ITEM_LIST_UPDATE")
+end
+
+-- Browse results arrive: { { itemKey = { itemID = 1 }, minPrice = 100 }, ... }.
+function world:ReceiveBrowseResults(results)
+    self.browseResults = results
+    self:Fire("AUCTION_HOUSE_BROWSE_RESULTS_UPDATED")
+end
+
+-- A commodity's search results arrive: { { unitPrice = 100, quantity = 5 }, ... }.
+function world:ReceiveCommodityResults(itemID, results)
+    self.commodityResults[itemID] = results
+    self:Fire("COMMODITY_SEARCH_RESULTS_UPDATED", itemID)
+end
+
+-- An item's search results arrive: { { buyoutAmount = 100, quantity = 1 }, ... }.
+function world:ReceiveItemResults(itemKey, results)
+    self.itemResults[itemKey.itemID] = results
+    self:Fire("ITEM_SEARCH_RESULTS_UPDATED", itemKey)
 end
 
 -- Clicks the merchant's Sell All Junk button: Blizzard shows its confirmation, then notifies.

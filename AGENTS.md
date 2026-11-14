@@ -27,7 +27,7 @@ Forever Enhanced: a World of Warcraft Forever addon of small, independent qualit
 
 Handlers are registered at file load; core only calls those of active features (and parts).
 
-- Item tooltips: `ns:AddItemTooltipHandler(feature, function(tooltip, data) end)` (`core/tooltips.lua`).
+- Item tooltips: `ns:AddItemTooltipHandler(feature, function(tooltip, data) end, { price })` (`core/tooltips.lua`); `price = true` runs it before the others, so its lines sit right under the sell price (draw them like it: `GameTooltip_AddHighlightLine` with `MoneyFormatterUtil.FormatMoney(copper, GameTooltipMoneyFormat)`).
 - Bag and bank item buttons: `ns:AddItemButtonHandler(feature, { Update, IsGuarded, OnGuardedClick, OnGuardedDrag, OnAltClick, AddMenuEntries, menuOrder })` (`core/itembuttons.lua` owns the buttons, hooks and click shield; its header documents each field and the taken `menuOrder` values). Features draw their marks in `Update` and hide them in `OnDisable`; call `ns:RefreshItemButtons()` from `OnEnable` / `OnDisable` and whenever what they draw or guard changes. Alt Right Click opens the item menu from every active handler's `AddMenuEntries`, ordered by `menuOrder` (required with it, unique, spaced by tens).
 - Junk: `ns:AddJunkHandler(feature, { IsJunk, IsKept, CanSellAroundKept })`, `ns:CollectJunk()`, `ns:IsSoldAsJunk(bagID, slot)` (`core/junk.lua`, which also takes over Sell All Junk Items when features add or keep junk); call `ns:RefreshJunk()` when what a handler adds or keeps changes.
 - Events: `ns:CreateEventListener({ EVENT = function(listener, ...) end })`, then `:Start()` / `:Stop()` with the feature lifecycle.
