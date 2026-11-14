@@ -194,6 +194,19 @@ test("draws friends on the shown map, through world coordinates", function(world
     equal(Pins(world), "Alice 0.50 0.50", "Northshire, with Alice inside it")
 end)
 
+-- The game blocks setting which mouse buttons pass through a pin in combat.
+test("draws friends in combat without setting their pins' mouse input", function(world)
+    Setup(world)
+    world:EnterCombat()
+    world:OpenMap(1)
+    world:ReceiveWhisperAddon("1P:1:0.2500:0.5000", "Alice-Forever")
+    equal(Pins(world), "Alice 0.25 0.50", "drawn")
+    equal(#world.mouseInputs, 0, "nothing set in combat")
+    world:LeaveCombat()
+    world:ReceiveWhisperAddon("1P:1:0.3000:0.5000", "Alice-Forever")
+    equal(#world.mouseInputs, 1, "set out of combat")
+end)
+
 test("removes a friend's pin when they're hidden or stop answering", function(world)
     Setup(world)
     world:OpenMap(1)

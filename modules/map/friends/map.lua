@@ -196,6 +196,17 @@ function PinMixin:OnLoad()
     self:SetScalingLimits(1, 1.0, 1.2)
 end
 
+-- The canvas sets which mouse buttons pass through a pin each time it puts one
+-- up (right clicks go on to the map, to zoom out), and the game blocks that in
+-- combat from our provider's code. Ours never changes, so in combat the pin
+-- keeps what it had: a pin first put up in combat only passes right clicks
+-- once the map refreshes out of combat (a friend's next position).
+function PinMixin:CheckMouseButtonPassthrough(...)
+    if not InCombatLockdown() then
+        MapCanvasPinMixin.CheckMouseButtonPassthrough(self, ...)
+    end
+end
+
 function PinMixin:OnAcquired(guid, mapID, x, y)
     self.guid = guid
     self.mapID = mapID
