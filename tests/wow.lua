@@ -1227,7 +1227,7 @@ Enum = {
     BankType = { Character = 0, Account = 2 },
     BagSlotFlags = { ExcludeJunkSell = 64 },
     ItemQuality = { Poor = 0 },
-    TooltipDataType = { Item = 0 },
+    TooltipDataType = { Item = 0, Object = 4 },
     TooltipDataLineType = { None = 0, SellPrice = 11 },
     PowerType = { ComboPoints = 4 },
     CraftingReagentType = { Optional = 0, Basic = 1, Finishing = 2 },
@@ -3785,12 +3785,17 @@ function ReloadUI()
     world.reloaded = true
 end
 
--- Item tooltip post-calls, in registration order.
+-- Item and world object tooltip post-calls, in registration order.
 world.tooltipPostCalls = {}
+world.objectTooltipPostCalls = {}
 world.sellPriceLinePostCalls = {}
 TooltipDataProcessor = {
     AddTooltipPostCall = function(dataType, callback)
-        assert(dataType == Enum.TooltipDataType.Item, "only item tooltips are modelled")
+        if dataType == Enum.TooltipDataType.Object then
+            table.insert(world.objectTooltipPostCalls, callback)
+            return
+        end
+        assert(dataType == Enum.TooltipDataType.Item, "only item and object tooltips are modelled")
         table.insert(world.tooltipPostCalls, callback)
     end,
     AddLinePostCall = function(lineType, callback)
@@ -4526,6 +4531,7 @@ local PROFESSION_NAMES = {
         [164] = "Blacksmithing",
         [165] = "Leatherworking",
         [171] = "Alchemy",
+        [182] = "Herbalism",
         [185] = "Cooking",
         [186] = "Mining",
         [197] = "Tailoring",
@@ -4537,6 +4543,7 @@ local PROFESSION_NAMES = {
         [164] = "Forge",
         [165] = "Travail du cuir",
         [171] = "Alchimie",
+        [182] = "Herboristerie",
         [185] = "Cuisine",
         [186] = "Minage",
         [197] = "Couture",
@@ -4554,11 +4561,35 @@ function GetProfessions()
     return unpack(indices, 1, PROFESSION_SLOTS)
 end
 
--- name, texture, rank, maxRank, numSpells, spellOffset, skillLine, ...
+-- name, texture, rank, maxRank, numSpells, spellOffset, skillLine, rankModifier, ...
+-- (profession.modifier: skill bonuses, racial ones).
 function GetProfessionInfo(index)
     local profession = assert(world.professions[index], "no profession at " .. tostring(index))
     local name = PROFESSION_NAMES[TEST_LOCALE][profession.skillLine]
-    return name, 136240, profession.rank or 1, 300, 1, 0, profession.skillLine
+    return name, 136240, profession.rank or 1, 300, 1, 0, profession.skillLine, profession.modifier or 0
+end
+
+-- The player points at a world object (a herb or ore node) named `name`: the
+-- lines of its tooltip. Like the client, its data lines are the name, then the
+-- profession it needs (`profession`, optional); the post-calls add theirs.
+function world:ObjectTooltip(name, profession)
+    local data = { type = Enum.TooltipDataType.Object, lines = { { leftText = name } } }
+    if profession then
+        table.insert(data.lines, { leftText = profession })
+    end
+    local lines = {}
+    local tooltip = {
+        AddLine = function(_, text)
+            table.insert(lines, text)
+        end,
+    }
+    for _, line in ipairs(data.lines) do
+        tooltip:AddLine(line.leftText)
+    end
+    for _, callback in ipairs(self.objectTooltipPostCalls) do
+        callback(tooltip, data)
+    end
+    return lines
 end
 
 C_TradeSkillUI = {

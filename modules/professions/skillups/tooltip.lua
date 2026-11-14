@@ -6,6 +6,10 @@
 --
 -- The row sets the arrow's scripts again on every update, so a hook on the
 -- arrow itself wouldn't last; the global post-hook only reads the row.
+--
+-- A herb or ore node's world tooltip (object tooltip data: its name, then the
+-- profession colored by difficulty) gets the chance at the end, from a tooltip
+-- post-call.
 
 local _, ns = ...
 
@@ -29,6 +33,11 @@ local function ArrowRecipe(tooltip)
     return recipeInfo and (Professions.GetHighestLearnedRecipe(recipeInfo) or recipeInfo)
 end
 
+local function AddLine(tooltip, chance)
+    local text = ns.L["professions.skillups.chance"]:format(math.floor(chance * 100 + 0.5))
+    tooltip:AddLine(text, HIGHLIGHT_FONT_COLOR:GetRGB())
+end
+
 local function AddChance(tooltip)
     if not SkillUps:IsActive() or tooltip ~= GameTooltip then
         return
@@ -36,8 +45,18 @@ local function AddChance(tooltip)
     local recipeInfo = ArrowRecipe(tooltip)
     local chance = recipeInfo and SkillUps.Chance:Get(recipeInfo)
     if chance then
-        local text = ns.L["professions.skillups.chance"]:format(math.floor(chance * 100 + 0.5))
-        tooltip:AddLine(text, HIGHLIGHT_FONT_COLOR:GetRGB())
+        AddLine(tooltip, chance)
+    end
+end
+
+local function AddNodeChance(tooltip, data)
+    if not SkillUps:IsActive() then
+        return
+    end
+    local name = data and data.lines and data.lines[1] and data.lines[1].leftText
+    local chance = type(name) == "string" and SkillUps.Chance:GetNode(name)
+    if chance then
+        AddLine(tooltip, chance)
     end
 end
 
@@ -47,5 +66,6 @@ function Tooltip:Start()
     if not hooked then
         hooked = true
         hooksecurefunc("GameTooltip_AddNormalLine", AddChance)
+        TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Object, AddNodeChance)
     end
 end

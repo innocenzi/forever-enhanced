@@ -65,3 +65,61 @@ test("adds nothing while disabled", function(world)
     world:Setting("professions.skillups.enabled"):SetValue(true)
     equal(#Hover(world, SMELT_COPPER, "Medium"), 2, "enabled again")
 end)
+
+-- Herbs and ore nodes: their world tooltip shows the chance of a yellow or
+-- green node (modules/professions/skillups/nodes.lua). Tin Vein requires 65
+-- Mining: yellow at 90, grey at 165; Silverleaf requires 1 Herbalism: yellow at
+-- 26, grey at 101.
+
+local MINING, HERBALISM, TAILORING = 186, 182, 197
+
+local NODES = {
+    tin = { enUS = "Tin Vein", frFR = "Filon d'étain" },
+    silverleaf = { enUS = "Silverleaf", frFR = "Feuillargent" },
+}
+
+local function HoverNode(world, node)
+    return world:ObjectTooltip(NODES[node][TEST_LOCALE], "Profession")
+end
+
+test("shows the chance of a yellow or green node at the end of its tooltip", function(world)
+    world.professions = { { skillLine = TAILORING }, { skillLine = MINING, rank = 120 } }
+    local lines = HoverNode(world, "tin")
+    equal(#lines, 3, "lines")
+    equal(lines[2], "Profession", "the game's lines first")
+    equal(lines[3], Chance(world, 60), "(165 - 120) / (165 - 90)")
+    world.professions = { { skillLine = HERBALISM, rank = 64 } }
+    equal(HoverNode(world, "silverleaf")[3], Chance(world, 49), "(101 - 64) / (101 - 26)")
+end)
+
+test("counts gathering skill bonuses", function(world)
+    world.professions = { { skillLine = HERBALISM, rank = 50, modifier = 14 } }
+    equal(HoverNode(world, "silverleaf")[3], Chance(world, 49), "50 + 14")
+end)
+
+test("adds nothing to orange and grey nodes", function(world)
+    world.professions = { { skillLine = MINING, rank = 89 } }
+    equal(#HoverNode(world, "tin"), 2, "orange")
+    world.professions = { { skillLine = MINING, rank = 90 } }
+    equal(HoverNode(world, "tin")[3], Chance(world, 100), "just turned yellow")
+    world.professions = { { skillLine = MINING, rank = 165 } }
+    equal(#HoverNode(world, "tin"), 2, "grey")
+end)
+
+test("adds nothing to nodes of a profession the player lacks", function(world)
+    world.professions = { { skillLine = MINING, rank = 120 } }
+    equal(#HoverNode(world, "silverleaf"), 2, "no Herbalism")
+end)
+
+test("adds nothing to other world objects", function(world)
+    world.professions = { { skillLine = MINING, rank = 120 } }
+    equal(#world:ObjectTooltip("Mailbox"), 1, "lines")
+end)
+
+test("adds nothing to nodes while disabled", function(world)
+    world.professions = { { skillLine = MINING, rank = 120 } }
+    world:Setting("professions.skillups.enabled"):SetValue(false)
+    equal(#HoverNode(world, "tin"), 2, "disabled")
+    world:Setting("professions.skillups.enabled"):SetValue(true)
+    equal(#HoverNode(world, "tin"), 3, "enabled again")
+end)
