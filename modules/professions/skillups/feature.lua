@@ -1,6 +1,7 @@
 -- Skill-up chance: the tooltip of a yellow or green recipe's skill-up arrow in
 -- the profession window shows the chance that crafting it gives a skill point;
--- the world tooltip of a yellow or green herb or ore node, that gathering it does.
+-- the world tooltip of a yellow or green herb or ore node, that gathering it
+-- does; the tooltip of a yellow or green skinnable corpse, that skinning it does.
 --
 -- The client only tells the color: the chance is worked out from the recipe's
 -- yellow and grey thresholds, generated from Forever's own game data

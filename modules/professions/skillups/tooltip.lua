@@ -13,6 +13,10 @@
 -- line, from a tooltip post-call. Either line can be secret (a secret string
 -- can't index a table): such a tooltip gets nothing.
 --
+-- A skinnable corpse's tooltip (unit tooltip data) has a "Skinnable" line
+-- (UNIT_SKINNABLE_LEATHER) colored by difficulty: the chance, from the unit's
+-- level, is appended to it from a tooltip post-call.
+--
 -- A line changes through its font string (<tooltip name>TextLeft<n>, from
 -- SharedTooltipTemplates), which keeps its color.
 
@@ -75,6 +79,29 @@ local function AddNodeChance(tooltip, data)
     end
 end
 
+local function AddCorpseChance(tooltip)
+    if not SkillUps:IsActive() then
+        return
+    end
+    local name = tooltip:GetName()
+    local _, unit = tooltip:GetUnit()
+    local level = unit and UnitLevel(unit)
+    if not name or not level or issecretvalue(level) or level < 1 then
+        return
+    end
+    for index = tooltip:NumLines(), 1, -1 do
+        local fontString = _G[name .. "TextLeft" .. index]
+        local text = fontString and fontString:GetText()
+        if IsReadable(text) and text == UNIT_SKINNABLE_LEATHER then
+            local chance = SkillUps.Chance:GetCorpse(level)
+            if chance then
+                AppendChance(tooltip, index, text, chance)
+            end
+            return
+        end
+    end
+end
+
 local hooked = false
 
 function Tooltip:Start()
@@ -82,5 +109,6 @@ function Tooltip:Start()
         hooked = true
         ns:HookSecureFunc("GameTooltip_AddNormalLine", AddChance)
         TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Object, AddNodeChance)
+        TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, AddCorpseChance)
     end
 end

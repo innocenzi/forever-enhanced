@@ -1,4 +1,5 @@
--- The chance that crafting a recipe or gathering a node gives a skill point.
+-- The chance that crafting a recipe, gathering a node or skinning a corpse
+-- gives a skill point.
 -- Orange ones always do and grey ones never; in between, the chance falls
 -- evenly from yellow to grey: (grey - skill) / (grey - yellow), so a recipe
 -- turning green (halfway) has an even chance. Gathering is assumed to follow
@@ -44,13 +45,32 @@ local function PlayerSkill(skillLine)
     return nil
 end
 
+-- The chance, from 0 to 1, that gathering what requires `required` skill in
+-- `skillLine` gives a skill point; nil for other colors than yellow and green,
+-- and professions the player lacks. It turns yellow 25 points above the skill
+-- it requires, green 50 above and grey 100 above.
+local function Gathering(skillLine, required)
+    local skill = PlayerSkill(skillLine)
+    local yellow, grey = required + 25, required + 100
+    if not skill or skill < yellow or skill >= grey then
+        return nil
+    end
+    return Between(skill, yellow, grey)
+end
+
 -- The chance, from 0 to 1, of a yellow or green node named `name` (game text);
 -- nil for other colors, unknown nodes and professions the player lacks.
 function Chance:GetNode(name)
     local node = SkillUps.Nodes:Get(name)
-    local skill = node and PlayerSkill(node.skillLine)
-    if not skill or skill < node.yellow or skill >= node.grey then
-        return nil
-    end
-    return Between(skill, node.yellow, node.grey)
+    return node and Gathering(node.skillLine, node.required)
+end
+
+local SKINNING = 393
+
+-- The chance, from 0 to 1, of a yellow or green skinnable corpse of that
+-- level; nil for other colors and without Skinning. A corpse requires 1 skill
+-- up to level 10, 10 more per level up to level 20, then 5 per level.
+function Chance:GetCorpse(level)
+    local required = level <= 20 and math.max(1, (level - 10) * 10) or level * 5
+    return Gathering(SKINNING, required)
 end

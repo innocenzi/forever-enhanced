@@ -228,6 +228,7 @@ INVTYPE_HEAD = "Head"
 -- %2$d/%3$d", modelled with a no-break space before the colon); the English
 -- one matches the tracker's "3/10 Crispy Bat Wing".
 QUEST_ITEMS_NEEDED = ({ enUS = "%2$d/%3$d %1$s", frFR = "%1$s\194\160: %2$d/%3$d" })[TEST_LOCALE]
+UNIT_SKINNABLE_LEATHER = ({ enUS = "Skinnable", frFR = "Dépeçable" })[TEST_LOCALE]
 
 function CreateAtlasMarkup(atlas)
     return "|A:" .. atlas .. "|a"
@@ -1287,7 +1288,7 @@ Enum = {
     BankType = { Character = 0, Account = 2 },
     BagSlotFlags = { ExcludeJunkSell = 64 },
     ItemQuality = { Poor = 0 },
-    TooltipDataType = { Item = 0, Object = 4 },
+    TooltipDataType = { Item = 0, Unit = 2, Object = 4 },
     TooltipDataLineType = { None = 0, SellPrice = 11 },
     PowerType = { ComboPoints = 4 },
     CraftingReagentType = { Optional = 0, Basic = 1, Finishing = 2 },
@@ -2011,7 +2012,10 @@ function UnitClass()
 end
 
 function UnitLevel(unit)
-    assert(unit == "player", "only the player is modelled")
+    if unit == "mouseover" then
+        return assert(world.mouseoverLevel, "no unit under the mouse")
+    end
+    assert(unit == "player", "only the player and the mouseover unit are modelled")
     return world.player.level
 end
 
@@ -3703,6 +3707,13 @@ GameTooltip = {
     IsOwned = function()
         return false
     end,
+    -- name, unit token: the unit under the mouse while a unit tooltip shows.
+    GetUnit = function()
+        if world.mouseoverLevel then
+            return "Unit", "mouseover"
+        end
+        return nil
+    end,
 }
 GameTooltip_Hide = NoOp
 
@@ -3897,6 +3908,7 @@ end
 -- Item and world object tooltip post-calls, in registration order.
 world.tooltipPostCalls = {}
 world.objectTooltipPostCalls = {}
+world.unitTooltipPostCalls = {}
 world.sellPriceLinePostCalls = {}
 TooltipDataProcessor = {
     AddTooltipPostCall = function(dataType, callback)
@@ -3904,7 +3916,11 @@ TooltipDataProcessor = {
             table.insert(world.objectTooltipPostCalls, callback)
             return
         end
-        assert(dataType == Enum.TooltipDataType.Item, "only item and object tooltips are modelled")
+        if dataType == Enum.TooltipDataType.Unit then
+            table.insert(world.unitTooltipPostCalls, callback)
+            return
+        end
+        assert(dataType == Enum.TooltipDataType.Item, "only item, unit and object tooltips are modelled")
         table.insert(world.tooltipPostCalls, callback)
     end,
     AddLinePostCall = function(lineType, callback)
@@ -4646,6 +4662,7 @@ local PROFESSION_NAMES = {
         [197] = "Tailoring",
         [202] = "Engineering",
         [333] = "Enchanting",
+        [393] = "Skinning",
     },
     frFR = {
         [129] = "Secourisme",
@@ -4658,6 +4675,7 @@ local PROFESSION_NAMES = {
         [197] = "Couture",
         [202] = "Ingénierie",
         [333] = "Enchantement",
+        [393] = "Dépeçage",
     },
 }
 
@@ -4694,6 +4712,24 @@ function world:ObjectTooltip(name, profession)
     for _, callback in ipairs(self.objectTooltipPostCalls) do
         callback(GameTooltip, data)
     end
+    return self.tooltipLines
+end
+
+-- The player points at a unit of that level (-1 for "??") whose tooltip has
+-- these lines (name, level, "Corpse", UNIT_SKINNABLE_LEATHER, ...), in
+-- GameTooltip; the unit post-calls add theirs.
+function world:UnitTooltip(level, lines)
+    local data = { type = Enum.TooltipDataType.Unit, lines = {} }
+    self.tooltipLines = {}
+    for _, text in ipairs(lines) do
+        table.insert(data.lines, { leftText = text })
+        GameTooltip:AddLine(text)
+    end
+    self.mouseoverLevel = level
+    for _, callback in ipairs(self.unitTooltipPostCalls) do
+        callback(GameTooltip, data)
+    end
+    self.mouseoverLevel = nil
     return self.tooltipLines
 end
 
@@ -6430,6 +6466,7 @@ SettingsPanel = CreateFrame("Frame", "SettingsPanel")
 
 function GameTooltip:SetSpellByID(spellID)
     world.tooltip = spellID
+    world.tooltipLines = {}
 end
 
 templates.UIMenuButtonStretchTemplate = NoOp
@@ -6453,4 +6490,3 @@ function Region:GetFrameStrata()
 end
 
 return world
-    world.tooltipLines = {}

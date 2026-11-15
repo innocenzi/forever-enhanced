@@ -135,3 +135,63 @@ test("adds nothing to nodes while disabled", function(world)
     world:Setting("professions.skillups.enabled"):SetValue(true)
     equal(HoverNode(world, "tin")[2], Chance(world, "Profession", 60), "enabled again")
 end)
+
+-- Skinnable corpses: their tooltip shows the chance of a yellow or green corpse
+-- after "Skinnable", from the unit's level. A level 22 corpse requires 110
+-- Skinning: yellow at 135, grey at 210; a level 15 one 50: yellow at 75, grey
+-- at 150; a level 5 one 1: yellow at 26, grey at 101.
+
+local SKINNING = 393
+
+local function HoverCorpse(world, level)
+    return world:UnitTooltip(level, { "Stag", "Level " .. level, "Corpse", UNIT_SKINNABLE_LEATHER })
+end
+
+local function Skinnable(world, percent)
+    return Chance(world, UNIT_SKINNABLE_LEATHER, percent)
+end
+
+test("shows the chance of a yellow or green corpse after Skinnable", function(world)
+    world.professions = { { skillLine = MINING, rank = 300 }, { skillLine = SKINNING, rank = 160 } }
+    local lines = HoverCorpse(world, 22)
+    equal(#lines, 4, "lines")
+    equal(lines[3], "Corpse", "Blizzard's lines stay")
+    equal(lines[4], Skinnable(world, 67), "(210 - 160) / (210 - 135)")
+    world.professions = { { skillLine = SKINNING, rank = 100 } }
+    equal(HoverCorpse(world, 15)[4], Skinnable(world, 67), "(150 - 100) / (150 - 75)")
+    world.professions = { { skillLine = SKINNING, rank = 64 } }
+    equal(HoverCorpse(world, 5)[4], Skinnable(world, 49), "(101 - 64) / (101 - 26)")
+end)
+
+test("adds nothing to orange and grey corpses", function(world)
+    world.professions = { { skillLine = SKINNING, rank = 134 } }
+    equal(HoverCorpse(world, 22)[4], UNIT_SKINNABLE_LEATHER, "orange")
+    world.professions = { { skillLine = SKINNING, rank = 135 } }
+    equal(HoverCorpse(world, 22)[4], Skinnable(world, 100), "just turned yellow")
+    world.professions = { { skillLine = SKINNING, rank = 210 } }
+    equal(HoverCorpse(world, 22)[4], UNIT_SKINNABLE_LEATHER, "grey")
+end)
+
+test("adds nothing to corpses without Skinning, of unknown level or not skinnable", function(world)
+    world.professions = { { skillLine = MINING, rank = 160 } }
+    equal(HoverCorpse(world, 22)[4], UNIT_SKINNABLE_LEATHER, "no Skinning")
+    world.professions = { { skillLine = SKINNING, rank = 160 } }
+    equal(HoverCorpse(world, -1)[4], UNIT_SKINNABLE_LEATHER, "level ??")
+    local lines = world:UnitTooltip(22, { "Stag", "Level 22" })
+    equal(#lines, 2, "lines")
+    equal(lines[2], "Level 22", "a living unit")
+end)
+
+test("adds nothing to corpses whose Skinnable line is secret", function(world)
+    world.professions = { { skillLine = SKINNING, rank = 160 } }
+    local secret = world:Secret(UNIT_SKINNABLE_LEATHER)
+    equal(world:UnitTooltip(22, { "Stag", "Corpse", secret })[3], secret, "secret line")
+end)
+
+test("adds nothing to corpses while disabled", function(world)
+    world.professions = { { skillLine = SKINNING, rank = 160 } }
+    world:Setting("professions.skillups.enabled"):SetValue(false)
+    equal(HoverCorpse(world, 22)[4], UNIT_SKINNABLE_LEATHER, "disabled")
+    world:Setting("professions.skillups.enabled"):SetValue(true)
+    equal(HoverCorpse(world, 22)[4], Skinnable(world, 67), "enabled again")
+end)

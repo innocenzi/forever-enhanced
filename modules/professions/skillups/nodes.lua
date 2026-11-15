@@ -3,9 +3,6 @@
 -- are server objects, missing from the client's DB2 tables. Names and required
 -- skills come from Wowhead Classic (game data, enUS and frFR); quest objects
 -- needing a profession are left out.
---
--- A node turns yellow 25 points above its required skill, green 50 above and
--- grey 100 above.
 
 local _, ns = ...
 
@@ -76,15 +73,14 @@ SkillUps.Nodes = Nodes
 -- other languages.
 local byName
 
--- The node named `name` (game text): { skillLine, yellow, grey }, or nil.
+-- The node named `name` (game text): { skillLine, required }, or nil.
 function Nodes:Get(name)
     if not byName then
         byName = {}
         local column = NAME_COLUMNS[GetLocale()]
         if column then
             for _, node in ipairs(NODES) do
-                local required = node[2]
-                byName[node[column]] = { skillLine = node[1], yellow = required + 25, grey = required + 100 }
+                byName[node[column]] = { skillLine = node[1], required = node[2] }
             end
         end
     end
