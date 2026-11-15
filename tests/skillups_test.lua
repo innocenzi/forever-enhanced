@@ -188,6 +188,12 @@ test("adds nothing to corpses whose Skinnable line is secret", function(world)
     equal(world:UnitTooltip(22, { "Stag", "Corpse", secret })[3], secret, "secret line")
 end)
 
+test("adds nothing to corpses whose tooltip unit is secret", function(world)
+    world.professions = { { skillLine = SKINNING, rank = 160 } }
+    world.secretTooltipUnit = true
+    equal(HoverCorpse(world, 22)[4], UNIT_SKINNABLE_LEATHER, "secret unit")
+end)
+
 test("adds nothing to corpses while disabled", function(world)
     world.professions = { { skillLine = SKINNING, rank = 160 } }
     world:Setting("professions.skillups.enabled"):SetValue(false)

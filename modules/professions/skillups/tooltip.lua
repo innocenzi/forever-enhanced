@@ -15,7 +15,9 @@
 --
 -- A skinnable corpse's tooltip (unit tooltip data) has a "Skinnable" line
 -- (UNIT_SKINNABLE_LEATHER) colored by difficulty: the chance, from the unit's
--- level, is appended to it from a tooltip post-call.
+-- level, is appended to it from a tooltip post-call. The tooltip's unit token
+-- can be secret (UnitLevel refuses it from our code): such a tooltip gets
+-- nothing.
 --
 -- A line changes through its font string (<tooltip name>TextLeft<n>, from
 -- SharedTooltipTemplates), which keeps its color.
@@ -85,7 +87,7 @@ local function AddCorpseChance(tooltip)
     end
     local name = tooltip:GetName()
     local _, unit = tooltip:GetUnit()
-    local level = unit and UnitLevel(unit)
+    local level = IsReadable(unit) and UnitLevel(unit)
     if not name or not level or issecretvalue(level) or level < 1 then
         return
     end

@@ -2012,6 +2012,7 @@ function UnitClass()
 end
 
 function UnitLevel(unit)
+    assert(not issecretvalue(unit), "secret values are only allowed during untainted execution")
     if unit == "mouseover" then
         return assert(world.mouseoverLevel, "no unit under the mouse")
     end
@@ -3707,9 +3708,12 @@ GameTooltip = {
     IsOwned = function()
         return false
     end,
-    -- name, unit token: the unit under the mouse while a unit tooltip shows.
+    -- name, unit token: the unit under the mouse while a unit tooltip shows,
+    -- both secret at times (world.secretTooltipUnit).
     GetUnit = function()
-        if world.mouseoverLevel then
+        if world.mouseoverLevel and world.secretTooltipUnit then
+            return world:Secret("Unit"), world:Secret("mouseover")
+        elseif world.mouseoverLevel then
             return "Unit", "mouseover"
         end
         return nil
