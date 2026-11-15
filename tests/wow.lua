@@ -5503,7 +5503,8 @@ end
 -- Spells (world.spells, by ID, ranks pointing to their `base`) are cast by name
 -- (the client casts the highest rank). A cast fails with UI_ERROR_MESSAGE when
 -- the spell isn't usable (world.unusableSpells, world.noPowerSpells, by base
--- ID) or during the global cooldown (GLOBAL_COOLDOWN seconds after a cast).
+-- ID) or during the global cooldown (GLOBAL_COOLDOWN seconds after a cast);
+-- spells marked `offGlobalCooldown` neither wait for it nor start it.
 -- Like the client, a refused cast reports its error at once. world.casts lists
 -- the names cast; world.uiErrors the errors UIErrorsFrame showed.
 
@@ -5531,6 +5532,7 @@ local SPELL_NAMES = {
         [1752] = "Sinister Strike",
         [703] = "Garrote",
         [1766] = "Kick",
+        [5277] = "Evasion",
         [674] = "Dual Wield",
         [1943] = "Rupture",
         [16511] = "Hemorrhage",
@@ -5544,6 +5546,7 @@ local SPELL_NAMES = {
         [1752] = "Attaque pernicieuse",
         [703] = "Garrot",
         [1766] = "Coup de pied",
+        [5277] = "Évasion",
         [674] = "Ambidextrie",
         [1943] = "Rupture",
         [16511] = "Hémorragie",
@@ -5559,6 +5562,7 @@ world.spells = {
     [1752] = { icon = 136189 },
     [703] = { icon = 132297 },
     [1766] = { icon = 132219 },
+    [5277] = { icon = 136205, offGlobalCooldown = true },
     [674] = { icon = 132147 },
     [8632] = { base = 703 },
     [1943] = { icon = 132302 },
@@ -5591,7 +5595,7 @@ world.spellBook = {
     {
         name = "Combat",
         icon = 132090,
-        spells = { { spellID = 53 }, { spellID = 8676 }, { spellID = 1752 }, { spellID = 703 } },
+        spells = { { spellID = 53 }, { spellID = 8676 }, { spellID = 1752 }, { spellID = 703 }, { spellID = 5277 } },
     },
     { name = "Hidden", icon = 134400, hidden = true, spells = { { spellID = 1752 } } },
 }
@@ -5771,6 +5775,22 @@ templates.SecureHandlerStateTemplate = function(frame)
         if body then
             RunSnippet(self, "self,stateid,newstate", body, stateID, value)
         end
+    end
+end
+
+-- Cooldown frames: `ends` is when the swipe they show ends, nil when cleared.
+templates.CooldownFrameTemplate = function(frame)
+    frame.SetDrawBling = NoOp
+    frame.SetDrawEdge = NoOp
+    function frame:SetCooldownFromDurationObject(duration, clearIfZero)
+        if duration.ends > world.now or clearIfZero == false then
+            self.ends = duration.ends
+        else
+            self.ends = nil
+        end
+    end
+    function frame:Clear()
+        self.ends = nil
     end
 end
 
@@ -5955,7 +5975,18 @@ C_Spell = {
         if own and world.now < own then
             return { isActive = true, isOnGCD = false }
         end
-        return { isActive = world.now < world.gcdUntil, isOnGCD = world.now < world.gcdUntil }
+        local onGCD = world.now < world.gcdUntil and not world.spells[base].offGlobalCooldown
+        return { isActive = onGCD, isOnGCD = onGCD }
+    end,
+    -- The client's LuaDurationObject, opaque to addons: `ends` is when the
+    -- spell's cooldown ends (the global cooldown too unless ignored).
+    GetSpellCooldownDuration = function(spellID, ignoreGCD)
+        local base = BaseSpell(spellID)
+        if not base then
+            return nil
+        end
+        local gcd = ignoreGCD and -math.huge or world.gcdUntil
+        return { ends = math.max(world.cooldowns[base] or -math.huge, gcd) }
     end,
 }
 
@@ -6044,6 +6075,19 @@ local function OnOwnCooldown(spellID)
     return own ~= nil and world.now < own
 end
 
+local function OffGlobalCooldown(spellID)
+    return world.spells[BaseSpell(spellID)].offGlobalCooldown
+end
+
+-- The spell's cooldown and global cooldown in milliseconds, 0 when it has none
+-- (cooldowns started by SetCooldown aren't the spell's own).
+function GetSpellBaseCooldown(spellID)
+    if not BaseSpell(spellID) then
+        return nil
+    end
+    return 0, OffGlobalCooldown(spellID) and 0 or GLOBAL_COOLDOWN * 1000
+end
+
 -- Measured in game: the error of a refused cast (UI_ERROR_MESSAGE) arrives
 -- after the click or key press that cast it, later in the same frame.
 local function ReportError(message)
@@ -6063,13 +6107,15 @@ function CastSpellByName(name)
     local usable = C_Spell.IsSpellUsable(spellID)
     if not usable then
         ReportError(CAST_REFUSED:format(name))
-    elseif world.now < world.gcdUntil or OnOwnCooldown(spellID) then
+    elseif (world.now < world.gcdUntil and not OffGlobalCooldown(spellID)) or OnOwnCooldown(spellID) then
         ReportError(CAST_ON_COOLDOWN)
     else
         table.insert(world.casts, name)
-        world.gcdUntil = world.now + GLOBAL_COOLDOWN
-        -- The global cooldown starts.
-        world:Fire("SPELL_UPDATE_COOLDOWN")
+        if not OffGlobalCooldown(spellID) then
+            world.gcdUntil = world.now + GLOBAL_COOLDOWN
+            -- The global cooldown starts.
+            world:Fire("SPELL_UPDATE_COOLDOWN")
+        end
     end
 end
 
@@ -6332,12 +6378,15 @@ function world:SwapShown(button)
     end
 end
 
--- Whether the replacement shown on the button covers its cooldown swipe, which
--- like the client's uses the button's frame level.
-function world:SwapCoversCooldown(button)
+-- The replacement shown on the button: whether it covers the button's cooldown
+-- swipe (which like the client's uses the button's frame level), and the
+-- seconds left on its own swipe (nil when none: like the client's, a cooldown
+-- frame stops drawing once its time is up).
+function world:SwapCooldown(button)
     for _, frame in ipairs(self.frames) do
         if frame.parent == button and frame.Glow and frame:IsShown() then
-            return frame:GetFrameLevel() > button:GetFrameLevel()
+            local ends = frame.Cooldown.ends
+            return frame:GetFrameLevel() > button:GetFrameLevel(), ends and ends > self.now and ends - self.now or nil
         end
     end
 end

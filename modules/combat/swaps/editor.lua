@@ -127,6 +127,10 @@ local function OnEnter(slot)
     GameTooltip:SetOwner(slot, "ANCHOR_RIGHT")
     if slot.spellID then
         GameTooltip:SetSpellByID(slot.spellID)
+        local problem = Swaps:CheckSwappable(slot.spellID)
+        if problem then
+            GameTooltip_AddErrorLine(GameTooltip, L[problem], true)
+        end
     else
         GameTooltip:SetText(L["combat.swaps.editor." .. slot.side])
         GameTooltip:AddLine(L["combat.swaps.editor.pick"], 1, 1, 1, true)
@@ -220,12 +224,16 @@ local function CreateRow(index)
     return row
 end
 
+-- A spell that can't be swapped (saved before the editor refused it) shows
+-- greyed out and red, its tooltip saying why.
 local function ShowSpell(slot, spellID)
     slot.spellID = spellID
+    local unswappable = spellID and Swaps:CheckSwappable(spellID) ~= nil
     slot.Icon:SetTexture(spellID and C_Spell.GetSpellTexture(spellID))
+    slot.Icon:SetDesaturated(unswappable)
     slot.Empty:SetShown(not spellID)
     slot.Add:SetShown(not spellID)
-    slot.Name:SetFontObject(spellID and GameFontNormal or GameFontDisable)
+    slot.Name:SetFontObject(unswappable and GameFontRed or spellID and GameFontNormal or GameFontDisable)
     slot.Name:SetText(spellID and C_Spell.GetSpellName(spellID) or L["combat.swaps.editor." .. slot.side])
 end
 

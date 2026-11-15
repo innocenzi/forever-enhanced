@@ -89,12 +89,6 @@ function Buttons:GetShownSwap(button)
     return self:GetSwapAt(button.action)
 end
 
--- The ID of the spell the button shows now, or nil.
-function Buttons:GetShownSpell(button)
-    local actionType, id = GetActionInfo(button.action)
-    return actionType == "spell" and id or nil
-end
-
 -- The keys bound to the button, through its binding or a click binding.
 function Buttons:GetKeys(button)
     local keys = {}

@@ -228,6 +228,7 @@ end)
 -- The editor ------------------------------------------------------------------------
 
 local KICK, KICK_ICON = 1766, 132219
+local EVASION = 5277 -- off the global cooldown
 
 -- Opens the swaps editor with its button in the settings panel.
 local function OpenEditor(world)
@@ -360,12 +361,13 @@ test("picks spells from the spellbook's tabs", function(world)
     local editor = OpenEditor(world)
     equal(
         SpellMenu(world, editor, 1, "original"),
-        ("General: %s; Combat: %s, %s, %s, %s"):format(
+        ("General: %s; Combat: %s, %s, %s, %s, %s"):format(
             Name(KICK),
             Name(BACKSTAB),
             Name(AMBUSH),
             Name(SINISTER_STRIKE),
-            Name(GARROTE)
+            Name(GARROTE),
+            Name(EVASION)
         ),
         "the shown tabs and their spells, without passives"
     )
@@ -393,8 +395,12 @@ test("refuses what can't be swapped", function(world)
     editor.Rows[3].replacement:RunScript("OnReceiveDrag")
     equal(world.errors[#world.errors], world.L["combat.swaps.editor.notSpell"], "an item")
     equal(world.cursor, nil, "cursor emptied")
+    Drop(world, editor, 3, "replacement", EVASION)
+    equal(world.errors[#world.errors], world.L["combat.swaps.editor.offGlobalCooldown"], "a replacement off it")
+    Drop(world, editor, 3, "original", EVASION)
+    equal(world.errors[#world.errors], world.L["combat.swaps.editor.offGlobalCooldown"], "an original off it")
 
-    equal(#world.errors, 3, "errors")
+    equal(#world.errors, 5, "errors")
     equal(SavedSwaps(world), nil, "nothing saved")
     equal(Rows(editor):match("[^;]+$"), (" %s > ?"):format(Name(KICK)), "the swap being added keeps its spell")
 end)
@@ -430,24 +436,28 @@ test("hides a replacement on its own cooldown, and casts the original meanwhile"
     equal(world:SwapShown(ActionButton1), KICK_ICON, "kept through the global cooldown")
 end)
 
-test("covers the original's own cooldown, not the global cooldown", function(world)
+test("shows the replacement's cooldown over the original's", function(world)
     Mage(world)
     local editor = OpenEditor(world)
     Drop(world, editor, 1, "original", SINISTER_STRIKE)
     Drop(world, editor, 1, "replacement", KICK)
-    world:NextFrame()
-    equal(world:SwapCoversCooldown(ActionButton1), false, "nothing to cover")
-
     world:SetCooldown(SINISTER_STRIKE, 10)
     world:NextFrame()
     equal(world:SwapShown(ActionButton1), KICK_ICON, "shown")
-    equal(world:SwapCoversCooldown(ActionButton1), true, "the original's cooldown covered")
+    local covers, left = world:SwapCooldown(ActionButton1)
+    expect(covers, "the original's cooldown covered")
+    equal(left, nil, "Kick has none")
 
-    world:Elapse(10)
     world:PressKey("1")
     world:NextFrame()
     equal(world:SwapShown(ActionButton1), KICK_ICON, "kept through the global cooldown")
-    equal(world:SwapCoversCooldown(ActionButton1), false, "the global cooldown left visible")
+    covers, left = world:SwapCooldown(ActionButton1)
+    expect(covers, "still covered")
+    expect(left and left > 0 and left <= 1.5, "the global cooldown shown")
+
+    world:Elapse(2)
+    covers, left = world:SwapCooldown(ActionButton1)
+    equal(left, nil, "cleared once it ends")
 end)
 
 test("the editor closes with the settings panel", function(world)
@@ -504,4 +514,22 @@ test("leaves other classes alone", function(world)
     world.player.class = "MAGE"
     Enable(world)
     equal(world:Overlay(ActionButton1), nil, "overlay")
+end)
+
+test("leaves out a saved swap with a spell off the global cooldown", function(world)
+    Rogue(world)
+    -- Saved before the editor refused such spells.
+    world.ns:GetFeature("combat", "swaps"):GetCharacterStore().swaps = {
+        { original = BACKSTAB, replacement = EVASION },
+    }
+    Enable(world)
+    world:NextFrame()
+    equal(world:SwapShown(ActionButton1), nil, "not shown")
+    Press(world, "1")
+    equal(Casts(world), Name(BACKSTAB), "the original alone, from Blizzard's button")
+
+    local row = OpenEditor(world).Rows[1]
+    equal(row.replacement.spellID, EVASION, "still listed")
+    expect(row.replacement.Icon.desaturated, "flagged")
+    expect(not row.original.Icon.desaturated, "the other spell not flagged")
 end)

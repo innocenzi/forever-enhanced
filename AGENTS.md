@@ -12,7 +12,8 @@ Forever Enhanced: a World of Warcraft Forever addon of small, independent qualit
   - Secret: unit health always; attack power and cooldowns in combat (spell power presumably, unmeasured; the API docs mark fields that stay readable `NeverSecret`, e.g. `SpellCooldownInfo`'s `isActive` and `isOnGCD`); `UnitGUID` for restricted units (instances), so `combat.dots` tells units apart by nameplate token there; group chat messages at times (`CHAT_MSG_PARTY` and the like: check `issecretvalue` before reading them); world tooltip text at times (a herb or ore node's name in its object tooltip data). A secret string can't index a table.
   - Unreadable in combat: unit auras (`GetAuraDataByIndex` errors, `GetAuraDataBySpellName` returns nothing); the combat log is restricted.
   - Readable in combat: the player's casts (`UNIT_SPELLCAST_*`), combo points, unit GUIDs (nameplates included), spell descriptions, `UNIT_COMBAT`'s action (not its amount).
-  - Status bars accept secret values (`SetMinMaxValues`, `SetValue`): `combat.dots` draws over health that way. Comparing a secret value with a plain one through status bars and clipping frames (Does It Die?'s skull trick) never showed in game, with an empty or a full 10000 px bar: don't build on it without measuring first.
+  - Status bars accept secret values (`SetMinMaxValues`, `SetValue`): `combat.dots` draws over health that way.
+  - Cooldown frames take secret times only from Blizzard's code, but a spell's duration object works from ours in combat: `cooldown:SetCooldownFromDurationObject(C_Spell.GetSpellCooldownDuration(spellID))` (`combat.swaps` draws the replacement's swipe that way). Comparing a secret value with a plain one through status bars and clipping frames (Does It Die?'s skull trick) never showed in game, with an empty or a full 10000 px bar: don't build on it without measuring first.
 
 ## Architecture
 
