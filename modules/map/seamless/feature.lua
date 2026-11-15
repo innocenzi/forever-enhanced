@@ -35,6 +35,18 @@
 -- every pin made from one. Shift Click on the map pin copies its /mappin command
 -- (CopyToClipboard), which the game blocks from tainted code at any time: waypoint.lua
 -- shares the pin in chat without the copy.
+-- Known limitation, not worked around: the taint reaches the quest log beside
+-- the map and, through it, Blizzard's objective tracker (measured in game, none
+-- of it with the feature off and a /reload). Opening a quest's details (from the
+-- tracker or the log) shows the map, so the quest log writes the open quest
+-- (QuestMapFrame.DetailsFrame.questID, returnMapID, questMapID) from tainted
+-- code; clicking a quest on the map changes super tracking from tainted code.
+-- The tracker reads the open quest (QuestMapFrame_GetFocusedQuestID) and
+-- handles SUPER_TRACKING_CHANGED in every update, so its own state turns tainted
+-- for the session, and in combat its update throws on the player's secret
+-- auras (ShouldShowMawBuffs, in its scenario module) and stops halfway: the
+-- tracker may stop updating in combat. Neither path is ours to shield (Blizzard
+-- writes and reads both); avoiding it means not writing into Blizzard's map.
 -- What we replaced and wrote can't be put back: turning the feature off hands
 -- every replaced method over to Blizzard's and restores Blizzard's zoom levels,
 -- view, art and mouse wheel, but the map stays tainted until a /reload, and so
