@@ -117,6 +117,8 @@ local world = {
     questSorts = 0,
     -- Events Blizzard's quest tracker module handled, in order.
     trackerEvents = {},
+    -- Events the quest log beside the map handled, in order.
+    questLogEvents = {},
     position = { x = 0, y = 0, continentID = 0 },
     onTaxi = false,
     party = false,
@@ -3552,8 +3554,16 @@ RED_FONT_COLOR = CreateColor(1, 0.1, 0.1)
 
 -- The quest log beside the map. DetailsFrame.questMapID: the map of the quest whose
 -- details are open (world:OpenQuestDetails); like the client, they close when the map
--- shown becomes another.
-QuestMapFrame = { DetailsFrame = {} }
+-- shown becomes another. Like the client's, it handles the quest watch and super
+-- tracking events; world.questLogEvents lists what it handled.
+QuestMapFrame = CreateFrame("Frame", "QuestMapFrame")
+QuestMapFrame.DetailsFrame = {}
+for _, event in ipairs({ "QUEST_LOG_UPDATE", "QUEST_WATCH_LIST_CHANGED", "SUPER_TRACKING_CHANGED", "QUEST_POI_UPDATE" }) do
+    QuestMapFrame:RegisterEvent(event)
+end
+QuestMapFrame:SetScript("OnEvent", function(_, event)
+    table.insert(world.questLogEvents, event)
+end)
 
 -- Blizzard's objective tracker: its quest module, added to the tracker (its
 -- events registered) before any addon loads; world.trackerEvents lists what it handled.

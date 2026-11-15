@@ -381,7 +381,7 @@ test("sorting keeps the super-tracked quest first and super-tracked", function(w
     equal(world.superTracked, 5, "super-tracked")
 end)
 
-test("Blizzard's tracker doesn't handle the tracking changes from our code", function(world)
+test("Blizzard's tracker and quest log don't handle the tracking changes from our code", function(world)
     Enable(world)
     Set(world, "sort", true)
     WithQuests(world)
@@ -391,9 +391,11 @@ test("Blizzard's tracker doesn't handle the tracking changes from our code", fun
     world:NextFrame()
     equal(world:WatchOrder(), "5 4 1", "order")
     equal(table.concat(world.trackerEvents, " "), "", "tracker events")
+    equal(table.concat(world.questLogEvents, " "), "", "quest log events")
 
     world:TrackQuest(2)
     equal(table.concat(world.trackerEvents, " "), "QUEST_WATCH_LIST_CHANGED", "the player's own change")
+    equal(table.concat(world.questLogEvents, " "), "QUEST_WATCH_LIST_CHANGED", "the player's own change in the log")
 end)
 
 test("sorting doesn't count as the player's tracking changes", function(world)
