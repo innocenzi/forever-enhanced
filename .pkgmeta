@@ -12,6 +12,7 @@ ignore:
   - bump.config.ts
   - bun.lock
   - cliff.toml
+  - debug
   - node_modules
   - package.json
   - tests

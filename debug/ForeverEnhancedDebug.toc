@@ -1,0 +1,18 @@
+## Interface: 16001
+## Title: Forever Enhanced Debug
+## Notes: Forever Enhanced's debugging tools, for its maintainer. Never packaged.
+## Author: Hylmew
+## Version: dev
+## IconTexture: Interface\AddOns\ForeverEnhanced\media\icon
+## OptionalDeps: !BugGrabber
+## SavedVariables: ForeverEnhancedDebugDB
+
+init.lua
+serialize.lua
+log.lua
+api.lua
+recorder.lua
+incidents.lua
+watches.lua
+errors.lua
+window.lua

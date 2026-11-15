@@ -3,10 +3,10 @@
   "scripts": {
     "changelog": "bun run tools/changelog.ts",
     "dots": "bun run tools/dots.ts",
-    "format": "stylua core modules tests",
+    "format": "stylua core modules tests debug",
     "icon": "bun run tools/icon.ts",
     "instances": "bun run tools/instances.ts",
-    "lint": "stylua --check core modules tests",
+    "lint": "stylua --check core modules tests debug",
     "professions": "bun run tools/professions.ts",
     "release": "bumpp",
     "seamless": "bun run tools/seamless.ts",

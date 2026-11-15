@@ -245,6 +245,43 @@ function canaccesstable()
     return true
 end
 
+-- What the debug addon (debug/) reads: taint, stacks, build, zone, dates.
+-- world:Taint(tbl, key, addon) marks a field as written by an addon's (tainted)
+-- code, as issecurevariable then reports it. Nothing taints by itself.
+world.taint = setmetatable({}, { __mode = "k" })
+
+function issecurevariable(tbl, key)
+    if type(tbl) == "string" then
+        tbl, key = _G, tbl
+    end
+    local addon = world.taint[tbl] and world.taint[tbl][key]
+    if addon then
+        return false, addon
+    end
+    return true, nil
+end
+
+function world:Taint(tbl, key, addon)
+    self.taint[tbl] = self.taint[tbl] or {}
+    self.taint[tbl][key] = addon or "ForeverEnhanced"
+end
+
+function debugstack()
+    return "[fake stack]\n"
+end
+
+date = os.date
+
+function GetBuildInfo()
+    return "1.16.1", "60000", "Nov 1 2026", 16001
+end
+
+world.zoneText = "Elwynn Forest"
+
+function GetRealZoneText()
+    return world.zoneText
+end
+
 -- world.loadedAddOns: load-on-demand Blizzard addons loaded so far.
 world.loadedAddOns = {}
 C_AddOns = {
@@ -369,6 +406,11 @@ end
 
 function Region:UnregisterAllEvents()
     self.events = {}
+    self.allEvents = nil
+end
+
+function Region:RegisterAllEvents()
+    self.allEvents = true
 end
 
 function Region:SetScript(name, func)
@@ -3515,14 +3557,23 @@ QuestMapFrame = { DetailsFrame = {} }
 
 -- Blizzard's objective tracker: its quest module, added to the tracker (its
 -- events registered) before any addon loads; world.trackerEvents lists what it handled.
+-- MarkDirty (the tracker's and its modules') flags them for the next frame's update.
+ObjectiveTrackerFrame = CreateFrame("Frame", "ObjectiveTrackerFrame")
+function ObjectiveTrackerFrame:MarkDirty()
+    self.dirty = true
+end
 QuestObjectiveTracker = CreateFrame("Frame", "QuestObjectiveTracker")
+function QuestObjectiveTracker:MarkDirty()
+    self.isDirty = true
+    ObjectiveTrackerFrame:MarkDirty()
+end
 for _, event in ipairs({ "QUEST_LOG_UPDATE", "QUEST_WATCH_LIST_CHANGED", "SUPER_TRACKING_CHANGED", "QUEST_POI_UPDATE" }) do
     QuestObjectiveTracker:RegisterEvent(event)
 end
 QuestObjectiveTracker:SetScript("OnEvent", function(_, event)
     table.insert(world.trackerEvents, event)
 end)
-ObjectiveTrackerManager = { moduleToContainerMap = { [QuestObjectiveTracker] = UIParent } }
+ObjectiveTrackerManager = { moduleToContainerMap = { [QuestObjectiveTracker] = ObjectiveTrackerFrame } }
 
 -- The map position of a world position (yards on a continent), like the
 -- client: outside 0..1 when it's off the map, nil when the map is elsewhere.
@@ -3952,7 +4003,7 @@ end
 
 function world:Fire(event, ...)
     for _, frame in ipairs(self.frames) do
-        if frame.events[event] and frame.scripts.OnEvent then
+        if (frame.events[event] or frame.allEvents) and frame.scripts.OnEvent then
             frame.scripts.OnEvent(frame, event, ...)
         end
     end

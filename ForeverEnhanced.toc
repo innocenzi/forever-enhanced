@@ -9,6 +9,7 @@
 ## IconTexture: Interface\AddOns\ForeverEnhanced\media\icon
 ## SavedVariables: ForeverEnhancedDB
 ## SavedVariablesPerCharacter: ForeverEnhancedCharacterDB
+## OptionalDeps: ForeverEnhancedDebug
 
 # Core
 core\events.lua

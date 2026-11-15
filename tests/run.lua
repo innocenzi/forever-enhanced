@@ -35,20 +35,23 @@ local TEST_FILES = {
     "tests/ranks_test.lua",
     "tests/friends_test.lua",
     "tests/seamless_test.lua",
+    "tests/debug_test.lua",
 }
 
-local function ReadAddonFiles()
+local function ReadAddonFiles(toc, folder)
     local files = {}
-    for line in io.lines("ForeverEnhanced.toc") do
+    for line in io.lines(toc) do
         local path = line:match("^%s*([^#].-%.lua)%s*$")
         if path then
-            table.insert(files, (path:gsub("\\", "/")))
+            table.insert(files, folder .. (path:gsub("\\", "/")))
         end
     end
     return files
 end
 
-local ADDON_FILES = ReadAddonFiles()
+local ADDON_FILES = ReadAddonFiles("ForeverEnhanced.toc", "")
+-- The debug addon (debug/), loaded first like in the maintainer's game (OptionalDeps).
+local DEBUG_FILES = ReadAddonFiles("debug/ForeverEnhancedDebug.toc", "debug/")
 
 local function Run(path, env, ...)
     return assert(loadfile(path, "t", env))(...)
@@ -62,6 +65,15 @@ local function Boot(locale, options)
     env._G = env
 
     local world = Run("tests/wow.lua", env)
+    local debugNs = {}
+    for _, path in ipairs(DEBUG_FILES) do
+        Run(path, env, "ForeverEnhancedDebug", debugNs)
+    end
+    if options and options.debugSavedVariables then
+        env.ForeverEnhancedDebugDB = options.debugSavedVariables(locale)
+    end
+    world:Fire("ADDON_LOADED", "ForeverEnhancedDebug")
+
     local ns = {}
     for _, path in ipairs(ADDON_FILES) do
         Run(path, env, "ForeverEnhanced", ns)
@@ -76,6 +88,7 @@ local function Boot(locale, options)
     world:Fire("PLAYER_LOGIN")
 
     world.ns = ns
+    world.debug = debugNs
     world.L = ns.L
     world.env = env
     return world
@@ -112,7 +125,8 @@ local function LoadTests(path)
         env[name] = func
     end
     -- options: { savedVariables = function(locale) return ForeverEnhancedDB end,
-    --            characterSavedVariables = function(locale) return ForeverEnhancedCharacterDB end }
+    --            characterSavedVariables = function(locale) return ForeverEnhancedCharacterDB end,
+    --            debugSavedVariables = function(locale) return ForeverEnhancedDebugDB end }
     function env.test(name, func, options)
         table.insert(tests, { file = path, name = name, func = func, options = options })
     end
