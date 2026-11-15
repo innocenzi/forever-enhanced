@@ -6453,3 +6453,4 @@ function Region:GetFrameStrata()
 end
 
 return world
+    world.tooltipLines = {}

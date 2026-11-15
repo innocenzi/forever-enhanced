@@ -10,7 +10,8 @@
 -- than from Blizzard's buttons, which cast on key down, by as long as the key
 -- is held (about 0.1 s, measured); the key down can't try it too, since a
 -- refused cast uses up its key event. Nothing refuses a spell off the global
--- cooldown after the other, so both spells of a swap must trigger it.
+-- cooldown after the other, so with one in a swap the key may cast both: the
+-- editor warns about them.
 --
 -- Files of this slice:
 --   feature.lua   registration, the character's swaps and lifecycle (this file)
@@ -63,27 +64,21 @@ end
 -- The swaps on while active, by original spell name (see Resolve).
 local active = {}
 
--- Why `spellID` can't be swapped at all: a locale key, or nil when it can.
-function Swaps:CheckSwappable(spellID)
-    if not C_Spell.GetSpellName(spellID) then
-        return "combat.swaps.editor.notSpell"
-    end
+-- Whether the spell doesn't trigger the global cooldown: in a swap, the key
+-- may then cast both spells.
+function Swaps:IsOffGlobalCooldown(spellID)
     local _, globalCooldown = GetSpellBaseCooldown(spellID)
-    if not globalCooldown or globalCooldown == 0 then
-        return "combat.swaps.editor.offGlobalCooldown"
-    end
+    return globalCooldown == 0
 end
 
 -- { [originalName] = { originalName, replacementName, replacement (spell ID) } }.
--- Spells match by name, so every rank counts. A saved swap with a spell that
--- can't be swapped (saved before the editor refused it) is left out; the
--- editor flags it.
+-- Spells match by name, so every rank counts.
 local function Resolve(list)
     local swaps = {}
     for _, swap in ipairs(list) do
-        if not Swaps:CheckSwappable(swap.original) and not Swaps:CheckSwappable(swap.replacement) then
-            local originalName = C_Spell.GetSpellName(swap.original)
-            local replacementName = C_Spell.GetSpellName(swap.replacement)
+        local originalName = C_Spell.GetSpellName(swap.original)
+        local replacementName = C_Spell.GetSpellName(swap.replacement)
+        if originalName and replacementName then
             swaps[originalName] = {
                 originalName = originalName,
                 replacementName = replacementName,
@@ -107,11 +102,10 @@ end
 -- Why `spellID` can't go on `side` ("original" or "replacement") of swap
 -- `index` in `list`: a locale key, or nil when it can.
 function Swaps:CheckSpell(list, index, side, spellID)
-    local problem = self:CheckSwappable(spellID)
-    if problem then
-        return problem
-    end
     local name = C_Spell.GetSpellName(spellID)
+    if not name then
+        return "combat.swaps.editor.notSpell"
+    end
     local swap = list[index] or {}
     local other = side == "original" and swap.replacement or swap.original
     if other and C_Spell.GetSpellName(other) == name then
