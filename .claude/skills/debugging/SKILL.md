@@ -12,7 +12,7 @@ The fake client (`tests/wow.lua`) only models what was measured. When a bug depe
 Forever Enhanced Debug (`debug/`, see "Debug addon" in `AGENTS.md`) runs in the maintainer's game all the time and keeps its log across reloads and sessions. It must be junctioned into the game once (the player does it, in a Command Prompt):
 
 ```
-mklink /J "<game>\_forever_\Interface\AddOns\ForeverEnhancedDebug" "<repo>\dev"
+mklink /J "<game>\_forever_\Interface\AddOns\ForeverEnhancedDebug" "<repo>\debug"
 ```
 
 On its own it logs **incidents**: taint of the Blizzard state in its watch list (`debug/watches.lua`), our errors (through BugGrabber) and our blocked actions. Each one comes with its stack when known, the context (zone, instance, combat, active features) and the events just before it, and it prints a chat line pointing to `/fedebug`.

@@ -93,7 +93,7 @@ local function BuildFrame()
     frame.Scope = scope
 end
 
-SLASH_FOREVERENHANCEDDEV1 = "/fedebug"
+SLASH_FOREVERENHANCEDDEBUG1 = "/fedebug"
 SlashCmdList.FOREVERENHANCEDDEBUG = function(message)
     if strtrim(message):lower() == "clear" then
         ns:Clear()
