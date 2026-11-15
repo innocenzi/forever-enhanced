@@ -1,5 +1,35 @@
 # Changelog
 
+## 1.2.0 - 2026-11-15
+
+
+### Features
+- **inventory:** show the auction price right under the sell price and hide its age by default
+- **professions:** show the chance of gaining skill in herb and ore node tooltips
+- **inventory:** mark the lowest value items in the bags, optionally only when they are full
+- **inventory:** leave the reagent bag out of the lowest value items by default
+- **professions:** show the skill-up chance after the tooltip line instead of on its own line
+- **core:** reorganize the settings into fewer, simpler options
+- **combat:** show the replacement's cooldown on swapped buttons and refuse spells off the global cooldown
+- **combat:** warn about spells off the global cooldown in swaps instead of refusing them
+- **professions:** show the chance of gaining skill on skinnable corpses
+
+
+### Fixes
+- **quests:** leave group chat the client keeps secret instead of erroring on it
+- **map:** open the world map in combat without a blocked action from friends' pins
+- show the glow's glints and put CVars back after a reload
+- **professions:** stop node tooltips from erroring when the game hides the node's name
+- **core:** keep addon errors from breaking Blizzard's UI and other features
+- **inventory:** stop the auction price tooltip from erroring on buyback items
+- **inventory:** stop the auction price tooltip from erroring on buyback items again
+- **core:** keep the quest log from rebuilding during our quest tracking changes
+- **combat:** show the original's own cooldown over a replacement only when it has one
+- **core:** make /fedebug clear work in the debugging addon
+- **inventory:** show the auction price of the whole stack, like the sell price
+- **inventory:** describe what bank, lowest value and merchant options do for the player
+- **quests:** describe what leftover quest items shows for the player
+
 ## 1.1.0 - 2026-11-14
 
 
