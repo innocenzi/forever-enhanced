@@ -1,7 +1,8 @@
--- The tooltip lines, right under the sell price and drawn like it:
--- "Auction price (3 days ago): 1g 20s" and, while Shift is held for a stack in
--- the bags or bank, "Auction price x20: 24g". Bound items can't be sold there
--- and show nothing, nor do comparison tooltips, which have no sell price either.
+-- The tooltip lines, right under the sell price and drawn like it. Like the sell
+-- price, the price is the whole stack's for a stack in the bags or bank:
+-- "Auction price (3 days ago): 24g" and, while Shift is held, "Auction unit
+-- price: 1g 20s". Bound items can't be sold there and show nothing, nor do
+-- comparison tooltips, which have no sell price either.
 --
 -- Only bag and bank items have a stack, and their buttons rebuild the tooltip
 -- when Shift changes: no refresh of our own.
@@ -56,15 +57,15 @@ ns:AddItemTooltipHandler(Auction, function(tooltip, data)
         return
     end
 
+    local total = FormatMoney(price * count)
     local age = Auction:GetSetting("age") and FormatAge(GetServerTime() - seen)
     if age then
         local text = GRAY_FONT_COLOR:WrapTextInColorCode(age)
-        GameTooltip_AddHighlightLine(tooltip, ns.L["inventory.auction.priceAge"]:format(text, FormatMoney(price)))
+        GameTooltip_AddHighlightLine(tooltip, ns.L["inventory.auction.priceAge"]:format(text, total))
     else
-        GameTooltip_AddHighlightLine(tooltip, ns.L["inventory.auction.price"]:format(FormatMoney(price)))
+        GameTooltip_AddHighlightLine(tooltip, ns.L["inventory.auction.price"]:format(total))
     end
-    if count > 1 and Auction:GetSetting("stack") and IsShiftKeyDown() then
-        local line = ns.L["inventory.auction.stackPrice"]:format(count, FormatMoney(price * count))
-        GameTooltip_AddHighlightLine(tooltip, line)
+    if count > 1 and Auction:GetSetting("unit") and IsShiftKeyDown() then
+        GameTooltip_AddHighlightLine(tooltip, ns.L["inventory.auction.unitPrice"]:format(FormatMoney(price)))
     end
 end, { price = true })

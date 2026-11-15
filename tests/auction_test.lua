@@ -15,8 +15,8 @@ local function PriceLine(world, price, age)
     return world.L["inventory.auction.price"]:format(price .. "c")
 end
 
-local function StackLine(world, count, price)
-    return world.L["inventory.auction.stackPrice"]:format(count, price .. "c")
+local function UnitLine(world, price)
+    return world.L["inventory.auction.unitPrice"]:format(price .. "c")
 end
 
 -- Tooltip lines compared as one text.
@@ -46,7 +46,7 @@ test("opening the auction house scans every auction and keeps the lowest price p
     Scan(world)
     equal(world.replicateRequests, 1, "one full scan")
     same(Tooltip(world, "G1"), { PriceLine(world, 300) }, "lowest buyout")
-    same(Tooltip(world, "B2"), { PriceLine(world, 100) }, "per unit")
+    same(LinkTooltip(world, "B2"), { PriceLine(world, 100) }, "per unit")
     same(Tooltip(world, "G2"), {}, "nothing for an item never listed")
 end)
 
@@ -125,7 +125,7 @@ end)
 test("records a commodity's search results", function(world)
     world:OpenAuctionHouse()
     world:ReceiveCommodityResults("B2", { { unitPrice = 30, quantity = 50 }, { unitPrice = 35, quantity = 5 } })
-    same(Tooltip(world, "B2"), { PriceLine(world, 30) }, "lowest unit price")
+    same(LinkTooltip(world, "B2"), { PriceLine(world, 30) }, "lowest unit price")
 end)
 
 test("records an item's search results, per unit", function(world)
@@ -170,19 +170,24 @@ test("shows how old the price is once it is over an hour old, when enabled", fun
     same(Tooltip(world, "G1"), { PriceLine(world, 120) }, "no age when disabled")
 end)
 
-test("the stack price shows while Shift is held, for stacks only, and can be turned off", function(world)
+test("a stack shows its whole price, and the unit price while Shift is held, which can be turned off", function(world)
+    world:Setting("inventory.auction.age"):SetValue(true)
     world:OpenAuctionHouse()
     world:ReceiveBrowseResults({
         { itemKey = { itemID = "B2" }, minPrice = 10 },
         { itemKey = { itemID = "G1" }, minPrice = 50 },
     })
-    same(Tooltip(world, "B2"), { PriceLine(world, 10) }, "unit price only without Shift")
+    world:CloseAuctionHouse()
+    same(Tooltip(world, "B2"), { PriceLine(world, 200) }, "stack price only without Shift")
     world:SetShift(true)
-    same(Tooltip(world, "B2"), { PriceLine(world, 10), StackLine(world, 20, 200) }, "and the stack with Shift")
-    same(Tooltip(world, "G1"), { PriceLine(world, 50) }, "no stack for a single item")
-    same(LinkTooltip(world, "B2"), { PriceLine(world, 10) }, "no stack outside bags and bank")
-    world:Setting("inventory.auction.stack"):SetValue(false)
-    same(Tooltip(world, "B2"), { PriceLine(world, 10) }, "unit price only when disabled")
+    same(Tooltip(world, "B2"), { PriceLine(world, 200), UnitLine(world, 10) }, "and the unit price with Shift")
+    same(Tooltip(world, "G1"), { PriceLine(world, 50) }, "no unit price for a single item")
+    same(LinkTooltip(world, "B2"), { PriceLine(world, 10) }, "one item outside bags and bank")
+    world:Elapse(3 * HOUR)
+    local age = world.L["inventory.auction.hoursAgo"]:format(3)
+    same(Tooltip(world, "B2"), { PriceLine(world, 200, age), UnitLine(world, 10) }, "the age on the stack price")
+    world:Setting("inventory.auction.unit"):SetValue(false)
+    same(Tooltip(world, "B2"), { PriceLine(world, 200, age) }, "stack price only when disabled")
 end)
 
 test("bound items show no price", function(world)
@@ -248,15 +253,15 @@ test("the price lines come right under the sell price, before the item's next li
         id = "B1",
         lines = {
             { leftText = "B1" },
-            { type = Enum.TooltipDataLineType.SellPrice, price = 5 },
+            { type = Enum.TooltipDataLineType.SellPrice, price = 15 },
             { leftText = "You haven't collected this appearance" },
         },
     })
     same(lines, {
         "B1",
-        "Sell Price: 5c",
-        PriceLine(world, 10),
-        StackLine(world, 3, 30),
+        "Sell Price: 15c",
+        PriceLine(world, 30),
+        UnitLine(world, 10),
         "You haven't collected this appearance",
         world.L["inventory.bank.countLine"]:format(3),
     }, "under the sell price")

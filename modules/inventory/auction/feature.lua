@@ -1,7 +1,7 @@
 -- Auction house prices: item tooltips show the lowest buyout price seen for
--- the item at the auction house, per unit (and for the whole stack while Shift
--- is held, "stack"), with how long ago it was seen once that is over an hour
--- ("age").
+-- the item at the auction house, for the whole stack like the sell price above
+-- it (and for one item while Shift is held, "unit"), with how long ago it was
+-- seen once that is over an hour ("age").
 --
 -- Prices can only be read at an open auction house, from two sources:
 --   - a full scan (C_AuctionHouse.ReplicateItems: every auction at once, which
@@ -28,12 +28,12 @@ local Auction = ns:RegisterFeature("inventory", "auction", {
     order = 5,
     settings = {
         { key = "scan", type = "toggle", default = true },
-        { key = "stack", type = "toggle", default = true },
+        { key = "unit", type = "toggle", default = true },
         { key = "age", type = "toggle", default = false },
     },
     presets = {
-        minimal = { enabled = true, scan = true, stack = false, age = false },
-        enhanced = { enabled = true, scan = true, stack = true, age = false },
+        minimal = { enabled = true, scan = true, unit = true, age = false },
+        enhanced = { enabled = true, scan = true, unit = true, age = false },
     },
 })
 
