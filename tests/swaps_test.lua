@@ -430,6 +430,26 @@ test("hides a replacement on its own cooldown, and casts the original meanwhile"
     equal(world:SwapShown(ActionButton1), KICK_ICON, "kept through the global cooldown")
 end)
 
+test("covers the original's own cooldown, not the global cooldown", function(world)
+    Mage(world)
+    local editor = OpenEditor(world)
+    Drop(world, editor, 1, "original", SINISTER_STRIKE)
+    Drop(world, editor, 1, "replacement", KICK)
+    world:NextFrame()
+    equal(world:SwapCoversCooldown(ActionButton1), false, "nothing to cover")
+
+    world:SetCooldown(SINISTER_STRIKE, 10)
+    world:NextFrame()
+    equal(world:SwapShown(ActionButton1), KICK_ICON, "shown")
+    equal(world:SwapCoversCooldown(ActionButton1), true, "the original's cooldown covered")
+
+    world:Elapse(10)
+    world:PressKey("1")
+    world:NextFrame()
+    equal(world:SwapShown(ActionButton1), KICK_ICON, "kept through the global cooldown")
+    equal(world:SwapCoversCooldown(ActionButton1), false, "the global cooldown left visible")
+end)
+
 test("the editor closes with the settings panel", function(world)
     Rogue(world)
     Enable(world)

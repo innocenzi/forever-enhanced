@@ -307,7 +307,6 @@ for _, name in ipairs({
     "RegisterForClicks",
     "RegisterForDrag",
     "SetHighlightTexture",
-    "SetFrameLevel",
     "SetToplevel",
     "EnableMouse",
     "SetHorizTile",
@@ -483,8 +482,13 @@ function Region:IsMouseOver()
     return world.mouseOver == self
 end
 
+-- Every frame starts at level 1 (tests only compare levels).
 function Region:GetFrameLevel()
-    return 1
+    return self.frameLevel or 1
+end
+
+function Region:SetFrameLevel(level)
+    self.frameLevel = level
 end
 
 function Region:GetID()
@@ -6324,6 +6328,16 @@ function world:SwapShown(button)
     for _, frame in ipairs(self.frames) do
         if frame.parent == button and frame.Glow and frame:IsShown() then
             return frame.Icon.texture, frame.Glow.ProcStartAnim.playing, frame.Icon.tint
+        end
+    end
+end
+
+-- Whether the replacement shown on the button covers its cooldown swipe, which
+-- like the client's uses the button's frame level.
+function world:SwapCoversCooldown(button)
+    for _, frame in ipairs(self.frames) do
+        if frame.parent == button and frame.Glow and frame:IsShown() then
+            return frame:GetFrameLevel() > button:GetFrameLevel()
         end
     end
 end

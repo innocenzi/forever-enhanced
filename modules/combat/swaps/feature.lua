@@ -116,9 +116,9 @@ function Swaps:GetSwaps()
     return active
 end
 
--- A cooldown of its own, not the global cooldown. Both fields stay readable
--- when the client hides cooldowns from addons in combat.
-local function OnCooldown(spellID)
+-- Whether the spell is on a cooldown of its own, not the global cooldown. Both
+-- fields stay readable when the client hides cooldowns from addons in combat.
+function Swaps:IsOnOwnCooldown(spellID)
     local cooldown = C_Spell.GetSpellCooldown(spellID)
     return cooldown ~= nil and cooldown.isActive and not cooldown.isOnGCD
 end
@@ -126,7 +126,7 @@ end
 -- Whether the swap's replacement can be cast now (the test the game's own
 -- cast passes), and whether it only lacks power.
 function Swaps:CanCastReplacement(swap)
-    if OnCooldown(swap.replacement) then
+    if self:IsOnOwnCooldown(swap.replacement) then
         return false, false
     end
     return C_Spell.IsSpellUsable(swap.replacement)

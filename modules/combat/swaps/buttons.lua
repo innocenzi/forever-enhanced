@@ -89,6 +89,12 @@ function Buttons:GetShownSwap(button)
     return self:GetSwapAt(button.action)
 end
 
+-- The ID of the spell the button shows now, or nil.
+function Buttons:GetShownSpell(button)
+    local actionType, id = GetActionInfo(button.action)
+    return actionType == "spell" and id or nil
+end
+
 -- The keys bound to the button, through its binding or a click binding.
 function Buttons:GetKeys(button)
     local keys = {}
@@ -103,6 +109,11 @@ end
 -- The button's icon texture, to lay the replacement's over.
 function Buttons:GetIcon(button)
     return button.icon
+end
+
+-- The frame level of the button's cooldown swipes (they use the button's).
+function Buttons:GetCooldownLevel(button)
+    return button:GetFrameLevel()
 end
 
 -- Standing in for them ---------------------------------------------------------------

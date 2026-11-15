@@ -1,6 +1,11 @@
 -- While a replacement can be cast (or only lacks power), the buttons showing
 -- its original show its icon and a proc glow: our own frames over Blizzard's
 -- buttons, following Swaps:CanCastReplacement, so it also works in combat.
+-- The button's cooldown swipe is the original's: we leave it over our icon
+-- for the global cooldown (the replacement's too) and cover it while the
+-- original is on a cooldown of its own. Our code can't draw the replacement's
+-- swipe instead: cooldowns are secret in combat, and a cooldown frame takes
+-- secret values only from Blizzard's code.
 
 local _, ns = ...
 
@@ -20,8 +25,6 @@ local function GetVisual(button)
     end
     visual = CreateFrame("Frame", nil, button)
     visual:SetAllPoints(Buttons:GetIcon(button))
-    -- Under the button's cooldown swipe, over its icon.
-    visual:SetFrameLevel(button:GetFrameLevel())
     visual.Icon = visual:CreateTexture(nil, "ARTWORK")
     visual.Icon:SetAllPoints()
     visual.Glow = CreateFrame("Frame", nil, visual, "ActionButtonSpellAlertTemplate")
@@ -34,8 +37,13 @@ local function GetVisual(button)
 end
 
 -- Tinted like Blizzard's icons (UpdateUsable): blue while short of energy.
-local function Show(button, swap, usable)
+-- Over the button's icon, and over its cooldown swipe when `covered`.
+local function Show(button, swap, usable, covered)
     local visual = GetVisual(button)
+    local level = Buttons:GetCooldownLevel(button) + (covered and 1 or 0)
+    if visual:GetFrameLevel() ~= level then
+        visual:SetFrameLevel(level)
+    end
     visual.Icon:SetTexture(C_Spell.GetSpellTexture(swap.replacement))
     if usable then
         visual.Icon:SetVertexColor(1, 1, 1)
@@ -69,7 +77,7 @@ local function Update()
             usable, noPower = Swaps:CanCastReplacement(swap)
         end
         if usable or noPower then
-            Show(button, swap, usable)
+            Show(button, swap, usable, Swaps:IsOnOwnCooldown(Buttons:GetShownSpell(button)))
         else
             Hide(button)
         end
