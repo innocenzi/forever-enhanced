@@ -11,7 +11,7 @@ ns:RegisterLocale("enUS", {
     ["inventory.cheapest.indicator.cross"] = "Red cross",
     ["inventory.cheapest.indicator.coin"] = "Copper coin",
     ["inventory.cheapest.excludeReagentBag"] = "Exclude reagent bag",
-    ["inventory.cheapest.excludeReagentBag.tooltip"] = "Never marks items in your reagent bag, and ignores its free slots.",
+    ["inventory.cheapest.excludeReagentBag.tooltip"] = "Never marks items in your reagent bag, and doesn't count its free slots.",
 })
 
 ns:RegisterLocale("frFR", {
@@ -25,5 +25,5 @@ ns:RegisterLocale("frFR", {
     ["inventory.cheapest.indicator.cross"] = "Croix rouge",
     ["inventory.cheapest.indicator.coin"] = "Pièce de cuivre",
     ["inventory.cheapest.excludeReagentBag"] = "Exclure le sac de composants",
-    ["inventory.cheapest.excludeReagentBag.tooltip"] = "Ne marque jamais les objets de votre sac de composants et ignore ses emplacements libres.",
+    ["inventory.cheapest.excludeReagentBag.tooltip"] = "Ne marque jamais les objets de votre sac de composants et ne compte pas ses emplacements libres.",
 })
