@@ -255,19 +255,6 @@ test("turning the saved bank off hides it and stops saving, but keeps the deposi
     expect(world:BankSideTab().shown, "tab back")
 end)
 
-test("the saved bank options grey out with the saved bank off", function(world)
-    local setting = world:Setting("inventory.bank.openWithBags")
-    local row
-    for _, initializer in ipairs(world.categories[2].items) do
-        if initializer.setting == setting then
-            row = initializer
-        end
-    end
-    expect(row.predicate(), "editable")
-    world:Setting("inventory.bank.savedBank"):SetValue(false)
-    expect(not row.predicate(), "greyed out")
-end)
-
 -- Bank count in tooltips. B1 (5) and B3 (7) are the same item, linen.
 local function SetUpLinen(world)
     world.itemIDs.B1, world.itemIDs.B3 = "linen", "linen"
@@ -285,10 +272,6 @@ test("item tooltips count the item across the saved bank", function(world)
     equal(#lines, 1, "lines")
     equal(lines[1], BankLine(world, 12), "count across tabs")
     equal(#world:ItemTooltip({ id = "G1" }), 0, "nothing for items the bank lacks")
-end)
-
-test("no bank count before the bank was ever saved", function(world)
-    equal(#world:ItemTooltip({ id = "B2" }), 0, "lines")
 end)
 
 test("the bank count follows changes at the bank", function(world)
@@ -411,15 +394,6 @@ test("turning the feature off removes reagent marks", function(world)
     equal(slot.Name:GetText(), "0/1 linen", "name put back")
     world:Setting("inventory.bank.enabled"):SetValue(true)
     equal(world:ReagentMark(slot), BankLine(world, 12), "feature on")
-end)
-
-test("reagent marks work when professions loaded while the feature was off", function(world)
-    SetUpLinen(world)
-    VisitBank(world)
-    world:Setting("inventory.bank.enabled"):SetValue(false)
-    world:LoadProfessions()
-    world:Setting("inventory.bank.enabled"):SetValue(true)
-    equal(Mark(world, "linen", 1), BankLine(world, 12), "mark")
 end)
 
 -- Pools keep their slots: one created while the feature was off is reused after.

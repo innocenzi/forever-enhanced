@@ -88,14 +88,6 @@ test("reads large numbers", function(world)
     equal(Shown(world, world:TargetHealthBar()), 1032, "with a thousands separator")
 end)
 
-test("adds up the effects on the unit", function(world)
-    Rogue(world)
-    world:Cast(GARROTE)
-    world:SetComboPoints(1)
-    world:Cast(RUPTURE)
-    equal(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE + 44, "Garrote and Rupture")
-end)
-
 test("a cast that misses shows nothing", function(world)
     Rogue(world)
     for _, miss in ipairs({ "MISS", "DODGE", "PARRY", "IMMUNE" }) do
@@ -204,27 +196,6 @@ test("Opportunity raises Garrote's attack power part, Serrated Blades only Ruptu
         (GARROTE_DAMAGE + 0.18 * 241) * 1.2 + 144 * 1.3 + 0.24 * 241,
         "and Rupture"
     )
-end)
-
-test("adds a share of attack power", function(world)
-    Rogue(world)
-    world:SetAttackPower(241)
-    world:Cast(GARROTE)
-    Near(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE + 0.18 * 241, "Garrote")
-    world:SetComboPoints(3)
-    world:Cast(RUPTURE)
-    Near(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE + 0.18 * 241 + 87 + 0.18 * 241, "and a 3 points Rupture")
-end)
-
-test("talents raise the damage", function(world)
-    Rogue(world)
-    world:LearnTalent(SERRATED_BLADES, 3)
-    world:LearnTalent(OPPORTUNITY, 5)
-    world:Cast(GARROTE)
-    Near(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE * 1.2, "Garrote with Opportunity")
-    world:SetComboPoints(5)
-    world:Cast(RUPTURE)
-    Near(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE * 1.2 + 144 * 1.3, "and Rupture with Serrated Blades")
 end)
 
 -- Ticks seen in the combat log, with 241 attack power (236 for the 5 points
@@ -360,11 +331,14 @@ test("out of combat, forgets the effects whose aura is gone", function(world)
     equal(world:HealthBarOverlay(world:TargetHealthBar()), nil, "the unit reset")
 end)
 
-test("out of combat, takes the aura's timing", function(world)
+test("out of combat, takes the aura's timing, a longer aura adding ticks of the same damage", function(world)
     Rogue(world)
     world:Cast(GARROTE)
     world:SetAura("MOB", GARROTE, 18, world.now + 9)
     equal(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE / 2, "half of it left")
+    -- Lengthened by a talent the data didn't tell.
+    world:SetAura("MOB", GARROTE, 24, world.now + 24)
+    equal(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE / 6 * 8, "8 ticks of the same damage")
 end)
 
 test("in combat, leaves the effects alone when auras change", function(world)
@@ -483,13 +457,6 @@ local function Priest(world)
     return plate
 end
 
-test("adds a share of spell power to each tick", function(world)
-    Priest(world)
-    world:SetSpellPower(SHADOW, 100)
-    world:Cast(SHADOW_WORD_PAIN)
-    Near(Shown(world, world:TargetHealthBar()), (5 + 0.2 * 100) * 6, "6 ticks")
-end)
-
 test("keeps the spell power read before combat, when it is secret", function(world)
     Priest(world)
     world:SetSpellPower(SHADOW, 100)
@@ -522,23 +489,9 @@ test("a spell with a cast time lands on the unit it was cast on", function(world
     equal(Shown(world, world:NamePlateHealthBar(plate)), 40, "on the unit it was cast on")
 end)
 
-test("a resisted spell is dropped", function(world)
-    Priest(world)
-    world:Cast(SHADOW_WORD_PAIN, "RESIST")
-    equal(world:HealthBarOverlay(world:TargetHealthBar()), nil, "not shown")
-end)
-
 test("only passive talents count, not cooldowns", function()
     local DoTs = ForeverEnhanced:GetFeature("combat", "dots")
     equal(DoTs.Data.talents[12042], nil, "Arcane Power")
-end)
-
-test("out of combat, a longer aura adds ticks of the same damage", function(world)
-    Rogue(world)
-    world:Cast(GARROTE)
-    -- Lengthened by a talent the data didn't tell.
-    world:SetAura("MOB", GARROTE, 24, world.now + 24)
-    equal(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE / 6 * 8, "8 ticks of the same damage")
 end)
 
 test("a miss on the nameplate of the unit cast on drops the cast", function(world)

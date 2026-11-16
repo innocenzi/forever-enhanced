@@ -41,13 +41,17 @@ test("fills schema defaults", function(world)
     equal(db.features.locking.keepInPlace, true, "toggle default")
 end)
 
-test("drops unknown keys and resets unknown options", function(world)
+test("drops unknown keys and resets unknown options and out-of-range slider values", function(world)
     local db = world.env.ForeverEnhancedDB.modules.inventory.features.locking
+    local tracking = world.env.ForeverEnhancedDB.modules.quests.features.tracking
     db.stale = 1
     db.indicator = "removed-style"
+    equal(tracking.count, 5, "slider default")
+    tracking.count = 99
     world.ns.Database:Initialize()
     equal(db.stale, nil, "unknown key")
     equal(db.indicator, "padlock", "unknown option")
+    equal(tracking.count, 5, "out of range")
 end)
 
 -- The quests page initializer bound to quests.tracking.<key>.
@@ -59,14 +63,6 @@ local function QuestsInitializer(world, key)
         end
     end
 end
-
-test("resets slider values outside their bounds", function(world)
-    local db = world.env.ForeverEnhancedDB.modules.quests.features.tracking
-    equal(db.count, 5, "slider default")
-    db.count = 99
-    world.ns.Database:Initialize()
-    equal(db.count, 5, "out of range")
-end)
 
 test("labels slider values with the locale's format", function(world)
     local slider = QuestsInitializer(world, "range").slider
@@ -112,11 +108,8 @@ test("a text setting uses our text row and takes its default from the locale", f
     equal(db.template, default, "blank text")
 end)
 
-test("activates features at login", function(world)
-    expect(Locking(world):IsActive(), "locking is active")
-end)
-
 test("feature toggle runs the lifecycle", function(world)
+    expect(Locking(world):IsActive(), "active at login")
     world:Setting("inventory.locking.enabled"):SetValue(false)
     expect(not Locking(world):IsActive(), "inactive after disabling")
     world:Setting("inventory.locking.enabled"):SetValue(true)
@@ -127,8 +120,16 @@ test("the root page holds the general settings only", function(world)
     local root = world.categories[1]
     equal(#root.items, 3, "rows")
     equal(root.items[1].header, world.L["core.general"], "header")
-    equal(root.items[2].setting, world:Setting("language"), "language")
     equal(root.items[3].setting, world:Setting("preset"), "preset")
+
+    local language = root.items[2]
+    equal(language.setting, world:Setting("language"), "language")
+    equal(language.tooltip, world.L["core.language.tooltip"], "language tooltip")
+    equal(#language.options, 3, "language options")
+    equal(language.options[1].value, "auto", "client language first")
+    equal(language.options[1].label, world.L["core.language.auto"], "its label")
+    equal(language.options[2].label, "English", "named in its own language")
+    equal(language.options[3].label, "Français", "named in its own language")
 end)
 
 test("a feature without settings is one checkbox at the top of its page", function(world)
@@ -325,18 +326,6 @@ end, {
         return { language = "deDE" }
     end,
 })
-
-test("the language dropdown opens the root page", function(world)
-    local root = world.categories[1]
-    local dropdown = root.items[2]
-    equal(dropdown.setting, world:Setting("language"), "first setting")
-    equal(dropdown.tooltip, world.L["core.language.tooltip"], "tooltip")
-    equal(#dropdown.options, 3, "options")
-    equal(dropdown.options[1].value, "auto", "client language first")
-    equal(dropdown.options[1].label, world.L["core.language.auto"], "its label")
-    equal(dropdown.options[2].label, "English", "named in its own language")
-    equal(dropdown.options[3].label, "Français", "named in its own language")
-end)
 
 test("changing the language offers to reload", function(world)
     world:Setting("language"):SetValue(OtherLocale(world.env.TEST_LOCALE))

@@ -191,20 +191,13 @@ test("needs every reagent of a recipe for a check", function(world)
     equal(Section(Lines(world), ENGINEERING)[1], Marked(world, "ALL", "Rough Dynamite", 1), "both")
 end)
 
-test("records recipes learned with the window closed", function(world)
-    Setup(world)
-    LearnFirstAidAndTailoring(world)
-    world:Fire("NEW_RECIPE_LEARNED", LINEN_BANDAGE)
-    world.shift = true
-    equal(Section(Lines(world), FIRST_AID)[1], Recipe(world, "Linen Bandage", 1), "known first")
-end)
-
 test("forgets recipes the window shows as not learned", function(world)
     Setup(world)
     LearnFirstAidAndTailoring(world)
     world:Fire("NEW_RECIPE_LEARNED", LINEN_BANDAGE)
-    world:ShowTradeSkillList({ LINEN_BANDAGE })
     world.shift = true
+    equal(Section(Lines(world), FIRST_AID)[1], Recipe(world, "Linen Bandage", 1), "learned with the window closed")
+    world:ShowTradeSkillList({ LINEN_BANDAGE })
     equal(Section(Lines(world), FIRST_AID)[1], Recipe(world, "Heavy Linen Bandage", 2), "by name again")
 end)
 

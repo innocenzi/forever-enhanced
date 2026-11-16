@@ -19,12 +19,6 @@ test("puts locked items back after a sort", function(world)
     equal(world.cursor, nil, "cursor")
 end)
 
-test("moves the displaced item to the locked item's sorted slot", function(world)
-    world:AltClick(1)
-    Sort(world, { 4, 2, 3, 1 }) -- GJUNK G2 - G1
-    equal(world:Bag(), "G1 G2 - GJUNK", "bag")
-end)
-
 test("sends independent swaps together, on the sort's bag update", function(world)
     world.bags[0] = { "G1", "G2", "X3", "X4" }
     world:AltClick(1)

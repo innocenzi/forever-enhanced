@@ -113,15 +113,6 @@ test("doesn't track the pin when tracking is off", function(world)
     expect(not C_SuperTrack.IsSuperTrackingUserWaypoint(), "not tracked")
 end)
 
-test("disabling the map pin feature removes the commands", function(world)
-    world:Setting("map.pin.enabled"):SetValue(false)
-    expect(not world:Chat("/way 10 20"), "unknown while disabled")
-    expect(SlashCmdList.FOREVERENHANCED_WAY == nil, "handler removed")
-
-    world:Setting("map.pin.enabled"):SetValue(true)
-    expect(world:Chat("/way 10 20"), "known again")
-end)
-
 test("turning the commands off removes them", function(world)
     world:Chat("/way 45 63")
     world:Setting("map.pin.commands"):SetValue(false)
@@ -135,6 +126,12 @@ test("turning the commands off removes them", function(world)
     world:Setting("map.pin.commands"):SetValue(true)
     expect(world:Chat("/way 10 20"), "known again")
     ExpectPin(1, 0.10, 0.20, "pin moved")
+
+    world:Setting("map.pin.enabled"):SetValue(false)
+    expect(not world:Chat("/way 10 20"), "unknown with the feature off")
+    expect(SlashCmdList.FOREVERENHANCED_WAY == nil, "handler removed with the feature off")
+    world:Setting("map.pin.enabled"):SetValue(true)
+    expect(world:Chat("/way 10 20"), "known with the feature back on")
 end)
 
 test("leaves /way to another addon that registered it", function(world)

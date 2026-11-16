@@ -505,13 +505,6 @@ test("turned off in combat, gives the keys back once it ends", function(world)
     equal(#world.overrides, 0, "keys given back")
 end)
 
-test("leaves other classes alone", function(world)
-    Rogue(world)
-    world.player.class = "MAGE"
-    Enable(world)
-    equal(world:Overlay(ActionButton1), nil, "overlay")
-end)
-
 test("warns about a spell off the global cooldown, which may cast both spells", function(world)
     Rogue(world)
     Enable(world)

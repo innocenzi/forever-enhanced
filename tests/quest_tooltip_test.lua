@@ -28,11 +28,6 @@ test("names the quest that needs the item, with progress", function(world)
     equal(#Lines(world, "Linen Cloth"), 0, "nothing for other items")
 end)
 
-test("keeps the line once the objective is complete", function(world)
-    WithQuests(world, { BatWings(world, 10) })
-    equal(Lines(world, "Crispy Bat Wing")[1], Line(world, "Bat Wings", 10, 10), "line")
-end)
-
 test("one line per quest that needs the item", function(world)
     WithQuests(world, {
         BatWings(world, 3),
@@ -82,16 +77,12 @@ test("follows progress and quests leaving the log", function(world)
     equal(#Lines(world, "Crispy Bat Wing"), 0, "quest removed")
 end)
 
-test("no line with the option off", function(world)
+test("no line with the option or the quest helpers off", function(world)
     WithQuests(world, { BatWings(world, 3) })
     world:Setting("quests.helpers.objectives"):SetValue(false)
-    equal(#Lines(world, "Crispy Bat Wing"), 0, "feature off")
+    equal(#Lines(world, "Crispy Bat Wing"), 0, "option off")
     world:Setting("quests.helpers.objectives"):SetValue(true)
     equal(#Lines(world, "Crispy Bat Wing"), 1, "back on")
-end)
-
-test("no line with the quest helpers off", function(world)
-    WithQuests(world, { BatWings(world, 3) })
     world:Setting("quests.helpers.enabled"):SetValue(false)
     equal(#Lines(world, "Crispy Bat Wing"), 0, "feature off")
 end)

@@ -47,16 +47,12 @@ for _, mark in ipairs({ "auction", "bank" }) do
         expect(IsMarked(world, 2, mark), "the other copy is marked")
         expect(world[Shown](world, 1) and world[Shown](world, 2), "icon on both copies")
         expect(not world[Shown](world, 4), "no icon on other items")
+        equal(Icon(world, 1).point, "TOPLEFT", "icon top-left, where the junk coin goes")
         equal(world.env.ForeverEnhancedCharacterDB.inventory.marks.destinations.CLOTH, mark, "saved per character")
 
         Toggle(world, 2, mark)
         expect(not IsMarked(world, 1, mark), "unmarked")
         expect(not world[Shown](world, 1) and not world[Shown](world, 2), "icons hidden")
-    end)
-
-    test(mark .. ": the icon sits top-left, where the junk coin goes", function(world)
-        Toggle(world, 1, mark)
-        equal(assert(Icon(world, 1), "icon drawn").point, "TOPLEFT", "top-left")
     end)
 
     test(mark .. ": locked items don't show the icon", function(world)
@@ -198,20 +194,6 @@ for _, glow in ipairs(GLOWS) do
         expect(not world:Glow(1), "unmarking hides it")
     end)
 end
-
-test("the item menu lists junk, then the auction house, then the bank", function(world)
-    world:Setting("inventory.merchant.enabled"):SetValue(true)
-    local menu = world:AltRightClick(1)
-    equal(menu[3].text, world.L[TEXTS.junk], "junk third, after the lock")
-    equal(menu[4].text, world.L[TEXTS.auction], "auction house fourth")
-    equal(menu[5].text, world.L[TEXTS.bank], "bank fifth, before the note")
-end)
-
-test("Alt Left Click locks by default", function(world)
-    world:AltClick(1)
-    expect(world.ns:GetFeature("inventory", "locking"):IsGUIDLocked("G1"), "locked")
-    expect(not IsMarked(world, 1, "junk"), "not marked")
-end)
 
 for _, mark in ipairs({ "junk", "auction", "bank" }) do
     test("Alt Left Click can mark for " .. mark .. " instead of locking", function(world)

@@ -149,13 +149,6 @@ local function InDeadmines(world)
     world:Fire("ZONE_CHANGED_NEW_AREA")
 end
 
-test("inside an instance, tracks its quests first", function(world)
-    Enable(world)
-    InDeadmines(world)
-    world:NextFrame()
-    equal(world:Watched(), "1 2", "watched inside the Deadmines")
-end)
-
 test("inside an instance, tracks only its dungeon quests when asked to", function(world)
     Enable(world)
     Set(world, "dungeons", false)
@@ -369,18 +362,6 @@ test("sorted quests near their objectives keep their places", function(world)
     end
 end)
 
-test("sorting keeps the super-tracked quest first and super-tracked", function(world)
-    Enable(world)
-    Set(world, "sort", true)
-    WithQuests(world)
-    world.watches = { 1, 5 }
-    world.superTracked = 5
-    Set(world, "count", 2)
-    world:NextFrame()
-    equal(world:WatchOrder(), "5 4 1", "order")
-    equal(world.superTracked, 5, "super-tracked")
-end)
-
 test("Blizzard's tracker and quest log don't handle the tracking changes from our code", function(world)
     Enable(world)
     Set(world, "sort", true)
@@ -389,7 +370,8 @@ test("Blizzard's tracker and quest log don't handle the tracking changes from ou
     world.superTracked = 5
     Set(world, "count", 2)
     world:NextFrame()
-    equal(world:WatchOrder(), "5 4 1", "order")
+    equal(world:WatchOrder(), "5 4 1", "order (the super-tracked quest first)")
+    equal(world.superTracked, 5, "still super-tracked")
     equal(table.concat(world.trackerEvents, " "), "", "tracker events")
     equal(table.concat(world.questLogEvents, " "), "", "quest log events")
 

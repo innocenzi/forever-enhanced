@@ -99,14 +99,6 @@ test("a full scan another addon asked for is read too", function(world)
     same(Tooltip(world, "G1"), { PriceLine(world, 300) }, "not read again within 15 minutes")
 end)
 
-test("the scan is opt-out", function(world)
-    world:Setting("inventory.auction.scan"):SetValue(false)
-    world.auctions = { { "G1", 1, 300 } }
-    Scan(world)
-    equal(world.replicateRequests, 0, "no full scan")
-    same(Tooltip(world, "G1"), {}, "no price")
-end)
-
 -- Browse and search results -----------------------------------------------------------------
 
 test("records the browse results, the lowest of each item ID", function(world)

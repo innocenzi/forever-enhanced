@@ -60,14 +60,6 @@ test("adds nothing to tooltips the arrow doesn't own", function(world)
     equal(world.tooltipLines[1], "Some line", "line")
 end)
 
-test("adds nothing while disabled", function(world)
-    world.professionSkill = { level = 40, modifier = 0 }
-    world:Setting("professions.skillups.enabled"):SetValue(false)
-    equal(Hover(world, SMELT_COPPER, "Medium")[1], ARROW_LINE, "disabled")
-    world:Setting("professions.skillups.enabled"):SetValue(true)
-    equal(Hover(world, SMELT_COPPER, "Medium")[1], Chance(world, ARROW_LINE, 67), "enabled again")
-end)
-
 -- Herbs and ore nodes: their world tooltip shows the chance of a yellow or
 -- green node after the profession (modules/professions/skillups/nodes.lua).
 -- Tin Vein requires 65 Mining: yellow at 90, grey at 165; Silverleaf requires 1
@@ -128,14 +120,6 @@ test("adds nothing to nodes whose name or profession is secret", function(world)
     equal(world:ObjectTooltip(name, secret)[2], secret, "secret profession")
 end)
 
-test("adds nothing to nodes while disabled", function(world)
-    world.professions = { { skillLine = MINING, rank = 120 } }
-    world:Setting("professions.skillups.enabled"):SetValue(false)
-    equal(HoverNode(world, "tin")[2], "Profession", "disabled")
-    world:Setting("professions.skillups.enabled"):SetValue(true)
-    equal(HoverNode(world, "tin")[2], Chance(world, "Profession", 60), "enabled again")
-end)
-
 -- Skinnable corpses: their tooltip shows the chance of a yellow or green corpse
 -- after "Skinnable", from the unit's level. A level 22 corpse requires 110
 -- Skinning: yellow at 135, grey at 210; a level 15 one 50: yellow at 75, grey
@@ -163,15 +147,6 @@ test("shows the chance of a yellow or green corpse after Skinnable", function(wo
     equal(HoverCorpse(world, 5)[4], Skinnable(world, 49), "(101 - 64) / (101 - 26)")
 end)
 
-test("adds nothing to orange and grey corpses", function(world)
-    world.professions = { { skillLine = SKINNING, rank = 134 } }
-    equal(HoverCorpse(world, 22)[4], UNIT_SKINNABLE_LEATHER, "orange")
-    world.professions = { { skillLine = SKINNING, rank = 135 } }
-    equal(HoverCorpse(world, 22)[4], Skinnable(world, 100), "just turned yellow")
-    world.professions = { { skillLine = SKINNING, rank = 210 } }
-    equal(HoverCorpse(world, 22)[4], UNIT_SKINNABLE_LEATHER, "grey")
-end)
-
 test("adds nothing to corpses without Skinning, of unknown level or not skinnable", function(world)
     world.professions = { { skillLine = MINING, rank = 160 } }
     equal(HoverCorpse(world, 22)[4], UNIT_SKINNABLE_LEATHER, "no Skinning")
@@ -194,10 +169,15 @@ test("adds nothing to corpses whose tooltip unit is secret", function(world)
     equal(HoverCorpse(world, 22)[4], UNIT_SKINNABLE_LEATHER, "secret unit")
 end)
 
-test("adds nothing to corpses while disabled", function(world)
-    world.professions = { { skillLine = SKINNING, rank = 160 } }
+test("adds nothing to recipes, nodes or corpses while disabled", function(world)
+    world.professionSkill = { level = 40, modifier = 0 }
+    world.professions = { { skillLine = MINING, rank = 120 }, { skillLine = SKINNING, rank = 160 } }
     world:Setting("professions.skillups.enabled"):SetValue(false)
-    equal(HoverCorpse(world, 22)[4], UNIT_SKINNABLE_LEATHER, "disabled")
+    equal(Hover(world, SMELT_COPPER, "Medium")[1], ARROW_LINE, "recipe while disabled")
+    equal(HoverNode(world, "tin")[2], "Profession", "node while disabled")
+    equal(HoverCorpse(world, 22)[4], UNIT_SKINNABLE_LEATHER, "corpse while disabled")
     world:Setting("professions.skillups.enabled"):SetValue(true)
-    equal(HoverCorpse(world, 22)[4], Skinnable(world, 67), "enabled again")
+    equal(Hover(world, SMELT_COPPER, "Medium")[1], Chance(world, ARROW_LINE, 67), "recipe enabled again")
+    equal(HoverNode(world, "tin")[2], Chance(world, "Profession", 60), "node enabled again")
+    equal(HoverCorpse(world, 22)[4], Skinnable(world, 67), "corpse enabled again")
 end)

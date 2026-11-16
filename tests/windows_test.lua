@@ -32,6 +32,8 @@ test("dragging a panel's title bar moves it and saves where", function(world)
     equal(world:Anchor(CharacterFrame), DROPPED, "dropped")
     equal(Saved(world, "CharacterFrame").x, 300, "saved x")
     equal(Saved(world, "CharacterFrame").relativePoint, "BOTTOMLEFT", "saved relative point")
+    expect(not CharacterFrame:IsUserPlaced(), "client-side placement dropped")
+    expect(not CharacterFrame:IsMovable(), "movable flag restored")
 end)
 
 test("a moved panel stays put when Blizzard lays the panels out again", function(world)
@@ -46,13 +48,6 @@ test("a moved panel stays put when Blizzard lays the panels out again", function
     equal(world:Anchor(CharacterFrame), DROPPED, "after another panel opened")
     UpdateUIPanelPositions()
     equal(world:Anchor(CharacterFrame), DROPPED, "after a re-layout")
-end)
-
-test("drops the frame's client-side placement and movable flag after a drag", function(world)
-    ShowUIPanel(CharacterFrame)
-    world:DragTitle(CharacterFrame, 300, 400)
-    expect(not CharacterFrame:IsUserPlaced(), "not user-placed")
-    expect(not CharacterFrame:IsMovable(), "movable flag restored")
 end)
 
 test("bags keep their saved position", function(world)

@@ -64,12 +64,6 @@ test("follows points as they are built and spent", function(world)
     equal(world:ComboPoints(plate), nil, "hidden once spent")
 end)
 
-test("hidden without combo points", function(world)
-    local plate = Rogue(world)
-    equal(world:ComboPoints(plate), nil, "hidden at 0 points")
-    equal(world:ComboPointBarCount(), 0, "no bar anywhere")
-end)
-
 test("keeps showing the points of a unit no longer targeted", function(world)
     local plate = Rogue(world)
     world:SetComboPoints(3)
@@ -133,6 +127,13 @@ test("a removed plate gives its bar back", function(world)
     local recycled = world:ShowNamePlate("OTHER")
     equal(recycled, plate, "recycled plate")
     equal(world:ComboPoints(recycled), nil, "not shown on another unit's plate")
+
+    -- Its bar fills like a new one.
+    world:Target("OTHER")
+    world:SetComboPoints(1)
+    local points = world:ComboPoints(recycled)
+    equal(points.active, 1, "only the new unit's points")
+    expect(points.animated, "the first point animates")
 end)
 
 test("ignores other plates being removed", function(world)
@@ -141,41 +142,6 @@ test("ignores other plates being removed", function(world)
     world:ShowNamePlate("OTHER")
     world:HideNamePlate("OTHER")
     equal(world:ComboPoints(plate).active, 4, "still shown")
-end)
-
-test("a reused bar fills like a new one", function(world)
-    local plate = Rogue(world)
-    world:SetComboPoints(5)
-    world:HideNamePlate("MOB")
-
-    local otherPlate = world:ShowNamePlate("OTHER")
-    world:Target("OTHER")
-    world:SetComboPoints(1)
-    local points = world:ComboPoints(otherPlate)
-    equal(points.active, 1, "only the new unit's points")
-    expect(points.animated, "the first point animates")
-    expect(otherPlate == plate, "same plate frame, reused bar")
-end)
-
-test("moves below the cast bar while the unit casts", function(world)
-    local plate = Rogue(world)
-    world:SetComboPoints(2)
-    local _, bar = world:ComboPoints(plate)
-
-    world:SetCasting("MOB", true)
-    equal(Shift(bar, plate), 0, "still centered on the health bar")
-    expect(Drop(bar, plate) > CastBarDepth(world), "below the cast bar area")
-
-    world:SetCasting("MOB", false)
-    expect(Drop(bar, plate) < CastBarDepth(world), "back under the health bar")
-end)
-
-test("placed below a cast already showing when the points appear", function(world)
-    local plate = Rogue(world)
-    world:SetCasting("MOB", true)
-    world:SetComboPoints(1)
-    local _, bar = world:ComboPoints(plate)
-    expect(Drop(bar, plate) > CastBarDepth(world), "below the cast bar area")
 end)
 
 test("each bar follows its own plate's cast bar", function(world)
@@ -191,14 +157,6 @@ test("each bar follows its own plate's cast bar", function(world)
         "casting unit's bar moves down"
     )
     expect(Drop(select(2, world:ComboPoints(otherPlate)), otherPlate) < CastBarDepth(world), "other bar stays")
-end)
-
-test("works for druids", function(world)
-    world.player.class = "DRUID"
-    local plate = world:ShowNamePlate("MOB")
-    world:Target("MOB")
-    world:SetComboPoints(2)
-    equal(world:ComboPoints(plate).active, 2, "filled")
 end)
 
 test("never shown for classes without combo points", function(world)

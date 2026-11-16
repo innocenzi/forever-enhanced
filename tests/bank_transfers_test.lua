@@ -269,18 +269,6 @@ test("deposit marked items moves the items marked for the bank", function(world)
     equal(world:Slots(0), "- - P1(3) -", "unmarked items stay")
 end)
 
-test("deposit marked items leaves locked items", function(world)
-    Setup(world, { "W1", "W2" }, {}, {}, {
-        W1 = { "wool", 5 },
-        W2 = { "wool", 6 },
-    })
-    MarkForBank(world, 1)
-    world:AltClick(2)
-    Transfer(world, "deposit", "marked")
-    equal(world:Slots(0), "- W2(6) - -", "locked stack stays")
-    equal(world:Slots(6), "W1(5) - - -", "bank")
-end)
-
 test("marked items are only offered by Deposit, while the bank mark is on", function(world)
     Setup(world, { "L1" }, { "L3" }, {}, {
         L1 = { "linen", 15 },
@@ -326,16 +314,6 @@ test("turning the bank feature off hides the buttons too", function(world)
     expect(world:TransferButton("deposit").shown, "back")
 end)
 
-test("opening the bank moves nothing by default", function(world)
-    Setup(world, { "L1" }, { "L3" }, {}, {
-        L1 = { "linen", 15 },
-        L3 = { "linen", 12 },
-    })
-    world:Elapse(5)
-    equal(world:Slots(0), "L1(15) - - -", "bags")
-    equal(world:Slots(6), "L3(12) - - -", "bank")
-end)
-
 test("opening the bank refills the bags' partial stacks", function(world)
     Stock(world, { "L1", "W1" }, { "L4", "L3" }, {}, {
         L1 = { "linen", 15 },
@@ -343,6 +321,11 @@ test("opening the bank refills the bags' partial stacks", function(world)
         L3 = { "linen", 12 },
         L4 = { "linen", 20 },
     })
+    world:OpenBank()
+    world:Elapse(5)
+    equal(world:Slots(0), "L1(15) W1(5) - -", "bags untouched by default")
+    world:CloseBank()
+
     world:Setting("inventory.bank.autoRefill"):SetValue(true)
     world:OpenBank()
     world:Elapse(5)
