@@ -45,7 +45,12 @@
 -- handles SUPER_TRACKING_CHANGED in every update, so its own state turns tainted
 -- for the session, and in combat its update throws on the player's secret
 -- auras (ShouldShowMawBuffs, in its scenario module) and stops halfway: the
--- tracker may stop updating in combat. Neither path is ours to shield (Blizzard
+-- tracker may stop updating in combat. The quest log then updates from tainted
+-- code too (QuestMapFrame_UpdateAll reads the open quest): in combat (opening
+-- the map, the open log refreshing) Blizzard refuses its gamepad navigation
+-- marks (SmartNavigation_MarkFrameIgnored on each quest's checkbox and button)
+-- and shows "Interface action failed because of an AddOn", once per session;
+-- nothing else changes with a mouse. Neither path is ours to shield (Blizzard
 -- writes and reads both); avoiding it means not writing into Blizzard's map.
 -- What we replaced and wrote can't be put back: turning the feature off hands
 -- every replaced method over to Blizzard's and restores Blizzard's zoom levels,
