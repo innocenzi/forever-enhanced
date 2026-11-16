@@ -1,6 +1,6 @@
--- Incidents: something went wrong because of ForeverEnhanced (taint, an error,
--- a blocked action). Each is logged with the context it happened in and the
--- events just before it, and announced once in chat.
+-- Incidents: something went wrong (taint or an error from ForeverEnhanced, a
+-- blocked action). Each is logged with the context it happened in and the
+-- events just before it, and announced once in chat when turned on (/fedebug chat).
 
 local _, ns = ...
 
@@ -35,8 +35,8 @@ local function Context()
     )
 end
 
--- Logs an incident under `tag`: `summary` (one line, also shown in chat),
--- `details` (more lines, or nil) and the events recorded since `since`
+-- Logs an incident under `tag`: `summary` (one line, also the chat line when
+-- announcing), `details` (more lines, or nil) and the events recorded since `since`
 -- (GetTime()). At most MAX_PER_SESSION per session; returns whether logged.
 function ns:Incident(tag, summary, details, since)
     if count >= MAX_PER_SESSION then
@@ -54,6 +54,8 @@ function ns:Incident(tag, summary, details, since)
         table.insert(parts, ("(%d incidents: no more this session)"):format(MAX_PER_SESSION))
     end
     self:Append(tag, table.concat(parts, "\n"))
-    self:Print(summary .. " (/fedebug)")
+    if self:IsAnnouncing() then
+        self:Print(summary .. " (/fedebug)")
+    end
     return true
 end

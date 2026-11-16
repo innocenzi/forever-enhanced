@@ -65,7 +65,20 @@ test("logs a tainted tracker field once, with the events before it", function(wo
     expect(Contains(text, "QuestObjectiveTracker.wasDisplayedLastLayout (ForeverEnhanced)"), "field and culprit")
     expect(Contains(text, "QUEST_ACCEPTED 123"), "events before it")
     expect(Contains(text, "zone=Elwynn Forest"), "context")
+    equal(#world.prints, 0, "not announced in chat")
+end)
+
+test("announces incidents in chat once turned on with /fedebug chat", function(world)
+    expect(world:Chat("/fedebug chat"), "command known")
+    expect(ForeverEnhancedDebugDB.announce, "saved")
+    world:Fire("ADDON_ACTION_BLOCKED", "ForeverEnhanced", "CastSpellByName")
     expect(Contains(world.prints[#world.prints], "/fedebug"), "announced in chat")
+
+    world:Chat("/fedebug chat")
+    local printed = #world.prints
+    world:Fire("ADDON_ACTION_BLOCKED", "ForeverEnhanced", "UseContainerItem")
+    equal(#world.prints, printed, "turned off again")
+    equal(#Entries(world, "blocked"), 2, "both logged")
 end)
 
 test("logs the stack of tainted code marking the tracker dirty", function(world)
@@ -127,6 +140,56 @@ test("logs our blocked actions", function(world)
     equal(#incidents, 2, "incidents")
     expect(Contains(incidents[1].text, "blocked: CastSpellByName"), "blocked")
     expect(Contains(incidents[2].text, "forbidden: UseContainerItem"), "forbidden")
+end)
+
+-- The game shows the same message for them: logged apart, to tell who caused it.
+test("logs other addons' and macros' blocked actions apart from ours", function(world)
+    world:Fire("ADDON_ACTION_BLOCKED", "OtherAddon", "CastSpellByName")
+    world:Fire("ADDON_ACTION_BLOCKED", "OtherAddon", "CastSpellByName")
+    world:Fire("MACRO_ACTION_BLOCKED", "TargetUnit")
+    world:Fire("MACRO_ACTION_FORBIDDEN", "UseAction")
+
+    local others = Entries(world, "blocked.other")
+    equal(#others, 1, "other addons' incidents")
+    expect(Contains(others[1].text, "blocked: CastSpellByName (OtherAddon)"), "culprit named")
+    equal(#Entries(world, "blocked.other.again"), 1, "repeat counted")
+
+    local macros = Entries(world, "blocked.macro")
+    equal(#macros, 2, "macros' incidents")
+    expect(Contains(macros[1].text, "blocked: TargetUnit (a macro)"), "blocked macro")
+    expect(Contains(macros[2].text, "forbidden: UseAction (a macro)"), "forbidden macro")
+    equal(#Entries(world, "blocked"), 0, "none of ours")
+end)
+
+-- The panel manager shows the blocked message with no event: its stack names the caller.
+test("logs the blocked message of a panel shown in combat, with its stack", function(world)
+    world:EnterCombat()
+    ShowUIPanel(CharacterFrame)
+    ShowUIPanel(CharacterFrame)
+
+    local incidents = Entries(world, "blocked.message")
+    equal(#incidents, 1, "incidents (once per stack)")
+    expect(Contains(incidents[1].text, "[fake stack]"), "stack")
+    equal(#Entries(world, "blocked.message.again"), 1, "repeat counted")
+end)
+
+test("logs one blocked message per burst, whatever its callers", function(world)
+    local calls = 0
+    world.env.debugstack = function()
+        calls = calls + 1
+        return "[caller " .. calls .. "]"
+    end
+    world:EnterCombat()
+    ShowUIPanel(CharacterFrame)
+    ShowUIPanel(CharacterFrame)
+    world:Elapse(2)
+    ShowUIPanel(CharacterFrame)
+    equal(#Entries(world, "blocked.message"), 1, "one incident for the burst")
+    expect(Contains(Entries(world, "blocked.message")[1].text, "[caller 1]"), "first caller's stack")
+
+    world:Elapse(10)
+    ShowUIPanel(CharacterFrame)
+    equal(#Entries(world, "blocked.message"), 2, "a later burst logged again")
 end)
 
 test("clears the log with /fedebug clear", function(world)

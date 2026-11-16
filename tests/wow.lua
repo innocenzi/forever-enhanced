@@ -991,18 +991,28 @@ function UpdateUIPanelPositions(shownFrame)
     end
 end
 
+-- Shows "Interface action failed because of an AddOn" in chat, once per session
+-- (ChatFrameUtilOverrides.lua); not modelled beyond the call.
+function DisplayInterfaceActionBlockedMessage() end
+
+-- In combat the panel manager refuses addon code and shows the blocked message
+-- (CheckProtectedFunctionsAllowed in UIParentPanelManager.lua).
 function ShowUIPanel(frame)
-    if not world.inCombat then
-        UpdateUIPanelPositions(frame)
-        frame:Show()
+    if world.inCombat then
+        DisplayInterfaceActionBlockedMessage()
+        return
     end
+    UpdateUIPanelPositions(frame)
+    frame:Show()
 end
 
 function HideUIPanel(frame)
-    if not world.inCombat then
-        frame:Hide()
-        UpdateUIPanelPositions()
+    if world.inCombat then
+        DisplayInterfaceActionBlockedMessage()
+        return
     end
+    frame:Hide()
+    UpdateUIPanelPositions()
 end
 
 -- The World Map's one-off flow: maximized, it leaves the panel layout for its

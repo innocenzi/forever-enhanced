@@ -1,6 +1,6 @@
 -- The log, kept across reloads and sessions in ForeverEnhancedDebugDB:
--- { session = n, entries = { ... }, dropped = n }. A session is one load of
--- the UI (login or /reload). Each entry: { session, date, time, combat, tag,
+-- { session = n, entries = { ... }, dropped = n, announce = true or nil }. A
+-- session is one load of the UI (login or /reload). Each entry: { session, date, time, combat, tag,
 -- text, count, lastTime }; consecutive identical entries are counted on the
 -- first one. The debug addon loads before ForeverEnhanced (its OptionalDeps), so
 -- entries logged before our saved variables load wait in `pending`.
@@ -54,6 +54,17 @@ end
 
 function ns:GetEntries()
     return store and store.entries or pending
+end
+
+-- Whether incidents are announced in chat (off by default: they stay in the log).
+function ns:IsAnnouncing()
+    return store ~= nil and store.announce == true
+end
+
+function ns:SetAnnouncing(announce)
+    if store then
+        store.announce = announce or nil
+    end
 end
 
 -- "[time] tag: text", "!" after the time in combat; repeats as

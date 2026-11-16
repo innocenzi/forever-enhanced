@@ -15,7 +15,7 @@ Forever Enhanced Debug (`debug/`, see "Debug addon" in `AGENTS.md`) runs in the 
 mklink /J "<game>\_forever_\Interface\AddOns\ForeverEnhancedDebug" "<repo>\debug"
 ```
 
-On its own it logs **incidents**: taint of the Blizzard state in its watch list (`debug/watches.lua`), our errors (through BugGrabber) and our blocked actions. Each one comes with its stack when known, the context (zone, instance, combat, active features) and the events just before it, and it prints a chat line pointing to `/fedebug`.
+On its own it logs **incidents**: taint of the Blizzard state in its watch list (`debug/watches.lua`), our errors (through BugGrabber), anyone's blocked actions, and every "Interface action failed because of an AddOn" message with the stack that caused it (the panel manager and secure helpers show it with no event). Each one comes with its stack when known, the context (zone, instance, combat, active features) and the events just before it. Incidents stay out of chat unless the player turns that on with `/fedebug chat` (a chat line pointing to `/fedebug` for each).
 
 **Start there.** For taint, errors and anything the player can't reproduce on demand, ask for the `/fedebug` log first: the incident may already be in it. When a taint bug involves Blizzard state that isn't watched yet, add it to `WATCHES` (it stays: the list grows with every bug), then let the player play until it shows up.
 
@@ -50,7 +50,7 @@ Tell the player exactly:
 
 1. `/reload`.
 2. `/fedebug clear`: the log survives reloads, so this drops older sessions and the noise from login (skip it when login is the bug, or when waiting for an incident that may come any time).
-3. The precise steps that reproduce the bug, or "play until the chat says Forever Enhanced Debug logged something" when it can't be reproduced on demand.
+3. The precise steps that reproduce the bug, or "play until it happens again" when it can't be reproduced on demand (`/fedebug chat` first if they want a chat line when an incident is logged).
 4. `/fedebug`: the window opens with the whole log selected (This session / All sessions toggles which); Ctrl+C, then paste it in the chat.
 
 ## Reading the log
@@ -77,6 +77,7 @@ events before:
 - Values are space-separated, top-level strings raw. Tables: sorted keys, array part without indices, nested strings quoted; `{...}` is deeper than 3 levels, `...+N` is N keys past the first 40, `<cycle>` a table already being printed.
 - `<Type Name>`: a widget. `<function>`: a function. `<secret type>` / `<secret table>`: a value addon code can't read in combat (see 1). `<not logged: error>`: the entry itself failed.
 - Incidents (`taint.<watch>`, `error`, `blocked`): the summary, then the stack (when known), the context and the events recorded just before. `error.again` / `blocked.again`: the same one again this session.
+- `blocked.other` / `blocked.macro`: another addon's or a macro's blocked action (the game shows the same red message). `blocked.message`: the red message itself, with the stack that showed it (only the first of a burst; `blocked.message.again (xN)` counts the rest).
 - Pipes are doubled (`||cff…`, `||Hitem:…`) so color codes and links stay text: read `||` as `|`.
 
 If the log doesn't settle it, change the logs and hand off again (the player reloads). Once the cause is known, fix it and, when the fake client can express it, add a test that fails without the fix (extend `tests/wow.lua` with the behavior the log showed, faithful to it). Tell the player what to check in game to confirm the fix, if useful.

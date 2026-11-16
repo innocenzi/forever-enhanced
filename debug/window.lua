@@ -1,4 +1,5 @@
--- /fedebug: the log in a window, selected for Ctrl+C. /fedebug clear empties it.
+-- /fedebug: the log in a window, selected for Ctrl+C. /fedebug clear empties it,
+-- /fedebug chat toggles announcing incidents in chat (off by default).
 
 local _, ns = ...
 
@@ -95,9 +96,15 @@ end
 
 SLASH_FOREVERENHANCEDDEBUG1 = "/fedebug"
 SlashCmdList.FOREVERENHANCEDDEBUG = function(message)
-    if strtrim(message):lower() == "clear" then
+    local command = strtrim(message):lower()
+    if command == "clear" then
         ns:Clear()
         ns:Print("log cleared.")
+        return
+    end
+    if command == "chat" then
+        ns:SetAnnouncing(not ns:IsAnnouncing())
+        ns:Print(ns:IsAnnouncing() and "incidents announced in chat." or "incidents only logged.")
         return
     end
     if not frame then
