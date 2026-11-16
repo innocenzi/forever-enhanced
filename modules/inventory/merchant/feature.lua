@@ -1,28 +1,31 @@
--- Merchant: when a merchant opens, sells the junk Sell All Junk Items would
--- sell (Blizzard's, plus the items marked as junk in Item marks) and repairs
--- all items, from guild funds first if the player chose so.
+-- Merchant: a search box on the merchant's items (the "search" part), and when
+-- a merchant opens, sells the junk Sell All Junk Items would sell (Blizzard's,
+-- plus the items marked as junk in Item marks) and repairs all items, from
+-- guild funds first if the player chose so.
 --
 -- Files of this slice:
---   feature.lua  registration, schema and lifecycle (this file)
---   locales.lua  strings
---   junk.lua     sells the junk
---   repair.lua   repairs all items, once the junk money arrives if needed
+--   feature.lua    registration, schema and lifecycle (this file)
+--   locales.lua    strings
+--   junk.lua       sells the junk
+--   repair.lua     repairs all items, once the junk money arrives if needed
+--   search.lua     the search part: dimming, page arrows and the page jump
+--   searchbox.lua  the search part's box
 
 local _, ns = ...
 
 local Merchant = ns:RegisterFeature("inventory", "merchant", {
     order = 1,
-    -- It sells and spends money on its own: the player opts in.
-    enabledByDefault = false,
     settings = {
-        { key = "autoSellJunk", type = "toggle", default = true },
-        { key = "autoRepair", type = "toggle", default = true },
+        { key = "search", type = "toggle", default = true },
+        -- They sell and spend money on their own: the player opts in.
+        { key = "autoSellJunk", type = "toggle", default = false },
+        { key = "autoRepair", type = "toggle", default = false },
         { key = "guildFunds", type = "toggle", default = false, requires = { autoRepair = true } },
         { key = "announce", type = "toggle", default = true },
     },
     presets = {
-        minimal = { enabled = false },
-        enhanced = { enabled = true, autoSellJunk = true, autoRepair = true },
+        minimal = { enabled = true, search = true, autoSellJunk = false, autoRepair = false },
+        enhanced = { enabled = true, search = true, autoSellJunk = true, autoRepair = true },
     },
 })
 
@@ -46,14 +49,17 @@ end
 
 function Merchant:OnEnable()
     listener:Start()
+    self:SyncPart("search", self.Search)
 end
 
 function Merchant:OnDisable()
     listener:Stop()
     self.Repair:Cancel()
+    self:SyncPart("search", self.Search)
 end
 
 function Merchant:OnSettingChanged(key, value)
+    self:SyncPart("search", self.Search)
     if key == "autoRepair" and not value then
         self.Repair:Cancel()
     end

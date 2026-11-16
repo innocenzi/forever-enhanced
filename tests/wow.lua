@@ -63,6 +63,7 @@ local world = {
     money = 0,
     repairCost = 0,
     merchantCanRepair = true,
+    merchantItems = {},
     guildRepair = { allowed = false, withdrawLimit = 0 },
     repairs = {},
     swapTimes = {},
@@ -318,6 +319,7 @@ for _, name in ipairs({
     "SetJustifyH",
     "SetTextColor",
     "HighlightText",
+    "ClearFocus",
     "SetMaxLetters",
     "SetBlendMode",
     "SetIgnoreParentAlpha",
@@ -1483,6 +1485,11 @@ C_MerchantFrame = {
     GetNumJunkItems = function()
         return #BlizzardJunkSlots()
     end,
+    -- Merchant items are their own item IDs and names (no name while unloaded).
+    GetItemInfo = function(index)
+        local itemID = world.merchantItems[index]
+        return itemID and { name = not world.unloadedItems[itemID] and itemID or nil }
+    end,
     -- Sells every poor-quality item of the bags not excluded from Sell All Junk.
     SellAllJunkItems = function()
         assert(MerchantFrame.shown, "SellAllJunkItems outside a merchant")
@@ -1492,6 +1499,15 @@ C_MerchantFrame = {
         end
     end,
 }
+
+-- The merchant's items: world.merchantItems, a list of item IDs.
+function GetMerchantNumItems()
+    return #world.merchantItems
+end
+
+function GetMerchantItemID(index)
+    return world.merchantItems[index]
+end
 
 function GetMoney()
     return world.money
@@ -4100,8 +4116,42 @@ MerchantSellAllJunkButton = CreateFrame("Button")
 MerchantSellAllJunkButton.Icon = MerchantSellAllJunkButton:CreateTexture()
 MerchantSellAllJunkButton:SetEnabled(false)
 
--- Runs when the merchant opens and on bag changes: enables Sell All Junk with poor items only.
+-- The merchant's items tab (selectedTab 1; 2 is buyback) shows world.merchantItems
+-- MERCHANT_ITEMS_PER_PAGE per page, from index (page - 1) * 10 + 1, in
+-- MerchantItem1..10 (the slot's `itemID`, nil when empty). The page arrows show
+-- past one page and are enabled toward other pages. The filter dropdown is
+-- hidden, as on Forever (the MerchantFilterDisabled game rule).
+MERCHANT_ITEMS_PER_PAGE = 10
+MerchantFrame.page = 1
+MerchantFrame.selectedTab = 1
+MerchantFrame.FilterDropdown = CreateFrame("DropdownButton", nil, MerchantFrame)
+MerchantFrame.FilterDropdown:Hide()
+for slot = 1, MERCHANT_ITEMS_PER_PAGE do
+    CreateFrame("Frame", "MerchantItem" .. slot, MerchantFrame)
+end
+MerchantPrevPageButton = CreateFrame("Button", nil, MerchantFrame)
+MerchantNextPageButton = CreateFrame("Button", nil, MerchantFrame)
+MerchantFrame_CloseStackSplitFrame = NoOp
+
+local function UpdateMerchantInfo()
+    local numItems = GetMerchantNumItems()
+    for slot = 1, MERCHANT_ITEMS_PER_PAGE do
+        local index = (MerchantFrame.page - 1) * MERCHANT_ITEMS_PER_PAGE + slot
+        _G["MerchantItem" .. slot].itemID = world.merchantItems[index]
+    end
+    local paged = numItems > MERCHANT_ITEMS_PER_PAGE
+    MerchantPrevPageButton:SetShown(paged)
+    MerchantPrevPageButton:SetEnabled(paged and MerchantFrame.page > 1)
+    MerchantNextPageButton:SetShown(paged)
+    MerchantNextPageButton:SetEnabled(paged and MerchantFrame.page < math.ceil(numItems / MERCHANT_ITEMS_PER_PAGE))
+end
+
+-- Runs when the merchant opens, on page turns, tab clicks and bag changes.
+-- Enables Sell All Junk with poor items only.
 function MerchantFrame_Update()
+    if MerchantFrame.selectedTab == 1 then
+        UpdateMerchantInfo()
+    end
     local hasJunkItems = C_MerchantFrame.GetNumJunkItems() > 0
     MerchantSellAllJunkButton.Icon:SetDesaturated(not hasJunkItems)
     MerchantSellAllJunkButton:SetEnabled(hasJunkItems)
@@ -4383,6 +4433,8 @@ end
 
 function world:OpenMerchant()
     MerchantFrame.shown = true
+    MerchantFrame.page = 1
+    MerchantFrame.selectedTab = 1
     MerchantSellAllJunkButton:SetShown(C_MerchantFrame.IsSellAllJunkEnabled())
     MerchantFrame_Update()
     self:Fire("MERCHANT_SHOW")
@@ -4396,6 +4448,67 @@ end
 function world:CloseMerchant()
     MerchantFrame.shown = false
     self:Fire("MERCHANT_CLOSED")
+end
+
+-- Whether an addon frame laid over `frame` (a child of it) is shown.
+local function HasShownOverlay(frame)
+    for _, child in ipairs(world.frames) do
+        if child.parent == frame and child:IsShown() then
+            return true
+        end
+    end
+    return false
+end
+
+-- The items of the merchant's page, e.g. "~M1 M2 ~M3": ~ marks a dimmed item.
+function world:MerchantSlots()
+    local slots = {}
+    for slot = 1, MERCHANT_ITEMS_PER_PAGE do
+        local item = _G["MerchantItem" .. slot]
+        if item.itemID then
+            table.insert(slots, (HasShownOverlay(item) and "~" or "") .. item.itemID)
+        end
+    end
+    return table.concat(slots, " ")
+end
+
+-- The page arrows lit by an addon: "", "prev", "next" or "prev next".
+function world:MerchantArrowGlows()
+    local lit = {}
+    if HasShownOverlay(MerchantPrevPageButton) then
+        table.insert(lit, "prev")
+    end
+    if HasShownOverlay(MerchantNextPageButton) then
+        table.insert(lit, "next")
+    end
+    return table.concat(lit, " ")
+end
+
+-- The player clicks a page arrow (delta -1 or 1), like MerchantNextPageButton_OnClick.
+function world:TurnMerchantPage(delta)
+    MerchantFrame.page = MerchantFrame.page + delta
+    MerchantFrame_Update()
+end
+
+-- The player clicks the merchant's items tab (1) or buyback tab (2).
+function world:SelectMerchantTab(tab)
+    MerchantFrame.selectedTab = tab
+    MerchantFrame_Update()
+end
+
+function world:MerchantSearchBox()
+    for _, frame in ipairs(self.frames) do
+        if frame.template == "SearchBoxTemplate" and frame.parent == MerchantFrame then
+            return frame
+        end
+    end
+end
+
+-- The player types in the merchant's search box.
+function world:SearchMerchant(text)
+    local box = assert(self:MerchantSearchBox(), "no merchant search box")
+    box.text = text
+    box:RunScript("OnTextChanged", true)
 end
 
 -- The auction house UI is load-on-demand: AuctionHouseFrame exists once opened.
@@ -5201,7 +5314,7 @@ end
 
 function world:SavedBankSearchBox()
     return FindFrame(function(frame)
-        return frame.template == "SearchBoxTemplate"
+        return frame.template == "SearchBoxTemplate" and frame.parent ~= MerchantFrame
     end)
 end
 

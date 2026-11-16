@@ -21,6 +21,7 @@ local TEST_FILES = {
     "tests/bank_test.lua",
     "tests/bank_transfers_test.lua",
     "tests/merchant_test.lua",
+    "tests/merchant_search_test.lua",
     "tests/junk_test.lua",
     "tests/marks_test.lua",
     "tests/notes_test.lua",

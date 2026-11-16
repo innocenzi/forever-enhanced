@@ -389,10 +389,10 @@ test("picking a preset asks first and keeps the placeholder", function(world)
     expect(popup, "confirmation shown")
     equal(popup.text, world.L["core.presets.confirm"]:format(world.L["core.presets.enhanced"]), "text")
     equal(world:Setting("preset"):GetValue(), "none", "dropdown still shows its placeholder")
-    expect(not Feature(world, "inventory", "merchant"):IsActive(), "waits for the player")
+    expect(not Feature(world, "inventory", "cheapest"):IsActive(), "waits for the player")
 
     popup.callback()
-    expect(Feature(world, "inventory", "merchant"):IsActive(), "applied once accepted")
+    expect(Feature(world, "inventory", "cheapest"):IsActive(), "applied once accepted")
 
     local count = #world.popups
     world:Setting("preset"):SetValue("none")
@@ -418,7 +418,9 @@ test("the minimal preset turns chatty features off and keeps what it doesn't lis
     world:Setting("interface.windows.modifier"):SetValue("alt")
     ApplyPreset(world, "minimal")
 
-    expect(not Feature(world, "inventory", "merchant"):IsActive(), "merchant off")
+    expect(Feature(world, "inventory", "merchant"):IsPartActive("search"), "merchant search on")
+    equal(world:Setting("inventory.merchant.autoSellJunk"):GetValue(), false, "auto sell junk off")
+    equal(world:Setting("inventory.merchant.autoRepair"):GetValue(), false, "auto repair off")
     expect(Feature(world, "inventory", "marks"):IsPartActive("junk"), "junk marking on")
     expect(not Feature(world, "quests", "announce"):IsActive(), "announcements off")
     expect(not Feature(world, "interface", "glow"):IsActive(), "glow off")

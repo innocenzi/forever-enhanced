@@ -17,6 +17,7 @@ core\questlog.lua
 core\cvars.lua
 core\tracker.lua
 core\containers.lua
+core\search.lua
 core\moves.lua
 core\tooltips.lua
 core\locale.lua
@@ -57,6 +58,8 @@ modules\inventory\merchant\feature.lua
 modules\inventory\merchant\locales.lua
 modules\inventory\merchant\junk.lua
 modules\inventory\merchant\repair.lua
+modules\inventory\merchant\search.lua
+modules\inventory\merchant\searchbox.lua
 modules\inventory\marks\feature.lua
 modules\inventory\marks\locales.lua
 modules\inventory\marks\store.lua

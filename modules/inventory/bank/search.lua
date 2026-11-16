@@ -3,7 +3,7 @@
 -- the bags filter too.
 --
 -- The client only filters items that are really in a container, so saved items
--- are matched here: by name, item type, subtype and equipment slot.
+-- are matched here (ns:MatchesItemSearch).
 
 local _, ns = ...
 
@@ -15,20 +15,9 @@ Bank.Search = Search
 local searchBox
 local needle = ""
 
-local function Contains(haystack, text)
-    return haystack ~= nil and haystack ~= "" and haystack:lower():find(text, 1, true) ~= nil
-end
-
 function Search:Matches(item)
-    if needle == "" then
-        return true
-    end
     local name = item.name or (item.link and item.link:match("%[(.-)%]"))
-    if Contains(name, needle) then
-        return true
-    end
-    local _, itemType, itemSubType, equipLoc = C_Item.GetItemInfoInstant(item.itemID or item.link)
-    return Contains(itemType, needle) or Contains(itemSubType, needle) or Contains(_G[equipLoc or ""], needle)
+    return ns:MatchesItemSearch(needle, name, item.itemID or item.link)
 end
 
 local function SetNeedle(text)

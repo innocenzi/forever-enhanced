@@ -1,8 +1,10 @@
 -- Merchant: auto sell junk and auto repair when a merchant opens.
 -- The fake bag starts as: G1 G2 - GJUNK (GJUNK is poor quality).
 
+-- Auto sell junk and auto repair are opt-in.
 local function Enable(world)
-    world:Setting("inventory.merchant.enabled"):SetValue(true)
+    world:Setting("inventory.merchant.autoSellJunk"):SetValue(true)
+    world:Setting("inventory.merchant.autoRepair"):SetValue(true)
 end
 
 -- Bag G1 JUNK - GJUNK: two junk items worth 10 and 5 copper.
@@ -19,7 +21,7 @@ local function ExpectAnnounced(world, key, ...)
     expect(world.prints[#world.prints]:find(message, 1, true), "chat message " .. key)
 end
 
-test("does nothing until enabled", function(world)
+test("neither sells nor repairs by default", function(world)
     WithJunk(world)
     world.money, world.repairCost = 100, 30
     world:OpenMerchant()

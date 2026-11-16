@@ -2,7 +2,9 @@ local _, ns = ...
 
 ns:RegisterLocale("enUS", {
     ["inventory.merchant.title"] = "Merchant",
-    ["inventory.merchant.description"] = "Sells your junk and repairs your items at merchants.",
+    ["inventory.merchant.description"] = "Helps you find, sell and repair at merchants.",
+    ["inventory.merchant.search"] = "Search box",
+    ["inventory.merchant.search.tooltip"] = "Finds a merchant's items across all their pages.",
     ["inventory.merchant.autoSellJunk"] = "Auto sell junk",
     ["inventory.merchant.autoSellJunk.tooltip"] = "Sells your junk when you visit a merchant.",
     ["inventory.merchant.autoRepair"] = "Auto repair",
@@ -19,7 +21,9 @@ ns:RegisterLocale("enUS", {
 
 ns:RegisterLocale("frFR", {
     ["inventory.merchant.title"] = "Marchand",
-    ["inventory.merchant.description"] = "Vend votre camelote et répare vos objets chez les marchands.",
+    ["inventory.merchant.description"] = "Vous aide à trouver, vendre et réparer chez les marchands.",
+    ["inventory.merchant.search"] = "Champ de recherche",
+    ["inventory.merchant.search.tooltip"] = "Trouve les objets d’un marchand sur toutes ses pages.",
     ["inventory.merchant.autoSellJunk"] = "Vendre la camelote",
     ["inventory.merchant.autoSellJunk.tooltip"] = "Vend votre camelote quand vous parlez à un marchand.",
     ["inventory.merchant.autoRepair"] = "Réparer l’équipement",
