@@ -248,3 +248,15 @@ test("can glow without the interaction icon", function(world)
     expect(Glow(world) ~= nil, "glows")
     equal(CVar("SoftTargetIconInteract"), "0", "no interaction icon")
 end)
+
+test("quest log updates without an object leave the CVars alone", function(world)
+    Enable(world)
+    local reads = 0
+    local base = C_CVar.GetCVar
+    C_CVar.GetCVar = function(...)
+        reads = reads + 1
+        return base(...)
+    end
+    world:Fire("QUEST_LOG_UPDATE")
+    equal(reads, 0, "CVar reads")
+end)

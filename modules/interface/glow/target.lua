@@ -153,8 +153,14 @@ local listener = ns:CreateEventListener({
         ObjectGlow.CVars:SetGlowing(false)
     end,
     PLAYER_REGEN_ENABLED = Refresh,
-    -- An object may become (or stop being) part of a quest.
-    QUEST_LOG_UPDATE = Refresh,
+    -- An object may become (or stop being) part of a quest. It fires on every
+    -- bit of progress: without an object, nothing can glow (losing the object
+    -- is PLAYER_SOFT_INTERACT_CHANGED).
+    QUEST_LOG_UPDATE = function()
+        if UnitIsGameObject(UNIT) then
+            Refresh()
+        end
+    end,
     -- Account-synced settings can overwrite ours on login.
     PLAYER_ENTERING_WORLD = function()
         ObjectGlow.CVars:Apply()
