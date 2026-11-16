@@ -38,26 +38,34 @@ function Value:IsFull()
 end
 
 -- What the stack is worth, or nil when it can't be told: no sell price (quest
--- items, hearthstone) or item data not loaded yet.
+-- items, hearthstone) or item data not loaded yet. Then whether the item's
+-- data wasn't loaded.
 local function GetStackValue(info)
     if info.hasNoValue then
-        return nil
+        return nil, false
     end
     local sellPrice = select(11, C_Item.GetItemInfo(info.itemID))
     if not sellPrice then
-        return nil
+        return nil, true
     end
     local auctionPrice = not info.isBound and Auction:GetPrice(info.itemID) or 0
-    return math.max(sellPrice, auctionPrice) * info.stackCount
+    return math.max(sellPrice, auctionPrice) * info.stackCount, false
 end
 
 -- The bag items worth the least, { [guid] = true }: every one tied for the
--- lowest value, locked items left out.
+-- lowest value, locked items left out. Then the items whose data wasn't loaded
+-- yet, { [itemID] = true }: their value counts once it is.
 function Value:Collect()
-    local lowest, items = nil, {}
+    local lowest, items, unloaded = nil, {}, {}
     ns.Containers:ForEachSlot(GetBagIDs(), function(bagID, slot)
         local info = C_Container.GetContainerItemInfo(bagID, slot)
-        local value = info and GetStackValue(info)
+        if not info then
+            return
+        end
+        local value, isUnloaded = GetStackValue(info)
+        if isUnloaded then
+            unloaded[info.itemID] = true
+        end
         if not value then
             return
         end
@@ -72,5 +80,5 @@ function Value:Collect()
             items[guid] = true
         end
     end)
-    return items
+    return items, unloaded
 end

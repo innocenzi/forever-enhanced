@@ -7,6 +7,7 @@
 local LOCALES = { "enUS", "frFR" }
 local TEST_FILES = {
     "tests/core_test.lua",
+    "tests/itembuttons_test.lua",
     "tests/locking_test.lua",
     "tests/sorting_test.lua",
     "tests/quests_test.lua",

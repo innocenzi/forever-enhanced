@@ -13,6 +13,16 @@
 --     the cursor holds an item or a merchant, mail, trade or auction window is
 --     open: no swapping them out, no right-click selling, attaching or posting.
 -- The shield shows the item tooltip itself, so the sell cursor never appears.
+--
+-- Redraws are frequent (Blizzard redraws a bag on every bag change and quest
+-- log change, the cursor changes shape over units), so the work is kept to what
+-- can have changed:
+--   * Alt and the protection only change shields: their own pass, no marks;
+--   * Prepare runs once per change of what handlers draw (ns:RefreshItemButtons()
+--     or a bag change), not once per redraw;
+--   * a button's Update calls run again only when that change happened or the
+--     button holds another item. Blizzard's redraws never touch our frames, so
+--     marks left as they are stay right.
 
 local _, ns = ...
 
@@ -62,11 +72,13 @@ local sources = {
 -- { feature, handler } in registration order. Handler fields, all optional:
 --   part                                the feature's part (toggle key) the handler
 --                                       belongs to: it runs only while that part does
---   Prepare()                           called once per refresh, before its Update
---                                       calls: gathers what they share (e.g. a bag scan)
+--   Prepare()                           gathers what Update calls share (e.g. a bag
+--                                       scan): called before them after
+--                                       ns:RefreshItemButtons() or a bag change only
 --   Update(button, itemLocation, guid)  draws the feature's marks on the button
---                                       (guid is nil for an empty slot)
---   IsGuarded(guid, context)            shields the item without Alt; context.protect:
+--                                       (guid is nil for an empty slot): called after
+--                                       Prepare, or when the button holds another item
+--   IsGuarded(guid, state)              shields the item without Alt; state.protect:
 --                                       the cursor holds an item or a sink window is open
 --   OnGuardedClick(itemLocation, mouseButton), OnGuardedDrag(itemLocation)
 --                                       a click or drag on the shield that isn't an Alt action
@@ -82,7 +94,9 @@ local handlers = {}
 local menuHandlers = {}
 
 -- Only handlers of active features are called. Call ns:RefreshItemButtons() whenever
--- what a handler draws or guards changes, and from the feature's OnEnable / OnDisable.
+-- what a handler draws or guards changes (anything but the bags' contents, Alt and
+-- the protection), and from the feature's OnEnable / OnDisable: nothing else
+-- redraws marks of unchanged items.
 -- Marks left by a disabled feature are its own to hide: Update is no longer called.
 function ns:AddItemButtonHandler(feature, handler)
     local entry = { feature = feature, handler = handler }
@@ -121,13 +135,24 @@ local function GetMenuEntries()
     return methods
 end
 
--- Our state per Blizzard item button: { source, shield }.
+-- Our state per Blizzard item button: { source, shield, guarded } and what its
+-- marks were last drawn for: { context, bagID, slot, guid }.
 -- Weak keys: we never stamp fields onto Blizzard frames.
 local decorations = setmetatable({}, { __mode = "k" })
 
 local hooksInstalled = false
 local listening = false
-local lastContext
+-- The active handlers' functions: { updates, guards, takesAlt }, gathered on
+-- first use after each ns:RefreshItemButtons().
+local active
+-- What marks are drawn with, made when Prepare runs: { afterBagChange }, kept
+-- until ns:RefreshItemButtons() or a bag change. afterBagChange: made after the
+-- bag changes BAG_UPDATE_DELAYED will report.
+local context
+-- A bag changed (BAG_UPDATE) since the last BAG_UPDATE_DELAYED.
+local bagChangePending = false
+-- What shields depend on: { alt, protect }, as last read.
+local state = {}
 -- The shield the item menu is open on: kept up until the menu closes, since
 -- Blizzard closes a menu whose owner hides (releasing Alt would).
 local menuShield
@@ -146,29 +171,43 @@ local function IsProtecting()
     return CursorHasItem() or IsSinkOpen()
 end
 
--- What the shields depend on, gathered once per refresh, after the active
--- handlers' Prepare.
-local function GetContext()
-    for _, Prepare in ipairs(GetActive("Prepare")) do
-        securecallfunction(Prepare)
+local function GetActiveHandlers()
+    if not active then
+        active = {
+            updates = GetActive("Update"),
+            guards = GetActive("IsGuarded"),
+            takesAlt = #GetActive("OnAltClick") > 0 or #GetActive("AddMenuEntries") > 0,
+        }
     end
-    return {
-        alt = IsAltKeyDown(),
-        protect = IsProtecting(),
-        updates = GetActive("Update"),
-        guards = GetActive("IsGuarded"),
-        takesAlt = #GetActive("OnAltClick") > 0 or #GetActive("AddMenuEntries") > 0,
-    }
+    return active
 end
 
--- Whether Alt or the protection changed since the last refresh.
-local function IsStale()
-    return not lastContext or lastContext.alt ~= IsAltKeyDown() or lastContext.protect ~= IsProtecting()
+-- The current context, after the active handlers' Prepare when there is none.
+local function GetContext()
+    if not context then
+        for _, Prepare in ipairs(GetActive("Prepare")) do
+            securecallfunction(Prepare)
+        end
+        context = { afterBagChange = bagChangePending }
+    end
+    return context
+end
+
+-- Reads Alt and the protection; returns whether either changed.
+local function ReadState()
+    local alt, protect = IsAltKeyDown(), IsProtecting()
+    local changed = alt ~= state.alt or protect ~= state.protect
+    state.alt, state.protect = alt, protect
+    return changed
 end
 
 local function GetItemLocation(button)
     return decorations[button].source.GetItemLocation(button)
 end
+
+-- Redraws the shields of the visible buttons when Alt or the protection
+-- changed, or when `force`d. Defined with the shields below.
+local SyncShields
 
 -- The item menu: the item's name as a title, in Blizzard's gold title color to
 -- stand apart from the entries, then each active feature's entries. Its shield
@@ -185,7 +224,7 @@ local function OpenMenu(shield, itemLocation)
         rootDescription:AddMenuReleasedCallback(function()
             if menuShield == shield then
                 menuShield = nil
-                ns:RefreshItemButtons()
+                SyncShields(true)
             end
         end)
         rootDescription:CreateTitle(C_Item.GetItemName(itemLocation))
@@ -241,11 +280,9 @@ ShieldMixin.OnDragStart = ShieldMixin.OnReceiveDrag
 
 function ShieldMixin:OnEnter()
     -- A modifier released while the game was unfocused leaves shields up; drop them.
-    if IsStale() then
-        ns:RefreshItemButtons()
-        if not self:IsShown() then
-            return
-        end
+    SyncShields()
+    if not self:IsShown() then
+        return
     end
 
     local bagID, slot = GetItemLocation(self.itemButton):GetBagAndSlot()
@@ -274,16 +311,42 @@ local function CreateShield(button)
     return shield
 end
 
-local function IsGuarded(guid, context)
-    for _, Guards in ipairs(context.guards) do
-        if securecallfunction(Guards, guid, context) then
+local function IsGuarded(guid, guards)
+    for _, Guards in ipairs(guards) do
+        if securecallfunction(Guards, guid, state) then
             return true
         end
     end
     return false
 end
 
-local function UpdateButton(button, source, context)
+-- Shows the button's shield as Alt, the protection and its item (as last drawn) need.
+local function UpdateShield(button, decoration)
+    local handlers = GetActiveHandlers()
+    local guid = decoration.guid
+    decoration.guarded = guid ~= nil and IsGuarded(guid, handlers.guards)
+    local hasMenu = decoration.shield ~= nil and decoration.shield == menuShield
+    local showShield = guid ~= nil and ((state.alt and handlers.takesAlt) or decoration.guarded or hasMenu)
+    if showShield and not decoration.shield then
+        decoration.shield = CreateShield(button)
+    end
+    if decoration.shield then
+        decoration.shield:SetShown(showShield)
+    end
+end
+
+function SyncShields(force)
+    if not ReadState() and not force then
+        return
+    end
+    for button, decoration in pairs(decorations) do
+        if button:IsVisible() then
+            UpdateShield(button, decoration)
+        end
+    end
+end
+
+local function UpdateButton(button, source, drawContext)
     local decoration = decorations[button]
     if not decoration then
         decoration = {}
@@ -293,25 +356,25 @@ local function UpdateButton(button, source, context)
 
     local itemLocation = source.GetItemLocation(button)
     local guid = ns.Containers:GetItemGUID(itemLocation)
-    -- One feature's error is reported without leaving the others' marks and guards undrawn.
-    for _, Update in ipairs(context.updates) do
-        securecallfunction(Update, button, itemLocation, guid)
+    local bagID, slot = itemLocation:GetBagAndSlot()
+    if
+        decoration.context ~= drawContext
+        or decoration.guid ~= guid
+        or decoration.bagID ~= bagID
+        or decoration.slot ~= slot
+    then
+        decoration.context, decoration.guid, decoration.bagID, decoration.slot = drawContext, guid, bagID, slot
+        -- One feature's error is reported without leaving the others' marks and guards undrawn.
+        for _, Update in ipairs(GetActiveHandlers().updates) do
+            securecallfunction(Update, button, itemLocation, guid)
+        end
     end
-
-    decoration.guarded = guid ~= nil and IsGuarded(guid, context)
-    local hasMenu = decoration.shield ~= nil and decoration.shield == menuShield
-    local showShield = guid ~= nil and ((context.alt and context.takesAlt) or decoration.guarded or hasMenu)
-    if showShield and not decoration.shield then
-        decoration.shield = CreateShield(button)
-    end
-    if decoration.shield then
-        decoration.shield:SetShown(showShield)
-    end
+    UpdateShield(button, decoration)
 end
 
-local function RefreshFrame(frame, source, context)
+local function RefreshFrame(frame, source, drawContext)
     if frame:IsShown() then
-        source.ForEachButton(frame, UpdateButton, source, context)
+        source.ForEachButton(frame, UpdateButton, source, drawContext)
     end
 end
 
@@ -324,8 +387,11 @@ local function HasActiveHandler()
     return false
 end
 
+-- Blizzard redrew the frame's buttons: our marks follow at once for the
+-- buttons whose item changed.
 local function OnFrameRefreshed(frame, source)
-    if HasActiveHandler() then
+    if listening and HasActiveHandler() then
+        SyncShields()
         RefreshFrame(frame, source, GetContext())
     end
 end
@@ -350,18 +416,50 @@ local function InstallHooks()
     end
 end
 
+-- Redraws every visible item button: the marks of those whose item changed
+-- since the context was made, or all of them with a new context.
+local function RedrawAll()
+    ReadState()
+    local drawContext = GetContext()
+    for _, source in ipairs(sources) do
+        for _, frame in ipairs(source.frames) do
+            RefreshFrame(frame, source, drawContext)
+        end
+    end
+end
+
 local function Refresh()
     ns:RefreshItemButtons()
+end
+
+local function SyncShieldsOnly()
+    SyncShields()
 end
 
 local listener = ns:CreateEventListener({
     MODIFIER_STATE_CHANGED = function(_, key)
         if key == "LALT" or key == "RALT" then
-            ns:RefreshItemButtons()
+            SyncShields()
         end
     end,
-    CURSOR_CHANGED = Refresh,
-    BAG_UPDATE_DELAYED = Refresh,
+    -- Fires whenever the cursor changes shape: only holding an item matters.
+    CURSOR_CHANGED = SyncShieldsOnly,
+    -- Only marks the context out of date: Blizzard's redraw or BAG_UPDATE_DELAYED
+    -- makes a new one, once for all the bags that changed.
+    BAG_UPDATE = function()
+        context = nil
+        bagChangePending = true
+    end,
+    -- Keeps a context Blizzard's redraws made since the bags changed.
+    BAG_UPDATE_DELAYED = function()
+        if context and not context.afterBagChange then
+            context = nil
+        end
+        bagChangePending = false
+        RedrawAll()
+    end,
+    -- The bag's "exclude from Sell All Junk" option: junk coins follow it.
+    BAG_SLOT_FLAGS_UPDATED = Refresh,
     MERCHANT_SHOW = Refresh,
     MERCHANT_CLOSED = Refresh,
     MAIL_SHOW = Refresh,
@@ -382,14 +480,15 @@ local function HideShields()
     end
 end
 
--- Redraws every visible item button. Without an active handler, drops every
--- shield and stops listening.
+-- Redraws every visible item button, Prepare first. Without an active handler,
+-- drops every shield and stops listening.
 function ns:RefreshItemButtons()
+    active, context = nil, nil
     if not HasActiveHandler() then
         if listening then
             listening = false
             listener:Stop()
-            lastContext = nil
+            state, bagChangePending = {}, false
             HideShields()
         end
         return
@@ -400,11 +499,5 @@ function ns:RefreshItemButtons()
         listening = true
         listener:Start()
     end
-    local context = GetContext()
-    lastContext = context
-    for _, source in ipairs(sources) do
-        for _, frame in ipairs(source.frames) do
-            RefreshFrame(frame, source, context)
-        end
-    end
+    RedrawAll()
 end

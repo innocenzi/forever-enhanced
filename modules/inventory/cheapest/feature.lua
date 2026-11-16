@@ -33,11 +33,12 @@ local Cheapest = ns:RegisterFeature("inventory", "cheapest", {
 })
 
 function Cheapest:OnEnable()
+    self.Buttons:Enable()
     ns:RefreshItemButtons()
 end
 
 function Cheapest:OnDisable()
-    self.Buttons:HideAll()
+    self.Buttons:Disable()
     ns:RefreshItemButtons()
 end
 

@@ -201,3 +201,35 @@ test("disabling the feature hides the marks", function(world)
     world:Setting("inventory.cheapest.enabled"):SetValue(true)
     equal(Marked(world), "1", "back")
 end)
+
+test("an item is valued once its data loads", function(world)
+    SetPrices(world, { G1 = 10, G2 = 20, GJUNK = 50 })
+    world.unloadedItems.G1 = true
+    Enable(world, false)
+    equal(Marked(world), "2", "the cheapest item with its data loaded")
+
+    world:LoadItem("G1")
+    world:NextFrame()
+    equal(Marked(world), "1", "the item whose data loaded")
+end)
+
+test("Blizzard redrawing unchanged bags doesn't look for the lowest value items again", function(world)
+    SetPrices(world, { G1 = 10, G2 = 20, GJUNK = 50 })
+    Enable(world, false)
+    local Value = world.ns:GetFeature("inventory", "cheapest").Value
+    local collect, collects = Value.Collect, 0
+    Value.Collect = function(...)
+        collects = collects + 1
+        return collect(...)
+    end
+
+    world:Fire("UNIT_QUEST_LOG_CHANGED", "player")
+    world:Fire("CURSOR_CHANGED")
+    equal(collects, 0, "no scan")
+    equal(Marked(world), "1", "still marked")
+
+    world.bags[0][3] = "G3"
+    world:BagsChanged(0)
+    world:NextFrame()
+    equal(collects, 1, "one scan for a bag change")
+end)

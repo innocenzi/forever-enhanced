@@ -39,8 +39,11 @@ end
 -- Per Blizzard item button: { frame, glow, pulse, icon }.
 local decorations = setmetatable({}, { __mode = "k" })
 
--- GUIDs of the items to mark, gathered once per refresh.
+-- GUIDs of the items to mark, gathered when the bags or what they're worth change.
 local marked = {}
+-- Item IDs of bag items whose data wasn't loaded then: { [itemID] = true }.
+local unloaded = {}
+local refreshQueued = false
 
 local function CreateDecoration(button)
     local frame = CreateFrame("Frame", nil, button)
@@ -98,7 +101,37 @@ local function Update(button, itemLocation, guid)
     end
 end
 
-function Buttons:HideAll()
+-- Item buttons gather the marks again only when told something changed: an
+-- item's data loading is such a change. Once per frame, however many load.
+local function QueueRefresh()
+    if refreshQueued then
+        return
+    end
+    refreshQueued = true
+    C_Timer.After(0, function()
+        refreshQueued = false
+        if Cheapest:IsActive() then
+            ns:RefreshItemButtons()
+        end
+    end)
+end
+
+local listener = ns:CreateEventListener({
+    GET_ITEM_INFO_RECEIVED = function(_, itemID)
+        if unloaded[itemID] then
+            unloaded[itemID] = nil
+            QueueRefresh()
+        end
+    end,
+})
+
+function Buttons:Enable()
+    listener:Start()
+end
+
+function Buttons:Disable()
+    listener:Stop()
+    marked, unloaded = {}, {}
     for _, decoration in pairs(decorations) do
         decoration.frame:Hide()
     end
@@ -107,7 +140,11 @@ end
 ns:AddItemButtonHandler(Cheapest, {
     Prepare = function()
         local show = not Cheapest:GetSetting("onlyWhenFull") or Value:IsFull()
-        marked = show and Value:Collect() or {}
+        if show then
+            marked, unloaded = Value:Collect()
+        else
+            marked, unloaded = {}, {}
+        end
     end,
     Update = Update,
 })

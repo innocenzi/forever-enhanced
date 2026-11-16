@@ -57,6 +57,7 @@ local world = {
     sold = {},
     excludedFromJunkSell = {},
     sellPrices = {},
+    unloadedItems = {},
     sellAllJunkEnabled = true,
     sellAllJunkCalls = 0,
     money = 0,
@@ -1437,7 +1438,11 @@ C_Item = {
         return ItemAt(location)
     end,
     -- Only the sell price (11th return) is modelled: world.sellPrices[itemID], default 0.
+    -- Nothing for an item whose data hasn't loaded yet (world.unloadedItems, see world:LoadItem).
     GetItemInfo = function(itemID)
+        if world.unloadedItems[itemID] then
+            return nil
+        end
         return itemID, nil, nil, nil, nil, nil, nil, nil, nil, nil, world.sellPrices[itemID] or 0
     end,
 }
@@ -3972,18 +3977,72 @@ function ContainerFrameCombinedBags:EnumerateValidItems()
 end
 ContainerFrameCombinedBags.UpdateItems = NoOp
 
--- Separate bag frames, used when bags aren't combined: the backpack, then a bag.
+-- Separate bag frames, used when bags aren't combined: the backpack (its own
+-- buttons, world.backpackButtons), then a bag (no slots).
+world.backpackButtons = {}
 for index = 1, 2 do
     local frame = CreateFrame("Frame", "ContainerFrame" .. index)
     frame.shown = false
     frame:SetSize(200, 150)
+    local buttons = index == 1 and world.backpackButtons or {}
+    if index == 1 then
+        for slot = 1, BAG_SIZE do
+            local button = CreateFrame("Button", nil, frame)
+            button.id = slot
+            function button:GetBagID()
+                return 0
+            end
+            buttons[slot] = button
+        end
+    end
     function frame:EnumerateValidItems()
-        return pairs({})
+        return ipairs(buttons)
+    end
+    function frame:MatchesBagID(bagID)
+        return bagID == index - 1
     end
     frame.UpdateItems = NoOp
 end
 
+function ContainerFrameCombinedBags:MatchesBagID(bagID)
+    return bagID >= Enum.BagIndex.Backpack and bagID <= NUM_TOTAL_EQUIPPED_BAG_SLOTS
+end
+
 ContainerFrameContainer = { ContainerFrames = { ContainerFrame1, ContainerFrame2 } }
+
+-- Blizzard's own bag redraws (ContainerFrame.lua): BAG_UPDATE marks the shown
+-- frames holding the bag dirty, and an OnUpdate cleans them (Update, then
+-- UpdateItems once their items have loaded: here at once). BAG_NEW_ITEMS_UPDATED
+-- updates a shown frame at once, QUEST_ACCEPTED and UNIT_QUEST_LOG_CHANGED
+-- ("player") too (UpdateIfShown).
+do
+    local bagFrames = { ContainerFrameCombinedBags, ContainerFrame1, ContainerFrame2 }
+    local dirty = {}
+    local updater = CreateFrame("Frame")
+    for _, event in ipairs({ "BAG_UPDATE", "BAG_NEW_ITEMS_UPDATED", "QUEST_ACCEPTED", "UNIT_QUEST_LOG_CHANGED" }) do
+        updater:RegisterEvent(event)
+    end
+    updater:SetScript("OnEvent", function(_, event, arg)
+        for _, frame in ipairs(bagFrames) do
+            if frame:IsShown() then
+                if event == "BAG_UPDATE" then
+                    if frame:MatchesBagID(arg) and not tContains(dirty, frame) then
+                        table.insert(dirty, frame)
+                    end
+                elseif event ~= "UNIT_QUEST_LOG_CHANGED" or arg == "player" then
+                    frame:UpdateItems()
+                end
+            end
+        end
+    end)
+    updater:SetScript("OnUpdate", function()
+        local frames = dirty
+        dirty = {}
+        for _, frame in ipairs(frames) do
+            frame:UpdateItems()
+        end
+    end)
+end
 
 -- Re-anchors every open bag frame, wherever the player put it: the first one to
 -- the screen at BAG_ANCHOR, each other one on top of the one before it.
@@ -4527,6 +4586,7 @@ function world:Progress(questID, index, numFulfilled, text)
     objective.finished = numFulfilled >= objective.numRequired
     objective.text = text or objective.text
     self:Fire("QUEST_WATCH_UPDATE", questID)
+    self:Fire("UNIT_QUEST_LOG_CHANGED", "player")
     self:Fire("QUEST_LOG_UPDATE")
 end
 
@@ -5188,6 +5248,27 @@ end
 function world:Position(frame)
     local left, bottom = frame:GetBottomLeftCorner()
     return ("%s,%s"):format(left, bottom)
+end
+
+-- The bags' contents changed (edit world.bags first): BAG_UPDATE for each bag,
+-- then BAG_UPDATE_DELAYED. Blizzard redraws the open bags on the next frame.
+function world:BagsChanged(...)
+    for _, bagID in ipairs({ ... }) do
+        self:Fire("BAG_UPDATE", bagID)
+    end
+    self:Fire("BAG_UPDATE_DELAYED")
+end
+
+-- The data of an item in world.unloadedItems arrives.
+function world:LoadItem(itemID)
+    self.unloadedItems[itemID] = nil
+    self:Fire("GET_ITEM_INFO_RECEIVED", itemID, true)
+end
+
+-- The bag menu's "exclude from Sell All Junk" option.
+function world:ExcludeFromJunkSell(bagID, excluded)
+    self.excludedFromJunkSell[bagID] = excluded
+    self:Fire("BAG_SLOT_FLAGS_UPDATED", bagID)
 end
 
 -- Opens the separate bags (bags not combined), the way the client lays them out.
