@@ -38,9 +38,15 @@ local BARS = {
     { prefix = "MultiBar7Button" },
 }
 
--- Every action button: { button, main, index }.
+-- Built once: the display goes through them on every power tick in combat.
+local entries
+
+-- Every action button: { button, main, index }. Shared: callers don't change it.
 function Buttons:Enumerate()
-    local entries = {}
+    if entries then
+        return entries
+    end
+    entries = {}
     for _, bar in ipairs(BARS) do
         for index = 1, NUM_BUTTONS do
             local button = _G[bar.prefix .. index]
