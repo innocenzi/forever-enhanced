@@ -13,6 +13,7 @@
 
 # Core
 core\events.lua
+core\questlog.lua
 core\cvars.lua
 core\tracker.lua
 core\containers.lua

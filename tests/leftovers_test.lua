@@ -100,9 +100,7 @@ test("an item that starts a completed quest is a leftover", function(world)
     world.startsQuest.LETTER = 20
     Put(world, "LETTER")
     expect(not IsLeftover(world, "LETTER"), "not while its quest is still to do")
-    world.completedQuests[20] = true
-    world:Fire("QUEST_LOG_UPDATE")
-    world:NextFrame()
+    TurnIn(world, { questID = 20 })
     equal(Lines(world, "LETTER")[1], Completed(world), "untitled line")
     expect(world:LeftoverMark(SLOT), "check mark")
 end)
@@ -123,9 +121,8 @@ end)
 test("items of repeatable quests are never leftovers", function(world)
     Put(world, "NORDEL")
     TakenAtTurnIn(world, BLOOM, "NORDEL")
-    TurnIn(world, BLOOM)
+    world:TurnInQuest(BLOOM.questID)
     world.completedQuests[BLOOM.questID] = nil -- never flagged, like the client's repeatables
-    world:Fire("QUEST_LOG_UPDATE")
     world:NextFrame()
     expect(not IsLeftover(world, "NORDEL"), "no line")
     expect(not world:LeftoverMark(SLOT), "no mark")
@@ -180,4 +177,40 @@ test("learns nothing while off", function(world)
     world:Setting("quests.helpers.leftovers"):SetValue(true)
     world:NextFrame()
     expect(not IsLeftover(world, "NORDEL"), "not linked")
+end)
+
+-- Counts the bag slots read from now on.
+local function CountSlotReads()
+    local reads = { count = 0 }
+    local base = C_Container.GetContainerItemInfo
+    C_Container.GetContainerItemInfo = function(...)
+        reads.count = reads.count + 1
+        return base(...)
+    end
+    return reads
+end
+
+test("quest progress doesn't scan the bags again", function(world)
+    world:AcceptQuest(Quest(BLOOM, { world:Objective("NORDEL", 5, 0) }))
+    Put(world, "NORDEL")
+    local reads = CountSlotReads()
+    world:Progress(BLOOM.questID, 1, 1)
+    world:NextFrame()
+    equal(reads.count, 0, "slots read after progress")
+
+    world:AcceptQuest(Quest(SEEDS))
+    world:NextFrame()
+    expect(reads.count > 0, "slots read after a quest enters the log")
+end)
+
+test("learns an item objective the client words later", function(world)
+    world:Setting("quests.helpers.objectives"):SetValue(false)
+    local objective = world:Objective("NORDEL", 1, 0)
+    objective.text = ""
+    world:AcceptQuest(Quest(BLOOM, { objective }))
+    Put(world, "NORDEL")
+    world:Progress(BLOOM.questID, 1, 0)
+    world:NextFrame()
+    TurnIn(world, BLOOM)
+    equal(Lines(world, "NORDEL")[1], Completed(world, BLOOM.title), "linked once its text is read")
 end)

@@ -17,6 +17,9 @@ Helpers.Needs = Needs
 -- byName[itemName] = { { questID, title, numFulfilled, numRequired }, ... }
 local byName = {}
 local stale = true
+-- Whether the last rebuild met an item objective whose text it couldn't read
+-- (empty, or without the item's name yet).
+local unreadable = false
 
 -- No-break spaces (U+00A0, and the narrow U+202F) become plain spaces, so
 -- the format and the text agree on spacing (French puts one before a colon).
@@ -41,20 +44,25 @@ end
 
 local function Rebuild()
     wipe(byName)
+    unreadable = false
     local pattern = NamePattern(QUEST_ITEMS_NEEDED)
     for index = 1, C_QuestLog.GetNumQuestLogEntries() do
         local info = C_QuestLog.GetInfo(index)
         if info and not info.isHeader and not info.isHidden then
             for _, objective in ipairs(C_QuestLog.GetQuestObjectives(info.questID) or {}) do
-                local name = objective.type == "item" and NormalizeSpaces(objective.text):match(pattern)
-                if name then
-                    byName[name] = byName[name] or {}
-                    table.insert(byName[name], {
-                        questID = info.questID,
-                        title = info.title,
-                        numFulfilled = objective.numFulfilled,
-                        numRequired = objective.numRequired,
-                    })
+                if objective.type == "item" then
+                    local name = NormalizeSpaces(objective.text or ""):match(pattern)
+                    if name and name ~= "" then
+                        byName[name] = byName[name] or {}
+                        table.insert(byName[name], {
+                            questID = info.questID,
+                            title = info.title,
+                            numFulfilled = objective.numFulfilled,
+                            numRequired = objective.numRequired,
+                        })
+                    else
+                        unreadable = true
+                    end
                 end
             end
         end
@@ -76,6 +84,12 @@ function Needs:Find(name)
     return byName[name]
 end
 
+-- Whether the last lookup met an item objective it couldn't read yet: its
+-- item may still be needed by a quest the index doesn't list.
+function Needs:HasUnreadable()
+    return unreadable
+end
+
 -- The parts using the index (their toggle keys): it runs while any does.
 local users = {}
 
@@ -92,5 +106,6 @@ function Needs:Release(user)
     if next(users) == nil then
         listener:Stop()
         wipe(byName)
+        unreadable = false
     end
 end

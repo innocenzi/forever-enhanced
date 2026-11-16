@@ -132,7 +132,14 @@ local accepted
 -- The leftovers in the containers at the last scan ("id,id"): the bag marks
 -- refresh when it changes.
 local lastLeftovers = ""
+-- A scan is queued for the next frame; `full` unless only the quest log
+-- updated (QUEST_LOG_UPDATE fires on every bit of objective progress).
 local queued = false
+local full = false
+-- The quest log at the last scan (ns:GetQuestLogSignature), and whether that
+-- scan met item objectives it couldn't read yet.
+local lastLog
+local unreadable = false
 
 local function GetContainerIDs()
     local containerIDs = {}
@@ -179,26 +186,43 @@ local function LinkGiven()
     end
 end
 
+-- Leftovers depend on the quest items in the containers, which quests the log
+-- holds, and which are completed (always with a turn-in, QUEST_TURNED_IN): a
+-- scan for a quest log update alone is skipped while the log holds the same
+-- quests, unless the last one couldn't read some item objectives yet.
 local function Scan()
     queued = false
     if not Helpers:IsPartActive("leftovers") then
         return
     end
+    local log = ns:GetQuestLogSignature()
+    if not full and log == lastLog and not unreadable then
+        return
+    end
+    full = false
+    lastLog = log
     LinkGiven()
 
     local leftovers = {}
+    local lookedUp = false
     ForEachQuestItem(GetContainerIDs(), function(bagID, slot, info)
         local questInfo = C_Container.GetContainerItemQuestInfo(bagID, slot)
         if questInfo and questInfo.questID then
             Link(info.itemID, questInfo.questID)
         end
-        for _, need in ipairs(info.itemName and Helpers.Needs:Find(info.itemName) or {}) do
-            Link(info.itemID, need.questID, need.title)
+        if info.itemName then
+            lookedUp = true
+            for _, need in ipairs(Helpers.Needs:Find(info.itemName) or {}) do
+                Link(info.itemID, need.questID, need.title)
+            end
         end
         if Leftovers:GetCompletedQuests(info.itemID) then
             leftovers[info.itemID] = true
         end
     end)
+    -- Without quest items, nothing waits for those objectives: the next bag
+    -- change scans again.
+    unreadable = lookedUp and Helpers.Needs:HasUnreadable()
 
     local ids = {}
     for itemID in pairs(leftovers) do
@@ -212,11 +236,16 @@ local function Scan()
     end
 end
 
-local function Request()
+local function Queue()
     if not queued then
         queued = true
         C_Timer.After(0, Scan)
     end
+end
+
+local function Request()
+    full = true
+    Queue()
 end
 
 -- The turn-in window lists the items the quest takes.
@@ -250,7 +279,7 @@ local listener = ns:CreateEventListener({
     QUEST_PROGRESS = OnQuestProgress,
     BAG_UPDATE_DELAYED = Request,
     BANKFRAME_OPENED = Request,
-    QUEST_LOG_UPDATE = Request,
+    QUEST_LOG_UPDATE = Queue,
     QUEST_TURNED_IN = Request,
     QUEST_REMOVED = Request,
 })
@@ -258,7 +287,7 @@ local listener = ns:CreateEventListener({
 function Leftovers:Enable()
     Helpers.Needs:Acquire("leftovers")
     listener:Start()
-    lastLeftovers = ""
+    lastLeftovers, lastLog, unreadable = "", nil, false
     Request()
     ns:RefreshItemButtons()
 end

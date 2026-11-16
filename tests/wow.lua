@@ -1718,6 +1718,11 @@ C_QuestLog = {
     GetInfo = function(index)
         return world.questLog[index]
     end,
+    -- Nil for a header (unmeasured: the client may return 0).
+    GetQuestIDForLogIndex = function(index)
+        local quest = world.questLog[index]
+        return quest and not quest.isHeader and quest.questID or nil
+    end,
     IsWorldQuest = function(questID)
         return FindQuest(questID).isWorldQuest == true
     end,
@@ -4511,7 +4516,8 @@ end
 
 -- Objective `index` of a quest now has `numFulfilled` (and the objective text
 -- `text`, if given; it stays in sync with the count otherwise), then the
--- client fires QUEST_LOG_UPDATE.
+-- client fires QUEST_WATCH_UPDATE for the quest and QUEST_LOG_UPDATE, like
+-- the retail client (unmeasured on Forever).
 function world:Progress(questID, index, numFulfilled, text)
     local objective = FindQuest(questID).objectives[index]
     if not text and objective.name then
@@ -4520,6 +4526,7 @@ function world:Progress(questID, index, numFulfilled, text)
     objective.numFulfilled = numFulfilled
     objective.finished = numFulfilled >= objective.numRequired
     objective.text = text or objective.text
+    self:Fire("QUEST_WATCH_UPDATE", questID)
     self:Fire("QUEST_LOG_UPDATE")
 end
 
