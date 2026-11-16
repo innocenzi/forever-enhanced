@@ -185,11 +185,44 @@ local function Apply(ranked, distances)
     end
 end
 
+-- Whether Apply would change the watch list, from reads alone: most
+-- evaluations change nothing, and the shield isn't free.
+local function HasChanges(ranked, distances)
+    local wanted = GetKeptQuests()
+    for _, questID in ipairs(ranked) do
+        wanted[questID] = true
+    end
+    local watched = GetWatchedQuests()
+    for _, questID in ipairs(watched) do
+        if not wanted[questID] then
+            return true
+        end
+    end
+    if #watched < Constants.QuestWatchConsts.MAX_QUEST_WATCHES then
+        for _, questID in ipairs(ranked) do
+            if not Watches:IsWatched(questID) then
+                return true
+            end
+        end
+    end
+    if Tracking:GetSetting("sort") then
+        for index, questID in ipairs(Tracking.Ranking:Order(watched, distances)) do
+            if watched[index] ~= questID then
+                return true
+            end
+        end
+    end
+    return false
+end
+
 -- Untracks every quest that isn't ranked or kept, then tracks the ranked ones
 -- (closest first) while there is room. With "sort" on, orders the watch list
 -- by distance; otherwise the game sorts it. The watch list events this fires
 -- aren't the player's, even when the change errors halfway.
 function Watches:Apply(ranked, distances)
+    if not HasChanges(ranked, distances) then
+        return
+    end
     ns:ShieldObjectiveTracker(function()
         applying = true
         local ok, err = pcall(Apply, ranked, distances)

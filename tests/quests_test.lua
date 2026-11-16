@@ -505,3 +505,54 @@ test("turning the feature off stops updates and leaves the tracker as it is", fu
     world:NextFrame()
     equal(world:Watched(), "2 3", "updated when back on")
 end)
+
+test("leaves Blizzard's tracker alone when the tracked quests are already right", function(world)
+    Enable(world)
+    Set(world, "sort", true)
+    WithQuests(world)
+    Set(world, "count", 2)
+    world:NextFrame()
+    local shields = 0
+    local base = world.ns.ShieldObjectiveTracker
+    world.ns.ShieldObjectiveTracker = function(...)
+        shields = shields + 1
+        return base(...)
+    end
+    world:Elapse(TICK_SECONDS)
+    world:Fire("QUEST_LOG_UPDATE")
+    world:NextFrame()
+    world:Elapse(1)
+    equal(shields, 0, "shielded changes")
+
+    world:MoveTo({ [2] = 10 })
+    world:Elapse(TICK_SECONDS)
+    equal(shields, 1, "shielded changes after moving")
+end)
+
+test("a burst of quest log updates costs one evaluation now and one at its end", function(world)
+    Enable(world)
+    WithQuests(world)
+    world:NextFrame()
+    world:Elapse(1)
+    local evaluations = 0
+    local base = C_QuestLog.GetDistanceSqToQuest
+    C_QuestLog.GetDistanceSqToQuest = function(questID)
+        if questID == 1 then
+            evaluations = evaluations + 1
+        end
+        return base(questID)
+    end
+    for _ = 1, 14 do
+        world:Fire("QUEST_WATCH_UPDATE", 1)
+        world:Fire("QUEST_LOG_UPDATE")
+        world:NextFrame()
+        world:Elapse(1 / 30)
+    end
+    equal(evaluations, 1, "evaluations during the burst")
+    world:Elapse(0.5)
+    equal(evaluations, 2, "evaluations after the burst")
+
+    world:AcceptQuest({ questID = 6, distance = 10 })
+    world:NextFrame()
+    equal(evaluations, 3, "accepting a quest evaluates at once")
+end)
