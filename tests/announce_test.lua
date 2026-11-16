@@ -185,3 +185,29 @@ test("disabling stops the announcements", function(world)
     world:Progress(1, 2, 1)
     equal(Sent(world), "PARTY: " .. Default(world, "Wolf Pelt", 1, 1), "only after enabling again")
 end)
+
+test("progress reads only the quest that progressed", function(world)
+    WithQuest(world)
+    world:AcceptQuest({ questID = 2, title = "Bears", objectives = { world:Objective("Bear Pelt", 1) } })
+    world:Fire("QUEST_LOG_UPDATE")
+    local reads = {}
+    local base = C_QuestLog.GetQuestObjectives
+    C_QuestLog.GetQuestObjectives = function(questID)
+        table.insert(reads, questID)
+        return base(questID)
+    end
+    world:Progress(2, 1, 1)
+    equal(table.concat(reads, " "), "2", "quests read")
+    equal(#world.sentChat, 1, "announced")
+end)
+
+test("announces objectives of a quest whose data loaded late", function(world)
+    world.party = true
+    world:SetQuests({ { questID = 1, title = "Loading" } })
+    world:Fire("QUEST_LOG_UPDATE")
+    world.questLog[1].objectives = { world:Objective("Wolf Pelt", 1) }
+    world:Fire("QUEST_LOG_UPDATE")
+    equal(Sent(world), "", "recorded silently")
+    world:Progress(1, 1, 1)
+    equal(#world.sentChat, 1, "announced")
+end)
