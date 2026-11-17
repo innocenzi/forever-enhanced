@@ -1418,9 +1418,9 @@ C_Item = {
         return count
     end,
     -- world.itemTypes[guid] = { itemType, itemSubType, equipLoc }; items are their own IDs.
-    -- Items in world.questItems are of the quest class.
+    -- Items in world.questItems are of the quest class. Takes numeric item IDs too.
     GetItemInfoInstant = function(itemIDOrLink)
-        local guid = itemIDOrLink:match("%[(.-)%]") or itemIDOrLink
+        local guid = type(itemIDOrLink) == "string" and itemIDOrLink:match("%[(.-)%]") or itemIDOrLink
         local itemType = world.itemTypes[guid] or { "Miscellaneous", "Other", "" }
         local classID = world.questItems[guid] and Enum.ItemClass.Questitem or Enum.ItemClass.Miscellaneous
         return guid, itemType[1], itemType[2], itemType[3], ItemIcon(guid), classID
@@ -5129,9 +5129,9 @@ function world:ShowReagentSlot(schematic, slot, loading)
     return slot
 end
 
--- Text without its color codes.
+-- Text without its color codes (|cAARRGGBB, named ones like |cnIQ1:, |r).
 local function StripColors(text)
-    return (text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""))
+    return (text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|cn[^:]*:", ""):gsub("|r", ""))
 end
 
 -- The bank mark a reagent slot shows: "none", "icon", "count <n>" or
@@ -5168,12 +5168,29 @@ function world:ItemTooltip(data)
     local lines = {}
     local tooltip = {
         AddLine = function(_, text)
-            table.insert(lines, StripColors(text))
+            table.insert(lines, text)
         end,
         GetProcessingTooltipInfo = function()
             return { tooltipData = data }
         end,
+        GetName = function()
+            return "TestItemTooltip"
+        end,
+        NumLines = function()
+            return #lines
+        end,
     }
+    -- Its lines' font strings (TestItemTooltipTextLeft<n>), for post-calls rewriting a line.
+    for index = 1, 30 do
+        _G["TestItemTooltipTextLeft" .. index] = {
+            GetText = function()
+                return lines[index]
+            end,
+            SetText = function(_, text)
+                lines[index] = text
+            end,
+        }
+    end
     for _, line in ipairs(data.lines or {}) do
         if line.leftText then
             tooltip:AddLine(line.leftText)
@@ -5187,6 +5204,9 @@ function world:ItemTooltip(data)
     end
     for _, callback in ipairs(self.tooltipPostCalls) do
         callback(tooltip, data)
+    end
+    for index, text in ipairs(lines) do
+        lines[index] = StripColors(text)
     end
     return lines
 end

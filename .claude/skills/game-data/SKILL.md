@@ -1,6 +1,6 @@
 ---
 name: game-data
-description: Regenerate and check Forever Enhanced's generated game data. Use when a content patch or new Forever build landed and generated data must be refreshed (`bun run professions`, `instances`, `icons`, `seamless`, `dots`); when following a new damage over time spell in `combat.dots` (`FOLLOWED` in `tools/dots.ts`); when measuring or re-measuring values in `modules/combat/dots/measured.lua`; when changing a generator in `tools/`; when changing the seamless map's zone shares or masks, or bumping its OpenMap commit; or when regenerating the addon icon.
+description: Regenerate and check Forever Enhanced's generated game data. Use when a content patch or new Forever build landed and generated data must be refreshed (`bun run professions`, `instances`, `icons`, `seamless`, `dots`, `crates`); when following a new damage over time spell in `combat.dots` (`FOLLOWED` in `tools/dots.ts`); when measuring or re-measuring values in `modules/combat/dots/measured.lua`; when changing a generator in `tools/`; when changing the seamless map's zone shares or masks, or bumping its OpenMap commit; or when regenerating the addon icon.
 ---
 
 # Generated game data
@@ -14,6 +14,7 @@ Never edit generated files by hand: change the generator and rerun it.
 | `bun run icons` | `tools/icons.ts` | `modules/interface/macros/data.lua` |
 | `bun run seamless` | `tools/seamless.ts` | `modules/map/seamless/data.lua`, `modules/map/seamless/media/` |
 | `bun run dots` | `tools/dots.ts` | `modules/combat/dots/data.lua` |
+| `bun run crates` | `tools/crates.ts` | `modules/inventory/crates/data.lua` |
 | `bun run icon` | `tools/icon.ts` | `media/icon.tga`, `tools/icon/logo.png` |
 
 - Each generator's header comment is the reference for what it reads and writes.
@@ -23,7 +24,7 @@ Never edit generated files by hand: change the generator and rerun it.
 
 ## Refresh after a content patch
 
-1. Run `bun run professions`, `bun run instances`, `bun run icons`, `bun run seamless`, `bun run dots`.
+1. Run `bun run professions`, `bun run instances`, `bun run icons`, `bun run seamless`, `bun run dots`, `bun run crates`.
 2. `git diff --stat`: every generated header names the new build.
 3. Review each `data.lua` diff:
    - Expected: changed values, a few entries added or removed (recipes, ranks, talents).
@@ -61,6 +62,10 @@ In combat, addon code can't read ticks (combat log restricted, `UNIT_COMBAT` amo
 ## Instances
 
 The client links quests to instances only through quest log headers: `headerSortKey` is the header's area ID with bit 30 set (`modules/quests/tracking/ranking.lua`). So `tools/instances.ts` maps each dungeon and raid map to the area IDs its quests' headers can carry.
+
+## Waylaid crates
+
+A crate's Use spell lists its components only as English names with their counts (`- $M3 Wool Cloth`, `$Mn` being effect n's value), so `tools/crates.ts` resolves each name in ItemSparse, deprecated items left out. It stops on a name that matches no item or several: find what tells the right item apart (quality, price, `Flags_*`) and teach the generator that rule rather than an exception for one ID. The tooltip relies on the data's order matching the text's, and leaves lines whose counts differ unmarked.
 
 ## Icon
 

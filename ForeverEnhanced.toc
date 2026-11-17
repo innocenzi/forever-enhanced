@@ -83,6 +83,10 @@ modules\inventory\cheapest\feature.lua
 modules\inventory\cheapest\locales.lua
 modules\inventory\cheapest\value.lua
 modules\inventory\cheapest\buttons.lua
+modules\inventory\crates\feature.lua
+modules\inventory\crates\locales.lua
+modules\inventory\crates\data.lua
+modules\inventory\crates\tooltip.lua
 
 # Quests
 modules\quests\module.lua

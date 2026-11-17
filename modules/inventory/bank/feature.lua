@@ -90,6 +90,15 @@ function Bank:FormatCount(count)
     return NORMAL_FONT_COLOR:WrapTextInColorCode(ns.L["inventory.bank.countLine"]:format(count))
 end
 
+-- Public: how many of the item this character's saved bank holds; 0 while the
+-- saved bank part doesn't run.
+function Bank:CountSavedItem(itemID)
+    if not self:IsPartActive("savedBank") then
+        return 0
+    end
+    return self.Store:CountItem(self.Store:GetPlayerKey(), itemID)
+end
+
 function Bank:SyncParts()
     self:SyncPart("savedBank", SavedBank)
     self:SyncPart("transfers", self.Transfers)
