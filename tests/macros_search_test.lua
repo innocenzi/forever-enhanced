@@ -1,4 +1,4 @@
--- Macro window, icon search: the picker's grid shows the icons matching the search
+-- Macros, icon search: the picker's grid shows the icons matching the search
 -- (by file name, or the name of a spell or item of the player's showing them),
 -- each once, and Blizzard's selection keeps working through it.
 -- Icons (see world.macroIcons): 132090 ability_backstab (Backstab), 136189

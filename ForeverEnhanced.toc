@@ -156,6 +156,7 @@ modules\interface\macros\names.lua
 modules\interface\macros\picker.lua
 modules\interface\macros\duplicate.lua
 modules\interface\macros\layout.lua
+modules\interface\macros\labels.lua
 
 # Map
 modules\map\module.lua

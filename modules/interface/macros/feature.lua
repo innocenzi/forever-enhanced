@@ -1,5 +1,6 @@
--- Macro window: changes to Blizzard's macro window (MacroFrame, and its icon
--- picker MacroPopupFrame, load-on-demand with Blizzard_MacroUI).
+-- Macros: Blizzard's macro window (MacroFrame, and its icon picker
+-- MacroPopupFrame, load-on-demand with Blizzard_MacroUI), and macros on the
+-- action bars.
 --
 -- "search": a search box in the icon picker. The client gives the picker file
 -- IDs only, so icons match by their file name (data.lua, e.g.
@@ -9,8 +10,10 @@
 -- text) into the same tab.
 -- "layout": Blizzard's buttons grouped by what they act on: Delete beside
 -- Change Name/Icon, Save at the bottom right, Cancel and Exit hidden.
+-- "labels": the macro names on action bar buttons hidden.
 --
--- Nothing here is protected: macros can't be edited in combat.
+-- Nothing here is protected: macros can't be edited in combat, and a label's
+-- alpha isn't restricted.
 --
 -- Files of this slice:
 --   feature.lua    registration, schema, lifecycle and loading (this file)
@@ -20,6 +23,7 @@
 --   picker.lua     search: the box, and the matching icons in Blizzard's grid
 --   duplicate.lua  duplicate: the Duplicate button beside New
 --   layout.lua     layout: Blizzard's buttons moved
+--   labels.lua     labels: the names hidden on action bar buttons
 
 local _, ns = ...
 
@@ -29,10 +33,11 @@ local Macros = ns:RegisterFeature("interface", "macros", {
         { key = "search", type = "toggle", default = true },
         { key = "duplicate", type = "toggle", default = true },
         { key = "layout", type = "toggle", default = true },
+        { key = "labels", type = "toggle", default = true },
     },
     presets = {
-        minimal = { enabled = true, search = true, duplicate = true, layout = false },
-        enhanced = { enabled = true, search = true, duplicate = true, layout = true },
+        minimal = { enabled = true, search = true, duplicate = true, layout = true, labels = false },
+        enhanced = { enabled = true, search = true, duplicate = true, layout = true, labels = true },
     },
 })
 
@@ -40,6 +45,7 @@ local function SyncParts(self)
     self:SyncPart("search", self.Picker)
     self:SyncPart("duplicate", self.Duplicate)
     self:SyncPart("layout", self.Layout)
+    self:SyncPart("labels", self.Labels)
 end
 
 Macros.OnEnable = SyncParts

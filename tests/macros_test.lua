@@ -1,4 +1,4 @@
--- Macro window, Duplicate button and grouped buttons. The Duplicate button
+-- Macros, Duplicate button and grouped buttons. The Duplicate button
 -- copies the selected macro (name, the icon the player picked, text) into the
 -- same tab and selects the copy; the layout moves Blizzard's buttons next to
 -- what they act on and puts them back when turned off.

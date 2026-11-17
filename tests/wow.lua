@@ -6434,10 +6434,23 @@ function ClearNewActionHighlight(slot)
     world.newActions[slot] = nil
 end
 
+-- Every action bar button registers with it (ActionBarButtonEventsFrameMixin).
+ActionBarButtonEventsFrame = CreateFrame("Frame", "ActionBarButtonEventsFrame")
+ActionBarButtonEventsFrame.frames = {}
+
+function ActionBarButtonEventsFrame:ForEachFrame(func)
+    for _, frame in pairs(self.frames) do
+        func(frame)
+    end
+end
+
+-- Name: the macro name label (ActionBarActionButtonMixin:Update sets its text only).
 local function ActionButton(name, bindingAction)
     local button = CreateFrame("CheckButton", name)
+    table.insert(ActionBarButtonEventsFrame.frames, button)
     button.protected = true
     button.bindingAction = bindingAction
+    button.Name = button:CreateFontString()
     button.icon = button:CreateTexture()
     button.NewActionTexture = button:CreateTexture()
     button.NewActionTexture:Hide()

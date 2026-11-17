@@ -35,6 +35,7 @@ local TEST_FILES = {
     "tests/glow_test.lua",
     "tests/macros_search_test.lua",
     "tests/macros_test.lua",
+    "tests/macros_labels_test.lua",
     "tests/swaps_test.lua",
     "tests/ranks_test.lua",
     "tests/friends_test.lua",
