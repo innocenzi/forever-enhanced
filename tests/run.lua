@@ -34,6 +34,7 @@ local TEST_FILES = {
     "tests/dots_test.lua",
     "tests/glow_test.lua",
     "tests/icons_test.lua",
+    "tests/macros_test.lua",
     "tests/swaps_test.lua",
     "tests/ranks_test.lua",
     "tests/friends_test.lua",

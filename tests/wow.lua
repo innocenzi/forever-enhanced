@@ -454,6 +454,14 @@ function Region:IsEnabled()
     return self.enabled ~= false
 end
 
+function Region:Enable()
+    self:SetEnabled(true)
+end
+
+function Region:Disable()
+    self:SetEnabled(false)
+end
+
 function Region:SetMotionScriptsWhileDisabled(motionScripts)
     self.motionScriptsWhileDisabled = motionScripts
 end
@@ -6771,7 +6779,163 @@ world.macroIcons = {
 }
 local ICON_TYPES = { "Spell", "Item" }
 
+-- Macros, per tab: { name, icon, body, shownIcon }. `icon` is the one the
+-- player picked (C_Macro.GetSelectedMacroIcon), `shownIcon` what GetMacroInfo
+-- shows instead, like a question mark macro showing its spell's icon. The
+-- client keeps each tab sorted by name. Indexes: account macros first, then
+-- character macros after MAX_ACCOUNT_MACROS.
+world.macros = { account = {}, character = {} }
+Constants.MacroConsts = { MAX_ACCOUNT_MACROS = 120, MAX_CHARACTER_MACROS = 18 }
+CLICK_BINDING_BUTTON_DISABLED = "Disabled while in click binding mode"
+
+function InClickBindingMode()
+    return world.clickBinding == true
+end
+
+local function MacroAt(index)
+    local base = Constants.MacroConsts.MAX_ACCOUNT_MACROS
+    if index > base then
+        return world.macros.character[index - base]
+    end
+    return world.macros.account[index]
+end
+
+function GetNumMacros()
+    return #world.macros.account, #world.macros.character
+end
+
+function GetMacroInfo(index)
+    local macro = MacroAt(index)
+    if macro then
+        return macro.name, macro.shownIcon or macro.icon, macro.body
+    end
+end
+
+C_Macro = {}
+
+function C_Macro.GetSelectedMacroIcon(index)
+    local macro = MacroAt(index)
+    return macro and macro.icon
+end
+
+-- After the macros of the same name, like a stable sort.
+function CreateMacro(name, icon, body, perCharacter)
+    assert(not world.inCombat, "ADDON_ACTION_BLOCKED: CreateMacro")
+    local macros = perCharacter and world.macros.character or world.macros.account
+    local max = perCharacter and Constants.MacroConsts.MAX_CHARACTER_MACROS or Constants.MacroConsts.MAX_ACCOUNT_MACROS
+    assert(#macros < max, "no room for another macro")
+    local position = #macros + 1
+    for index, macro in ipairs(macros) do
+        if macro.name > name then
+            position = index
+            break
+        end
+    end
+    table.insert(macros, position, { name = name, icon = icon, body = body or "" })
+    world:Fire("UPDATE_MACROS")
+    return position + (perCharacter and Constants.MacroConsts.MAX_ACCOUNT_MACROS or 0)
+end
+
+function EditMacro(index, name, icon, body)
+    assert(not world.inCombat, "ADDON_ACTION_BLOCKED: EditMacro")
+    local macro = assert(MacroAt(index), "no macro")
+    macro.name = name or macro.name
+    macro.icon = icon or macro.icon
+    macro.body = body or macro.body
+    world:Fire("UPDATE_MACROS")
+    return index
+end
+
+function PanelTemplates_GetSelectedTab(frame)
+    return frame.selectedTab
+end
+
+-- MacroFrame (MacroFrameMixin): its tabs, the selected macro, its text and the
+-- buttons along the bottom.
+local function LoadMacroFrame()
+    local frame = CreateFrame("Frame", "MacroFrame", UIParent)
+    frame:Hide()
+    frame.MacroSelector = CreateFrame("Frame", nil, frame)
+    function frame.MacroSelector:SetSelectedIndex(index)
+        self.selectedIndex = index
+    end
+    function frame.MacroSelector:GetSelectedIndex()
+        return self.selectedIndex
+    end
+    local text = CreateFrame("EditBox", "MacroFrameText", frame)
+    text:HookScript("OnTextChanged", function(_, userInput)
+        if userInput then
+            frame.textChanged = true
+        end
+    end)
+    for _, name in ipairs({ "MacroEditButton", "MacroDeleteButton", "MacroNewButton", "MacroExitButton" }) do
+        CreateFrame("Button", name, frame, "UIPanelButtonTemplate")
+    end
+
+    function frame:ChangeTab(tab)
+        self:SaveMacro()
+        self.selectedTab = tab
+        self.macroBase = tab == 1 and 0 or Constants.MacroConsts.MAX_ACCOUNT_MACROS
+        self.macroMax = tab == 1 and Constants.MacroConsts.MAX_ACCOUNT_MACROS
+            or Constants.MacroConsts.MAX_CHARACTER_MACROS
+        self:Update()
+        self:SelectMacro(1, true)
+    end
+    function frame:GetMacroDataIndex(index)
+        return self.macroBase + index
+    end
+    function frame:GetSelectedIndex()
+        return self.MacroSelector:GetSelectedIndex()
+    end
+    function frame:Update()
+        self:UpdateButtons()
+    end
+    function frame:UpdateButtons()
+        local numMacros = select(self.selectedTab, GetNumMacros())
+        MacroNewButton:SetEnabled(numMacros < self.macroMax and not InClickBindingMode())
+        local editable = self:GetSelectedIndex() ~= nil and not MacroPopupFrame:IsShown() and not InClickBindingMode()
+        MacroEditButton:SetEnabled(editable)
+        MacroDeleteButton:SetEnabled(editable)
+    end
+    function frame:SelectMacro(index)
+        local count = select(self.selectedTab, GetNumMacros())
+        if not index or index > count then
+            index = count > 0 and 1 or nil
+        end
+        self.MacroSelector:SetSelectedIndex(index)
+        if index then
+            local _, _, body = GetMacroInfo(self:GetMacroDataIndex(index))
+            MacroFrameText.text = body
+        end
+        self:UpdateButtons()
+    end
+    function frame:SaveMacro()
+        local index = self:GetSelectedIndex()
+        if self.textChanged and index then
+            EditMacro(self:GetMacroDataIndex(index), nil, nil, MacroFrameText:GetText())
+            self:SelectMacro(index)
+            self.textChanged = nil
+        end
+    end
+    frame:SetScript("OnShow", function(self)
+        self:RegisterEvent("UPDATE_MACROS")
+        self:ChangeTab(1)
+    end)
+    frame:SetScript("OnHide", function(self)
+        MacroPopupFrame:Hide()
+        self:UnregisterEvent("UPDATE_MACROS")
+        self:SaveMacro()
+    end)
+    frame:SetScript("OnEvent", function(self, event)
+        if event == "UPDATE_MACROS" then
+            self:Update()
+            self:SelectMacro(self.MacroSelector:GetSelectedIndex())
+        end
+    end)
+end
+
 local function LoadMacroUI()
+    LoadMacroFrame()
     local popup = CreateFrame("Frame", "MacroPopupFrame", UIParent)
     popup:Hide()
     popup.iconFilter = "All"
@@ -6863,9 +7027,18 @@ local function LoadMacroUI()
         )
         selector:ScrollToSelectedIndex()
     end
+    -- MacroPopupFrameMixin enables and disables MacroFrame's buttons itself.
     popup:SetScript("OnShow", function(self)
         self:SetIconFilterInternal("All")
         self:Update()
+        MacroEditButton:Disable()
+        MacroDeleteButton:Disable()
+        MacroNewButton:Disable()
+    end)
+    popup:SetScript("OnHide", function()
+        MacroEditButton:Enable()
+        MacroDeleteButton:Enable()
+        MacroNewButton:SetEnabled(select(MacroFrame.selectedTab or 1, GetNumMacros()) < (MacroFrame.macroMax or 0))
     end)
 
     world.loadedAddOns.Blizzard_MacroUI = true
@@ -6922,6 +7095,65 @@ end
 
 function world:SelectedMacroIcon()
     return MacroPopupFrame.BorderBox.SelectedIconArea.SelectedIconButton:GetIconTexture()
+end
+
+-- The player opens the macro window on its General tab (1) or its character tab (2).
+function world:OpenMacros(tab)
+    if not MacroFrame then
+        LoadMacroUI()
+    end
+    MacroFrame:Show()
+    if tab and tab ~= 1 then
+        MacroFrame:ChangeTab(tab)
+    end
+end
+
+-- The player clicks the macro at `index` in the open tab.
+function world:SelectMacro(index)
+    MacroFrame:SaveMacro()
+    MacroFrame:SelectMacro(index)
+end
+
+-- The player types `text` as the selected macro's text.
+function world:TypeMacroText(text)
+    MacroFrameText.text = text
+    MacroFrameText:RunScript("OnTextChanged", true)
+end
+
+-- The open tab's macro names, the selected one in brackets: "A [B] B".
+function world:MacroNames()
+    local macros = MacroFrame.selectedTab == 1 and self.macros.account or self.macros.character
+    local names = {}
+    for index, macro in ipairs(macros) do
+        table.insert(names, index == MacroFrame:GetSelectedIndex() and "[" .. macro.name .. "]" or macro.name)
+    end
+    return table.concat(names, " ")
+end
+
+function world:DuplicateMacroButton()
+    return FindFrame(function(frame)
+        return frame.template == "UIPanelButtonTemplate"
+            and frame.parent == MacroFrame
+            and frame.text == self.L["interface.macros.duplicate"]
+    end)
+end
+
+-- Clicks the Duplicate button: the client runs OnClick only while it's enabled.
+function world:DuplicateMacro()
+    local button = assert(self:DuplicateMacroButton(), "no duplicate macro button")
+    if button:IsEnabled() then
+        button:RunScript("OnClick", "LeftButton")
+    end
+end
+
+-- Hovers the Duplicate button: its tooltip's text and added lines.
+function world:DuplicateMacroTooltip()
+    local button = self:DuplicateMacroButton()
+    self.tooltip, self.tooltipLines = nil, {}
+    if button:IsEnabled() or button.motionScriptsWhileDisabled then
+        button:RunScript("OnEnter")
+    end
+    return self.tooltip, self.tooltipLines
 end
 
 return world

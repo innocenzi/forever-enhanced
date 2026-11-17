@@ -154,6 +154,9 @@ modules\interface\icons\locales.lua
 modules\interface\icons\data.lua
 modules\interface\icons\names.lua
 modules\interface\icons\picker.lua
+modules\interface\macros\feature.lua
+modules\interface\macros\locales.lua
+modules\interface\macros\button.lua
 
 # Map
 modules\map\module.lua
