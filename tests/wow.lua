@@ -1348,8 +1348,10 @@ local function ItemLink(guid)
     return "|cffffffff|Hitem:" .. guid .. "|h[" .. guid .. "]|h|r"
 end
 
+-- world.itemIcons[guid]: an item's icon file ID (default: a made-up "icon:<guid>").
+world.itemIcons = {}
 local function ItemIcon(guid)
-    return "icon:" .. guid
+    return world.itemIcons[guid] or "icon:" .. guid
 end
 
 local function ItemQuality(guid)
@@ -6702,6 +6704,224 @@ end
 Region.SetFrameStrata = NoOp
 function Region:GetFrameStrata()
     return "MEDIUM"
+end
+
+-- Blizzard's table and function utilities.
+function tIndexOf(tbl, item)
+    for index, value in ipairs(tbl) do
+        if value == item then
+            return index
+        end
+    end
+    return nil
+end
+
+function GenerateClosure(func, ...)
+    local args = { ... }
+    return function(...)
+        local all = { unpack(args) }
+        for _, value in ipairs({ ... }) do
+            table.insert(all, value)
+        end
+        return func(unpack(all))
+    end
+end
+
+-- Equipped items: world.equipped[inventory slot] = item GUID.
+INVSLOT_FIRST_EQUIPPED = 1
+INVSLOT_LAST_EQUIPPED = 19
+world.equipped = {}
+
+function GetInventoryItemID(unit, slot)
+    assert(unit == "player", "unmodelled unit")
+    local guid = world.equipped[slot]
+    return guid and ItemID(guid)
+end
+
+function GetInventoryItemTexture(unit, slot)
+    assert(unit == "player", "unmodelled unit")
+    local guid = world.equipped[slot]
+    return guid and ItemIcon(guid)
+end
+
+-- Items are named after their item IDs.
+function C_Item.GetItemNameByID(itemID)
+    return tostring(itemID)
+end
+
+-- The macro icon picker (Blizzard_MacroUI, load-on-demand): MacroPopupFrame,
+-- an IconSelectorPopupFrameTemplate. Its icons: world.macroIcons, by icon type
+-- (the client's GetMacroIcons and GetMacroItemIcons, with repeats), the
+-- spellbook's first; a few are paths, like GetLooseMacroIcons'.
+world.macroIcons = {
+    Spell = {
+        [[INTERFACE\ICONS\INV_MISC_QUESTIONMARK]],
+        132090, -- ability_backstab (Backstab)
+        136189, -- spell_shadow_ritualofsacrifice (Sinister Strike)
+        135807, -- spell_fire_fireball
+        135808, -- spell_fire_fireball02
+        135809, -- spell_fire_firebolt
+        132090,
+    },
+    Item = {
+        135807,
+        134414, -- inv_misc_rune_01
+        133784, -- inv_misc_coin_01
+    },
+}
+local ICON_TYPES = { "Spell", "Item" }
+
+local function LoadMacroUI()
+    local popup = CreateFrame("Frame", "MacroPopupFrame", UIParent)
+    popup:Hide()
+    popup.iconFilter = "All"
+    popup.BorderBox = CreateFrame("Frame", nil, popup)
+    popup.BorderBox.IconTypeDropdown = CreateFrame("DropdownButton", nil, popup.BorderBox, "WowStyle1DropdownTemplate")
+    local selectedArea = CreateFrame("Frame", nil, popup.BorderBox)
+    popup.BorderBox.SelectedIconArea = selectedArea
+    selectedArea.SelectedIconButton = CreateFrame("Button", nil, selectedArea)
+    function selectedArea.SelectedIconButton:SetIconTexture(icon)
+        self.icon = icon
+    end
+    function selectedArea.SelectedIconButton:GetIconTexture()
+        return self.icon
+    end
+
+    -- ScrollBoxSelectorMixin: `scrolledTo` is the index scrolled to.
+    local selector = CreateFrame("Frame", nil, popup)
+    popup.IconSelector = selector
+    selector.ScrollBox = CreateFrame("Frame", nil, selector)
+    function selector.ScrollBox:ScrollToBegin()
+        selector.scrolledTo = 1
+    end
+    function selector:SetSelectionsDataProvider(getSelectionByIndex, getNumSelections)
+        self.getSelectionByIndex = getSelectionByIndex
+        self.getNumSelections = getNumSelections
+    end
+    function selector:GetNumSelections()
+        return self.getNumSelections and self.getNumSelections() or 0
+    end
+    function selector:GetSelection(index)
+        return self.getSelectionByIndex(index)
+    end
+    function selector:SetSelectedIndex(index)
+        self.selectedIndex = index
+    end
+    function selector:GetSelectedIndex()
+        return self.selectedIndex
+    end
+    function selector:ScrollToSelectedIndex()
+        self.scrolledTo = self.selectedIndex or 1
+    end
+    -- A click on the button showing `index`.
+    function selector:OnSelection(index)
+        selectedArea.SelectedIconButton:SetIconTexture(self:GetSelection(index))
+        self:SetSelectedIndex(index)
+    end
+
+    -- IconSelectorPopupFrameTemplateMixin and MacroPopupFrameMixin.
+    local function RequestedIcons()
+        local icons = {}
+        for _, iconType in ipairs(ICON_TYPES) do
+            if popup.iconFilter == "All" or popup.iconFilter == iconType then
+                for _, icon in ipairs(world.macroIcons[iconType]) do
+                    table.insert(icons, icon)
+                end
+            end
+        end
+        return icons
+    end
+    function popup:GetNumIcons()
+        return #RequestedIcons()
+    end
+    function popup:GetIconByIndex(index)
+        return RequestedIcons()[index]
+    end
+    function popup:GetIndexOfIcon(icon)
+        return tIndexOf(RequestedIcons(), icon)
+    end
+    function popup:ReevaluateSelectedIcon()
+        selector:SetSelectedIndex(self:GetIndexOfIcon(selectedArea.SelectedIconButton:GetIconTexture()))
+    end
+    function popup:SetIconFilterInternal(filter)
+        if self.iconFilter ~= filter then
+            self.iconFilter = filter
+            self:ReevaluateSelectedIcon()
+        end
+    end
+    -- The player dropped a spell or an item showing `icon` on the picker.
+    function popup:SetIconFromMouse(icon)
+        selector:SetSelectedIndex(self:GetIndexOfIcon(icon))
+        selector:ScrollToSelectedIndex()
+        selectedArea.SelectedIconButton:SetIconTexture(icon)
+    end
+    function popup:Update()
+        selector:SetSelectedIndex(self:GetIndexOfIcon(selectedArea.SelectedIconButton:GetIconTexture()))
+        selector:SetSelectionsDataProvider(
+            GenerateClosure(self.GetIconByIndex, self),
+            GenerateClosure(self.GetNumIcons, self)
+        )
+        selector:ScrollToSelectedIndex()
+    end
+    popup:SetScript("OnShow", function(self)
+        self:SetIconFilterInternal("All")
+        self:Update()
+    end)
+
+    world.loadedAddOns.Blizzard_MacroUI = true
+    world:Fire("ADDON_LOADED", "Blizzard_MacroUI")
+end
+
+-- The player edits a macro whose icon is `icon` (default: the first one).
+function world:OpenMacroIcons(icon)
+    if not MacroPopupFrame then
+        LoadMacroUI()
+    end
+    MacroPopupFrame.BorderBox.SelectedIconArea.SelectedIconButton:SetIconTexture(icon or self.macroIcons.Spell[1])
+    MacroPopupFrame:Show()
+end
+
+function world:CloseMacroIcons()
+    MacroPopupFrame:Hide()
+end
+
+function world:MacroIconSearchBox()
+    for _, frame in ipairs(self.frames) do
+        if frame.template == "SearchBoxTemplate" and frame.parent == MacroPopupFrame.BorderBox.IconTypeDropdown then
+            return frame
+        end
+    end
+end
+
+-- The player types in the picker's search box.
+function world:SearchMacroIcons(text)
+    local box = assert(self:MacroIconSearchBox(), "no macro icon search box")
+    box.text = text
+    box:RunScript("OnTextChanged", true)
+end
+
+-- The icons the grid shows, the selected one in brackets: "132090 [135807]".
+function world:MacroIcons()
+    local selector = MacroPopupFrame.IconSelector
+    local icons = {}
+    for index = 1, selector:GetNumSelections() do
+        local icon = tostring(selector:GetSelection(index))
+        table.insert(icons, index == selector:GetSelectedIndex() and "[" .. icon .. "]" or icon)
+    end
+    return table.concat(icons, " ")
+end
+
+function world:ClickMacroIcon(index)
+    MacroPopupFrame.IconSelector:OnSelection(index)
+end
+
+-- The player picks "All", "Spell" or "Item" in the icon type dropdown.
+function world:ChooseMacroIconType(filter)
+    MacroPopupFrame:SetIconFilterInternal(filter)
+end
+
+function world:SelectedMacroIcon()
+    return MacroPopupFrame.BorderBox.SelectedIconArea.SelectedIconButton:GetIconTexture()
 end
 
 return world

@@ -149,6 +149,11 @@ modules\interface\glow\locales.lua
 modules\interface\glow\cvars.lua
 modules\interface\glow\effect.lua
 modules\interface\glow\target.lua
+modules\interface\icons\feature.lua
+modules\interface\icons\locales.lua
+modules\interface\icons\data.lua
+modules\interface\icons\names.lua
+modules\interface\icons\picker.lua
 
 # Map
 modules\map\module.lua
