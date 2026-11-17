@@ -7,5 +7,5 @@ ns:RegisterLocale("enUS", {
 
 ns:RegisterLocale("frFR", {
     ["combat.ranks.title"] = "Mise à jour des rangs",
-    ["combat.ranks.description"] = "Remplace les sorts de vos barres d’action par leur nouveau rang quand vous l’apprenez.",
+    ["combat.ranks.description"] = "Remplace les sorts de vos barres d’actions par leur nouveau rang quand vous l’apprenez.",
 })
