@@ -8,6 +8,7 @@
 -- showing them, in the player's language.
 -- "duplicate": a Duplicate button copying the selected macro (name, icon and
 -- text) into the same tab.
+-- "save": Save disabled while there's nothing to save.
 -- "layout": Blizzard's buttons grouped by what they act on: Delete beside
 -- Change Name/Icon, Save at the bottom right, Cancel and Exit hidden.
 -- "labels": the macro names on action bar buttons hidden.
@@ -23,6 +24,7 @@
 --   picker.lua     search: the box, and the matching icons in Blizzard's grid
 --   duplicate.lua  duplicate: the Duplicate button beside New
 --   layout.lua     layout: Blizzard's buttons moved
+--   save.lua       save: Save disabled without unsaved text
 --   labels.lua     labels: the names hidden on action bar buttons
 
 local _, ns = ...
@@ -32,18 +34,20 @@ local Macros = ns:RegisterFeature("interface", "macros", {
     settings = {
         { key = "search", type = "toggle", default = true },
         { key = "duplicate", type = "toggle", default = true },
+        { key = "save", type = "toggle", default = true },
         { key = "layout", type = "toggle", default = true },
         { key = "labels", type = "toggle", default = true },
     },
     presets = {
-        minimal = { enabled = true, search = true, duplicate = true, layout = true, labels = false },
-        enhanced = { enabled = true, search = true, duplicate = true, layout = true, labels = true },
+        minimal = { enabled = true, search = true, duplicate = true, save = true, layout = true, labels = false },
+        enhanced = { enabled = true, search = true, duplicate = true, save = true, layout = true, labels = true },
     },
 })
 
 local function SyncParts(self)
     self:SyncPart("search", self.Picker)
     self:SyncPart("duplicate", self.Duplicate)
+    self:SyncPart("save", self.Save)
     self:SyncPart("layout", self.Layout)
     self:SyncPart("labels", self.Labels)
 end

@@ -6995,7 +6995,7 @@ local function LoadMacroFrame()
         self.MacroSelector:SetSelectedIndex(index)
         if index then
             local _, _, body = GetMacroInfo(self:GetMacroDataIndex(index))
-            MacroFrameText.text = body
+            MacroFrameText:SetText(body)
         end
         self:UpdateButtons()
     end
@@ -7208,6 +7208,12 @@ end
 function world:TypeMacroText(text)
     MacroFrameText.text = text
     MacroFrameText:RunScript("OnTextChanged", true)
+end
+
+-- The player clicks Save (MacroFrameSaveButton_OnClick).
+function world:ClickMacroSave()
+    MacroFrame:SaveMacro()
+    MacroFrame:Update()
 end
 
 -- The open tab's macro names, the selected one in brackets: "A [B] B".

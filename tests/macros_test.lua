@@ -1,6 +1,7 @@
 -- Macros, Duplicate button and grouped buttons. The Duplicate button
 -- copies the selected macro (name, the icon the player picked, text) into the
--- same tab and selects the copy; the layout moves Blizzard's buttons next to
+-- same tab and selects the copy; Save is disabled while there's nothing to
+-- save; the layout moves Blizzard's buttons next to
 -- what they act on and puts them back when turned off.
 
 local QUESTION_MARK = 134400
@@ -106,6 +107,40 @@ test("hides the button when disabled", function(world)
     world:Setting("interface.macros.enabled"):SetValue(true)
     expect(world:DuplicateMacroButton():IsShown(), "shown")
     expect(world:DuplicateMacroButton():IsEnabled(), "enabled")
+end)
+
+test("disables Save while there's nothing to save", function(world)
+    AddMacros(world)
+    world:OpenMacros()
+    expect(not MacroSaveButton:IsEnabled(), "just opened")
+    world:TypeMacroText("/startattack\n/say Hi")
+    expect(MacroSaveButton:IsEnabled(), "edited")
+    world:TypeMacroText("/startattack")
+    expect(not MacroSaveButton:IsEnabled(), "edit undone")
+
+    world:TypeMacroText("/startattack\n/say Hi")
+    world:ClickMacroSave()
+    equal(world.macros.account[1].body, "/startattack\n/say Hi", "saved")
+    expect(not MacroSaveButton:IsEnabled(), "after Save")
+
+    world:TypeMacroText("/say Bye")
+    world:SelectMacro(2)
+    expect(not MacroSaveButton:IsEnabled(), "another macro selected")
+
+    world.macros.character = {}
+    world:OpenMacros(2)
+    expect(not MacroSaveButton:IsEnabled(), "no macro")
+end)
+
+test("enables Save again when disabled", function(world)
+    AddMacros(world)
+    world:OpenMacros()
+    world:Setting("interface.macros.save"):SetValue(false)
+    expect(MacroSaveButton:IsEnabled(), "toggle off")
+    world:Setting("interface.macros.save"):SetValue(true)
+    expect(not MacroSaveButton:IsEnabled(), "toggle on")
+    world:Setting("interface.macros.enabled"):SetValue(false)
+    expect(MacroSaveButton:IsEnabled(), "feature off")
 end)
 
 -- Blizzard's XML anchors.
