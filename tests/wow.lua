@@ -1454,6 +1454,15 @@ C_Item = {
     GetItemName = function(location)
         return ItemAt(location)
     end,
+    -- Items are named after their ID; nothing for an item whose data hasn't loaded.
+    GetItemNameByID = function(itemID)
+        if not world.unloadedItems[itemID] then
+            return itemID
+        end
+    end,
+    GetItemIconByID = function(itemID)
+        return ItemIcon(itemID)
+    end,
     -- Only the sell price (11th return) is modelled: world.sellPrices[itemID], default 0.
     -- Nothing for an item whose data hasn't loaded yet (world.unloadedItems, see world:LoadItem).
     GetItemInfo = function(itemID)
@@ -3746,6 +3755,9 @@ C_MapExplorationInfo = {
 GameTooltip = {
     SetOwner = NoOp,
     SetBagItem = NoOp,
+    SetItemByID = function(_, itemID)
+        world.tooltip = itemID
+    end,
     SetHyperlink = function(_, link)
         world.tooltip = link
     end,

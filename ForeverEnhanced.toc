@@ -42,6 +42,11 @@ modules\inventory\locking\guards.lua
 modules\inventory\locking\junk.lua
 modules\inventory\locking\sorting.lua
 modules\inventory\locking\tooltip.lua
+modules\inventory\slots\feature.lua
+modules\inventory\slots\locales.lua
+modules\inventory\slots\store.lua
+modules\inventory\slots\buttons.lua
+modules\inventory\slots\restore.lua
 modules\inventory\bank\feature.lua
 modules\inventory\bank\locales.lua
 modules\inventory\bank\store.lua

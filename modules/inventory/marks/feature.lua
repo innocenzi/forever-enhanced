@@ -42,7 +42,7 @@ local _, ns = ...
 local DESTINATIONS = { "junk", "auction", "bank", "mail" }
 
 local Marks = ns:RegisterFeature("inventory", "marks", {
-    order = 4,
+    order = 5,
     settings = {
         { key = "junk", type = "toggle", default = true },
         {

@@ -153,6 +153,7 @@ end)
 
 test("no item menu without a feature or part adding entries", function(world)
     world:Setting("inventory.locking.enabled"):SetValue(false)
+    world:Setting("inventory.slots.enabled"):SetValue(false)
     for _, mark in ipairs({ "junk", "auction", "bank", "mail" }) do
         world:Setting("inventory.marks." .. mark):SetValue(false)
     end

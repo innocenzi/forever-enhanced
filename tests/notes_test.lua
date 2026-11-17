@@ -182,14 +182,18 @@ end)
 
 -- Order ------------------------------------------------------------------------
 
-test("the item menu lists the lock, junk, auction house and bank, then Wowhead link, the note last", function(world)
-    world:Setting("inventory.merchant.enabled"):SetValue(true)
-    EnableWowhead(world)
-    local menu = world:AltRightClick(1)
-    equal(menu[2].text, world.L["inventory.locking.lock"], "lock second")
-    equal(menu[3].text, world.L["inventory.marks.markAsJunk"], "junk third")
-    equal(menu[4].text, world.L["inventory.marks.markForAuction"], "auction house fourth")
-    equal(menu[5].text, world.L["inventory.marks.markForBank"], "bank fifth")
-    equal(menu[#menu - 1].text, world.L["inventory.marks.wowheadLink"], "Wowhead link before the note")
-    equal(menu[#menu].text, world.L["inventory.marks.addNote"], "note last")
-end)
+test(
+    "the item menu lists the lock, the reserved slot, junk, auction house and bank, then Wowhead link, the note last",
+    function(world)
+        world:Setting("inventory.merchant.enabled"):SetValue(true)
+        EnableWowhead(world)
+        local menu = world:AltRightClick(1)
+        equal(menu[2].text, world.L["inventory.locking.lock"], "lock second")
+        equal(menu[3].text, world.L["inventory.slots.reserve"], "reserved slot third")
+        equal(menu[4].text, world.L["inventory.marks.markAsJunk"], "junk fourth")
+        equal(menu[5].text, world.L["inventory.marks.markForAuction"], "auction house fifth")
+        equal(menu[6].text, world.L["inventory.marks.markForBank"], "bank sixth")
+        equal(menu[#menu - 1].text, world.L["inventory.marks.wowheadLink"], "Wowhead link before the note")
+        equal(menu[#menu].text, world.L["inventory.marks.addNote"], "note last")
+    end
+)

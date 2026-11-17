@@ -8,7 +8,9 @@
 --   * while Alt is held, over every item, when an active feature takes Alt
 --     clicks: Alt Left Click goes to OnAltClick, Alt Right Click opens the
 --     item menu (each active feature's AddMenuEntries), whose shield stays up
---     until it closes;
+--     until it closes; also over empty slots standing for an item
+--     (EmptySlotItem), with that item's tooltip and a menu of the entries
+--     meant for them;
 --   * over items an active feature guards (IsGuarded), e.g. locked items while
 --     the cursor holds an item or a merchant, mail, trade or auction window is
 --     open: no swapping them out, no right-click selling, attaching or posting.
@@ -83,12 +85,18 @@ local sources = {
 --   OnGuardedClick(itemLocation, mouseButton), OnGuardedDrag(itemLocation)
 --                                       a click or drag on the shield that isn't an Alt action
 --   OnAltClick(itemLocation)            Alt Left Click
---   AddMenuEntries(rootDescription, itemLocation, guid), menuOrder
+--   AddMenuEntries(rootDescription, itemLocation, guid, itemID), menuOrder
 --                                       entries of the Alt Right Click item menu, and
 --                                       where they go in it (required with them): lower
 --                                       first. Spaced by tens, entries that go together
---                                       under one ten: 10 lock, 21-24 marks (junk,
---                                       auction house, bank, mail), 30 Wowhead link, 40 note
+--                                       under one ten: 10 lock, 11 reserved slot, 21-24
+--                                       marks (junk, auction house, bank, mail), 30
+--                                       Wowhead link, 40 note. itemID: only on an empty slot
+--   EmptySlotItem(itemLocation)         the item ID an empty slot stands for, or nil:
+--                                       under Alt it gets a shield showing that item's
+--                                       tooltip, and Alt Right Click opens a menu of the
+--                                       entries of handlers flagged emptySlotEntries
+--                                       (called with a nil guid and that itemID)
 local handlers = {}
 -- The entries of handlers adding menu entries, by menuOrder.
 local menuHandlers = {}
@@ -124,11 +132,12 @@ local function GetActive(field)
     return methods
 end
 
--- The AddMenuEntries functions of active features' handlers, by menuOrder.
-local function GetMenuEntries()
+-- The AddMenuEntries functions of active features' handlers, by menuOrder;
+-- for an empty slot, only those flagged emptySlotEntries.
+local function GetMenuEntries(emptySlot)
     local methods = {}
     for _, entry in ipairs(menuHandlers) do
-        if entry.feature:IsHandlerActive(entry.handler.part) then
+        if entry.feature:IsHandlerActive(entry.handler.part) and (not emptySlot or entry.handler.emptySlotEntries) then
             table.insert(methods, entry.handler.AddMenuEntries)
         end
     end
@@ -136,13 +145,13 @@ local function GetMenuEntries()
 end
 
 -- Our state per Blizzard item button: { source, shield, guarded } and what its
--- marks were last drawn for: { context, bagID, slot, guid }.
+-- marks were last drawn for: { context, bagID, slot, guid, emptySlotItem }.
 -- Weak keys: we never stamp fields onto Blizzard frames.
 local decorations = setmetatable({}, { __mode = "k" })
 
 local hooksInstalled = false
 local listening = false
--- The active handlers' functions: { updates, guards, takesAlt }, gathered on
+-- The active handlers' functions: { updates, guards, emptySlotItems, takesAlt }, gathered on
 -- first use after each ns:RefreshItemButtons().
 local active
 -- What marks are drawn with, made when Prepare runs: { afterBagChange }, kept
@@ -176,6 +185,7 @@ local function GetActiveHandlers()
         active = {
             updates = GetActive("Update"),
             guards = GetActive("IsGuarded"),
+            emptySlotItems = GetActive("EmptySlotItem"),
             takesAlt = #GetActive("OnAltClick") > 0 or #GetActive("AddMenuEntries") > 0,
         }
     end
@@ -212,10 +222,22 @@ local SyncShields
 -- The item menu: the item's name as a title, in Blizzard's gold title color to
 -- stand apart from the entries, then each active feature's entries. Its shield
 -- stays up while it's open. Returns false when no active feature adds entries.
+-- An empty slot standing for an item gets that item's name and the entries
+-- meant for empty slots.
 local function OpenMenu(shield, itemLocation)
-    local addEntries = GetMenuEntries()
     local guid = ns.Containers:GetItemGUID(itemLocation)
-    if #addEntries == 0 or not guid then
+    local itemID, title
+    if guid then
+        title = C_Item.GetItemName(itemLocation)
+    else
+        itemID = decorations[shield.itemButton].emptySlotItem
+        if not itemID then
+            return false
+        end
+        title = C_Item.GetItemNameByID(itemID)
+    end
+    local addEntries = GetMenuEntries(guid == nil)
+    if #addEntries == 0 then
         return false
     end
 
@@ -227,9 +249,11 @@ local function OpenMenu(shield, itemLocation)
                 SyncShields(true)
             end
         end)
-        rootDescription:CreateTitle(C_Item.GetItemName(itemLocation))
+        if title then -- an item's name is missing until its data loads
+            rootDescription:CreateTitle(title)
+        end
         for _, AddMenuEntries in ipairs(addEntries) do
-            AddMenuEntries(rootDescription, itemLocation, guid)
+            AddMenuEntries(rootDescription, itemLocation, guid, itemID)
         end
     end)
     menuShield = shield
@@ -242,6 +266,9 @@ function ShieldMixin:OnClick(mouseButton)
     local itemLocation = GetItemLocation(self.itemButton)
 
     if IsAltKeyDown() and mouseButton == "LeftButton" then
+        if not decorations[self.itemButton].guid then
+            return -- an empty slot standing for an item: nothing to click
+        end
         local altClicks = GetActive("OnAltClick")
         if #altClicks > 0 then
             for _, OnAltClick in ipairs(altClicks) do
@@ -285,9 +312,14 @@ function ShieldMixin:OnEnter()
         return
     end
 
-    local bagID, slot = GetItemLocation(self.itemButton):GetBagAndSlot()
+    local decoration = decorations[self.itemButton]
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetBagItem(bagID, slot)
+    if decoration.guid then
+        local bagID, slot = GetItemLocation(self.itemButton):GetBagAndSlot()
+        GameTooltip:SetBagItem(bagID, slot)
+    else
+        GameTooltip:SetItemByID(decoration.emptySlotItem)
+    end
     GameTooltip:Show()
 end
 
@@ -320,13 +352,28 @@ local function IsGuarded(guid, guards)
     return false
 end
 
+-- The item an empty slot stands for, from the first active handler naming one.
+local function GetEmptySlotItem(itemLocation)
+    for _, EmptySlotItem in ipairs(GetActiveHandlers().emptySlotItems) do
+        local itemID = securecallfunction(EmptySlotItem, itemLocation)
+        if itemID then
+            return itemID
+        end
+    end
+end
+
 -- Shows the button's shield as Alt, the protection and its item (as last drawn) need.
 local function UpdateShield(button, decoration)
     local handlers = GetActiveHandlers()
     local guid = decoration.guid
     decoration.guarded = guid ~= nil and IsGuarded(guid, handlers.guards)
     local hasMenu = decoration.shield ~= nil and decoration.shield == menuShield
-    local showShield = guid ~= nil and ((state.alt and handlers.takesAlt) or decoration.guarded or hasMenu)
+    local showShield
+    if guid ~= nil then
+        showShield = (state.alt and handlers.takesAlt) or decoration.guarded or hasMenu
+    else
+        showShield = decoration.emptySlotItem ~= nil and (state.alt or hasMenu)
+    end
     if showShield and not decoration.shield then
         decoration.shield = CreateShield(button)
     end
@@ -364,6 +411,7 @@ local function UpdateButton(button, source, drawContext)
         or decoration.slot ~= slot
     then
         decoration.context, decoration.guid, decoration.bagID, decoration.slot = drawContext, guid, bagID, slot
+        decoration.emptySlotItem = not guid and GetEmptySlotItem(itemLocation) or nil
         -- One feature's error is reported without leaving the others' marks and guards undrawn.
         for _, Update in ipairs(GetActiveHandlers().updates) do
             securecallfunction(Update, button, itemLocation, guid)
