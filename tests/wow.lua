@@ -5714,6 +5714,13 @@ function world:OpenQuestDetails(uiMapID)
     QuestMapFrame.DetailsFrame.questMapID = uiMapID
 end
 
+-- Moves a map on Azeroth's to `rect` ({ left, right, top, bottom }), before the addon first
+-- reads it: in game a zone's map reaches well past its border, over its neighbours' land.
+-- Where maps overlap, the land is the smaller one's.
+function world:SetMapRect(mapID, rect)
+    MAPS[mapID].rect = rect
+end
+
 -- Drags the world map so its view's middle is at (u, v) on Azeroth's map: like
 -- Blizzard's drag, the scroll follows the mouse within the scroll extents.
 function world:DragMap(u, v)

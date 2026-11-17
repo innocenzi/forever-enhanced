@@ -112,6 +112,79 @@ test("draws the zone in the middle whole once zoomed in on it, following the vie
     expect((world:MapArt()[503] or 0) <= 1, "no zone whole zoomed out to its continent")
 end)
 
+test("keeps the zone whole, and underneath, while most of the land in view is its own", function(world)
+    -- (Westfall's land reaches a little way into Elwynn Forest's map, around (0.71, 0.6))
+    local AtPosition = C_Map.GetMapInfoAtPosition
+    C_Map.GetMapInfoAtPosition = function(uiMapID, x, y)
+        local u, v = 0.55 + x * 0.4, 0.3 + y * 0.4
+        if uiMapID == 10 and u >= 0.70 and u < 0.718 and v >= 0.595 and v < 0.605 then
+            return C_Map.GetMapInfo(5)
+        end
+        return AtPosition(uiMapID, x, y)
+    end
+    Setup(world)
+    world:OpenMap(1)
+    world:PointMouseAt(0.75, 0.6)
+    for _ = 1, 4 do
+        world:MapWheel(1)
+    end
+    world:RunFrames(1)
+    world:DragMap(0.715, 0.6)
+    world:RunFrames(1)
+    equal(world:MapArt()[101], 2, "Elwynn Forest still whole")
+    expect((world:MapArt()[503] or 0) <= 1, "Westfall not whole")
+    equal(WorldMapFrame:GetMapID(), 1, "Elwynn Forest still underneath")
+end)
+
+test("draws whole the zone whose land is in the middle, not a neighbour's map reaching over it", function(world)
+    -- (Westfall's map, bigger, reaches over Elwynn Forest's west edge)
+    world:SetMapRect(5, { 0.58, 0.72, 0.53, 0.67 })
+    Setup(world)
+    world:OpenMap(1)
+    world:DragMap(0.705, 0.6)
+    world:RunFrames(1)
+    world:PointMouseAt(0.705, 0.6)
+    for _ = 1, 4 do
+        world:MapWheel(1)
+    end
+    world:RunFrames(1)
+    equal(world:MapArt()[101], 2, "Elwynn Forest whole")
+    expect((world:MapArt()[503] or 0) <= 1, "Westfall not whole")
+    equal(WorldMapFrame:GetMapID(), 1, "Elwynn Forest underneath")
+end)
+
+test("draws a zone whole on its own parchment", function(world)
+    local Seamless = ForeverEnhanced:GetFeature("map", "seamless")
+    Seamless.Zones[1] = true
+    local LAND = Seamless.MEDIA .. "land.png"
+    Setup(world)
+    world:OpenMap(1)
+    world:RunFrames(1)
+    local stitched = world:MapArt()[LAND] or 0
+    world:PointMouseAt(0.75, 0.6)
+    for _ = 1, 4 do
+        world:MapWheel(1)
+    end
+    world:RunFrames(1)
+    equal(world:MapArt()[101], 2, "Elwynn Forest whole")
+    equal(world:MapArt()[LAND] or 0, stitched, "no more land paper")
+end)
+
+test("draws the zone whole two notches in, stitched again back where it fits the view", function(world)
+    Setup(world)
+    world:OpenMap(1)
+    world:PointMouseAt(0.75, 0.6)
+    local function Notch(delta)
+        world:MapWheel(delta)
+        world:RunFrames(1)
+        return world:MapArt()[101]
+    end
+    equal(Notch(1), 1, "one notch in: only stitched")
+    equal(Notch(1), 2, "two notches in: whole")
+    equal(Notch(-1), 2, "back to one notch: still whole")
+    equal(Notch(-1), 1, "back where it fits: only stitched")
+end)
+
 test("loads every tile near the view, however many come in at once", function(world)
     local Seamless = ForeverEnhanced:GetFeature("map", "seamless")
     local pieces = {}

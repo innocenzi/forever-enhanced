@@ -24,13 +24,15 @@
 --                zone, and as past them, not like each zone's own parchment (tinted its
 --                way, its edges showing where zones meet)
 --   cities       their base art, round-faded, as they come to fill the view (CITY_IN)
---   whole        the zone or city in the middle of the view (SetMiddle: the deepest one
---                zoomed in on far enough, WHOLE_IN), whole: its art unmasked, on blank
---                land paper covering what's around it and fading into it further out, so
---                the map reads as it does on its own, its neighbours giving way. Built the
---                first time it's in the middle; fading over WHOLE_FADE seconds as the
---                middle moves to another (as the view moves, not once it rests, as the
---                map underneath does).
+--   whole        the zone or city the view is on (SetView, PickWhole: the one whose land is
+--                in the view's middle, zoomed in on far enough, WHOLE_IN; a zone's map
+--                reaches well past its border, over its neighbours' land drawn its own way,
+--                so not the one whose map covers the most of the view), whole: its art
+--                unmasked, on its own parchment (no land paper), so the map reads as it
+--                does on its own, its edge lying over the stitched art around it. Built
+--                the first time it's picked; fading in or out over WHOLE_FADE seconds as
+--                the view comes to it or leaves it (as the view moves, not once it rests,
+--                as the map underneath does, which then becomes it).
 -- A zone without its share takes its whole map less a thin border (media/feather-thin).
 --
 -- Only what's near the view is drawn (Cull): a zone's textures get their file
@@ -60,14 +62,16 @@ local HINT = 0.3
 local DETAIL = { 3, 4.5 }
 -- A city: shares of the zoom where it fills the view.
 local CITY_IN = { 0.2, 0.4 }
--- The map in the middle, whole: shares of the zoom where it fills the view (a zone only
--- zoomed in past it: before that, its neighbours are worth seeing); seconds it fades over
--- as the middle moves to another; the blank paper under it, WHOLE_PAPER times its size each
--- way, faded at its edges (feather-wide: whole from a fifth of the way in, so whole under
--- the map and past it).
-local WHOLE_IN = { city = { 0.5, 0.85 }, zone = { 1.4, 1.9 } }
+-- The map drawn whole: how far the view is zoomed in on it (its size over the view's, 1
+-- where it just fits, as the map opens) for it to be drawn whole (`enter`), and to stay so
+-- (`leave`), apart so a zoom between them never flicks it (a zone only well zoomed in:
+-- until then, its neighbours' own art is worth seeing); the share of the land in view it
+-- keeps its place with once the view's middle is another zone's (PickWhole), counted at
+-- OWNED_GRID points each way; seconds it fades in or out over (never resting half faded
+-- over the stitched art).
+local WHOLE_IN = { city = { enter = 0.7, leave = 0.55 }, zone = { enter = 1.5, leave = 1.2 } }
+local WHOLE_KEEP, OWNED_GRID = 0.5, 5
 local WHOLE_FADE = 0.2
-local WHOLE_PAPER = 2
 -- The world and continent art giving way to blank paper. The sea paper reaches
 -- SEA_REACH world sizes past the world on every side; a paper tile spans as much of the
 -- world as on the map it comes from (Seamless.Papers), drawn twice: at its size, and at
@@ -101,15 +105,16 @@ local places = {}
 local files = {}
 -- texture -> whether ShowZone shows it
 local shown = {}
--- mapID -> { kind = "zone" | "city", entries = { { texture, u0, v0, u1, v1, piece } }, near, visible,
--- fill = the zoom where it fills the view }
+-- mapID -> { kind = "zone" | "city", entries = { { texture, u0, v0, u1, v1, piece } }, near, visible }
 local zones = {}
 -- { frame, mapID, fill = the zoom where it fills the view, alpha }
 local cities = {}
 -- mapID -> the map whole: { kind = "whole", frame, entries, near, visible, weight, alpha },
--- weight going to 1 while it's the map in the middle, to 0 after
+-- weight going to 1 while it's the map drawn whole, to 0 after
 local wholes = {}
--- the maps under the view's middle (Geometry:ChainAt), and which of them is drawn whole
+-- the view on the world ({ u, v, u0, v0, u1, v1 }: its middle and corners), the maps under
+-- its middle (Geometry:ChainAt), and the map drawn whole
+local view
 local middle
 local wholeMapID
 -- mapID -> piece key -> { unexplored }: one per piece, shared by its copies
@@ -364,8 +369,10 @@ local function Paper(parent, drawLayer, sublevel, kind, x, y, width, height)
 end
 
 -- A zone, on its own frame: its base art, the land paper over its blank parchment, then its
--- pieces, all through its share of the world (unless `whole`). Sublevels: base art 0, the
--- paper 1 and 2, unexplored pieces 3, explored ones 4.
+-- pieces, all through its share of the world; when `whole`, unmasked and without the paper:
+-- the paper can't reach right up to the ink, and around names the zone's own, darker,
+-- parchment would show through as a box. Sublevels: base art 0, the paper 1 and 2,
+-- unexplored pieces 3, explored ones 4.
 local function ZoneArt(frame, mapID, entries, whole)
     local placement = Placement(mapID)
     if not placement then
@@ -380,16 +387,14 @@ local function ZoneArt(frame, mapID, entries, whole)
     BaseArt(frame, mapID, function()
         return masks
     end, entries, tint)
-    if Seamless.Zones[mapID] then
+    if Seamless.Zones[mapID] and not whole then
         local layer = placement.layer
         local width, height = layer.layerWidth * placement.sx, layer.layerHeight * placement.sy
         local blankMask = Mask(frame, placement, MEDIA .. "blank\\" .. mapID .. ".png")
         for copy = 1, 2 do
             local texture =
                 PaperTexture(frame, "ARTWORK", 1, "land", copy, placement.left, placement.top, width, height)
-            if masks[1] then
-                texture:AddMaskTexture(masks[1])
-            end
+            texture:AddMaskTexture(masks[1])
             texture:AddMaskTexture(blankMask)
             texture:Hide()
             local right, bottom = placement.left + width, placement.top + height
@@ -530,15 +535,14 @@ function Art:Build(canvas, level, range)
         if HasPieces(mapID) then
             zoneLevel = math.min(zoneLevel + 1, level + range - 3)
             ZoneArt(Layer(zoneLevel, layers.zones), mapID, entries)
-            local left, right = Geometry:Rect(mapID)
-            zones[mapID] = { kind = "zone", entries = entries, fill = 1 / (right - left) }
+            zones[mapID] = { kind = "zone", entries = entries }
         else
             local frame = Layer(level + range - 2, layers.cities)
             BaseArt(frame, mapID, function(placement)
                 return { Mask(frame, placement, FEATHER_ROUND) }
             end, entries)
             local left, right = Geometry:Rect(mapID)
-            zones[mapID] = { kind = "city", entries = entries, fill = 1 / (right - left) }
+            zones[mapID] = { kind = "city", entries = entries }
             table.insert(cities, { frame = frame, mapID = mapID, fill = 1 / (right - left) })
         end
     end
@@ -547,18 +551,6 @@ end
 -- The map whole (see the top of the file), on its own frame.
 local function BuildWhole(mapID)
     local frame = Layer(layers.wholes:GetFrameLevel(), layers.wholes)
-    local left, right, top, bottom = Geometry:Rect(mapID)
-    local width, height = (right - left) * worldWidth, (bottom - top) * worldHeight
-    local x, y = (left + right) / 2 * worldWidth, (top + bottom) / 2 * worldHeight
-    local paperWidth, paperHeight = width * WHOLE_PAPER, height * WHOLE_PAPER
-    local paperMask = frame:CreateMaskTexture()
-    paperMask:SetTexture(FEATHER_WIDE, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-    Put(paperMask, x - paperWidth / 2, y - paperHeight / 2, paperWidth, paperHeight)
-    local paper =
-        Paper(frame, "BACKGROUND", 0, "land", x - paperWidth / 2, y - paperHeight / 2, paperWidth, paperHeight)
-    for _, texture in ipairs(paper) do
-        texture:AddMaskTexture(paperMask)
-    end
     local entries = {}
     if zones[mapID].kind == "zone" then
         ZoneArt(frame, mapID, entries, true)
@@ -573,17 +565,19 @@ local function BuildWhole(mapID)
     cullBox = nil
 end
 
--- 0 to 1 as the view zooms in on the zone or city far enough to draw it whole.
-local function WholeZoom(mapID)
-    local zone = zones[mapID]
-    local range = WHOLE_IN[zone.kind]
-    return Smooth(range[1] * zone.fill, range[2] * zone.fill)
+-- Whether the view is zoomed in on the zone or city far enough to draw it whole (less far
+-- to keep it so): its size over the view's, on the side that fits it.
+local function IsZoomedIn(mapID)
+    local left, right, top, bottom = Geometry:Rect(mapID)
+    local zoomedIn = math.min((right - left) / (view.u1 - view.u0), (bottom - top) / (view.v1 - view.v0))
+    local range = WHOLE_IN[zones[mapID].kind]
+    return zoomedIn >= (mapID == wholeMapID and range.leave or range.enter)
 end
 
--- A whole map's alpha: how far it fills the view, as far as it's (still) the map in the middle.
+-- A whole map's alpha: how far it's faded in as the map drawn whole.
 local function FadeWhole(mapID)
     local whole = wholes[mapID]
-    local alpha = whole.weight * WholeZoom(mapID)
+    local alpha = whole.weight
     if whole.alpha ~= alpha then
         whole.alpha = alpha
         Fade(whole.frame, alpha)
@@ -596,7 +590,7 @@ local function FadeWhole(mapID)
     end
 end
 
--- The whole maps' weights, toward the map in the middle.
+-- The whole maps' weights, toward the map drawn whole.
 local crossfade = CreateFrame("Frame")
 crossfade:Hide()
 crossfade:SetScript("OnUpdate", function(self, elapsed)
@@ -619,13 +613,54 @@ crossfade:SetScript("OnUpdate", function(self, elapsed)
     end
 end)
 
--- The map drawn whole: the deepest zone or city under the view's middle zoomed in on far enough.
+-- Whether the map's rectangle reaches the view's middle.
+local function Reaches(mapID)
+    local left, right, top, bottom = Geometry:Rect(mapID)
+    return view.u >= left and view.u <= right and view.v >= top and view.v <= bottom
+end
+
+-- The share of the view whose land is the map's (the game's zones, at OWNED_GRID points each way).
+local function OwnedShare(mapID)
+    local owned = 0
+    for row = 1, OWNED_GRID do
+        local v = view.v0 + (row - 0.5) / OWNED_GRID * (view.v1 - view.v0)
+        for col = 1, OWNED_GRID do
+            local u = view.u0 + (col - 0.5) / OWNED_GRID * (view.u1 - view.u0)
+            for _, chained in ipairs(Geometry:ChainAt(u, v)) do
+                if chained == mapID then
+                    owned = owned + 1
+                    break
+                end
+            end
+        end
+    end
+    return owned / (OWNED_GRID * OWNED_GRID)
+end
+
+-- The map drawn whole (see the top of the file): the deepest zone or city under the view's
+-- middle zoomed in on far enough. The one drawn whole stays so while it's still zoomed in on,
+-- reaches the middle and holds WHOLE_KEEP of the land in view (unless the middle comes to a
+-- city's), so a pan just over a border doesn't swap it.
 local function PickWhole()
+    if not view then
+        return
+    end
     local pick
-    for _, mapID in ipairs(middle or {}) do
-        if zones[mapID] and WholeZoom(mapID) > GONE then
+    for _, mapID in ipairs(middle) do
+        if zones[mapID] and IsZoomedIn(mapID) then
             pick = mapID
         end
+    end
+    local current = wholeMapID
+    if
+        current
+        and current ~= pick
+        and not (pick and zones[pick].kind == "city")
+        and IsZoomedIn(current)
+        and Reaches(current)
+        and OwnedShare(current) >= WHOLE_KEEP
+    then
+        pick = current
     end
     if pick ~= wholeMapID then
         wholeMapID = pick
@@ -689,10 +724,6 @@ function Art:SetZoom(zoom)
     local detailNow = detail > 0.001
     local changed = detailNow ~= detailShown
     detailShown = detailNow
-    PickWhole()
-    for mapID in pairs(wholes) do
-        FadeWhole(mapID)
-    end
     for _, city in ipairs(cities) do
         local alpha = Smooth(CITY_IN[1] * city.fill, CITY_IN[2] * city.fill)
         if city.alpha ~= alpha then
@@ -747,13 +778,19 @@ function Art:Cull(u0, v0, u1, v1)
     end
 end
 
--- The view's middle (u, v) on the world: the map drawn whole follows it.
-function Art:SetMiddle(u, v)
+-- The view on the world: its middle (u, v), half its width and height. The map drawn whole follows it.
+function Art:SetView(u, v, halfU, halfV)
     if not root then
         return
     end
+    view = { u = u, v = v, u0 = u - halfU, v0 = v - halfV, u1 = u + halfU, v1 = v + halfV }
     middle = Geometry:ChainAt(u, v)
     PickWhole()
+end
+
+-- The zone or city drawn whole, if any: the map underneath becomes it.
+function Art:GetWholeMap()
+    return wholeMapID
 end
 
 -- The map shown again: the next Cull runs in full.

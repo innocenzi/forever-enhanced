@@ -10,8 +10,9 @@
 --     out a level. Other clicks are left to others (Shift Click, Alt Click), but a
 --     map pin (Ctrl Click, or a click with the map's pin button on) over a map the
 --     map underneath doesn't reach is placed on that map, where it was clicked.
---   - Once the view has rested, the map underneath becomes the zone (or
---     continent, or world) in its middle, and the view is put back exactly.
+--   - Once the view has rested, the map underneath becomes the zone drawn whole
+--     (Art), else the zone (or continent, or world) in its middle, and the view
+--     is put back exactly.
 --     Never in combat, nor while a quest's details are open (Blizzard closes them
 --     as soon as the map isn't the quest's).
 -- Zoom: 1 = the whole world fits the view. What this writes into Blizzard's
@@ -229,8 +230,14 @@ end
 
 -- The map underneath ---------------------------------------------------------------------
 
--- The deepest map under (u, v) the view is close enough to: the world, a continent or a zone.
+-- The zone or city drawn whole (the one the view is on, though its middle may be past
+-- the zone's border), else the deepest map under (u, v) the view is close enough to:
+-- the world, a continent or a zone.
 local function PickMap(u, v, zoom, current)
+    local whole = Art:GetWholeMap()
+    if whole then
+        return whole
+    end
     local pick = WORLD
     for _, mapID in ipairs(Geometry:ChainAt(u, v)) do
         local share = mapID == current and LEAVE or ENTER
@@ -368,7 +375,7 @@ viewFrame:SetScript("OnUpdate", function(self)
     local pu, pv = PerPx(zoom)
     local halfU, halfV = sc:GetWidth() / 2 * pu, sc:GetHeight() / 2 * pv
     -- (first: a map newly drawn whole gets its tiles in this Cull)
-    Art:SetMiddle(u, v)
+    Art:SetView(u, v, halfU, halfV)
     Art:Cull(u - halfU, v - halfV, u + halfU, v + halfV)
     -- (on the view, not the canvas: it moves with every pan and zoom, not only the ticker's)
     UpdateArrow()
