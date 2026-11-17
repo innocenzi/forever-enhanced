@@ -89,6 +89,29 @@ test("gives way to blank paper past the zones once they're in", function(world)
     equal(art[LAND], 2, "Eastern Kingdoms' land paper, at two scales (Kalimdor has no land)")
 end)
 
+test("draws the zone in the middle whole once zoomed in on it, following the view", function(world)
+    Setup(world)
+    world:OpenMap(1)
+    world:RunFrames(1)
+    equal(world:MapArt()[101], 1, "Elwynn Forest only stitched, fitting the view")
+    world:PointMouseAt(0.75, 0.6)
+    for _ = 1, 4 do
+        world:MapWheel(1)
+    end
+    world:RunFrames(1)
+    equal(world:MapArt()[101], 2, "Elwynn Forest stitched, and whole zoomed in")
+    -- (let go while still moving: the map underneath waits for the view to rest)
+    world:FlingMap(0.65, 0.6, 0.01)
+    world:RunFrames(0.1)
+    equal(WorldMapFrame:GetMapID(), 1, "Elwynn Forest still underneath")
+    equal(world:MapArt()[503], 2, "Westfall whole at once")
+    world:RunFrames(1)
+    expect((world:MapArt()[101] or 0) <= 1, "Elwynn Forest no longer whole")
+    world:ShowMap(10)
+    world:RunFrames(1)
+    expect((world:MapArt()[503] or 0) <= 1, "no zone whole zoomed out to its continent")
+end)
+
 test("loads every tile near the view, however many come in at once", function(world)
     local Seamless = ForeverEnhanced:GetFeature("map", "seamless")
     local pieces = {}
@@ -342,6 +365,19 @@ test("hides unexplored areas unless turned on, and shows areas as they're explor
     expect(world:MapArt()[150], "the area just explored")
 end)
 
+test("lays the land paper over a zone's blank parchment", function(world)
+    local Seamless = ForeverEnhanced:GetFeature("map", "seamless")
+    local LAND, BLANK = Seamless.MEDIA .. "land.png", Seamless.MEDIA .. "blank\\1.png"
+    Seamless.Zones[1] = true
+    Setup(world)
+    world:OpenMap(1)
+    world:RunFrames(1)
+    equal(world:MapArtMasked(LAND, BLANK), 2, "both copies of the paper, through the zone's blank parchment")
+    expect(world:MapArt()[150], "its explored area")
+    Set(world, "enabled", false)
+    equal(world:MapArtMasked(LAND, BLANK), 0, "gone with the feature")
+end)
+
 test("shows areas explored while it was off once back on", function(world)
     Setup(world)
     world.exploredMapTextures[1] = {}
@@ -545,6 +581,7 @@ test("ships every mask and paper its data lists", function()
     for mapID in pairs(Seamless.Zones) do
         count = count + 1
         expect(Exists(("modules/map/seamless/media/zone/%d.png"):format(mapID)), "zone " .. mapID)
+        expect(Exists(("modules/map/seamless/media/blank/%d.png"):format(mapID)), "blank " .. mapID)
         expect(Seamless.Tints[mapID], "tint " .. mapID)
     end
     expect(count > 40, "zones listed")

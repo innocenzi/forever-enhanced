@@ -1,8 +1,9 @@
 // Renders part of the stitched map out of the game, as the map draws it zoomed in on
-// zones (blank sea and land paper past the zones, each zone's base art and every
-// explored-area piece through its share, tinted, cities round-faded on top), from what
-// the addon ships (modules/map/seamless: data.lua's build, tints and papers, media/), to
-// check the masks without the game. Dev only.
+// zones (blank sea and land paper past the zones, each zone's base art, the land paper
+// over its blank parchment and every explored-area piece through its share, tinted,
+// cities round-faded on top; not the zone or city in the middle drawn whole, zoomed in
+// further), from what the addon ships (modules/map/seamless: data.lua's build, tints and
+// papers, media/), to check the masks without the game. Dev only.
 //
 //   bun tools/seamless/preview.ts <left> <top> <right> <bottom> [px per world unit] [out.png]
 //     the box on Azeroth's map, normalized (e.g. 0.70 0.60 0.84 0.74: Duskwood and around);
@@ -28,6 +29,8 @@ type Box = [left: number, top: number, right: number, bottom: number];
 export type PreviewLayers = {
     /** The zones' shares, over each one's whole map. */
     zoneMasks: Map<number, Image>;
+    /** Where each zone's base art is blank parchment, over its whole map. */
+    blanks: Map<number, Image>;
     /** Each continent's land. */
     lands: Map<number, Image>;
     cityMask: Image;
@@ -117,8 +120,22 @@ export async function renderPreview(
         .sort((a, b) => area(b) - area(a) || a - b);
     for (const mapID of zones) {
         const mask = layers.zoneMasks.get(mapID);
-        const art = mask && (await composeArt(world, downloads, build, mapID, true));
-        if (mask && art) paint(mapID, artColor(art, layers.tints.get(mapID)), artAlpha(art, mask));
+        const base = mask && (await composeArt(world, downloads, build, mapID, false));
+        const pieces = mask && (await composeArt(world, downloads, build, mapID, true, false));
+        if (!mask || !base || !pieces) continue;
+        const tint = layers.tints.get(mapID);
+        paint(mapID, artColor(base, tint), artAlpha(base, mask));
+        const blankMask = layers.blanks.get(mapID);
+        if (blankMask) {
+            const share = maskAlpha(mask);
+            const blankAlpha = maskAlpha(blankMask);
+            paint(
+                mapID,
+                (_mx, _my, x, y, c) => paperAt(land, landSize, worldX(x), worldY(y), c),
+                (mx, my) => share(mx, my) * blankAlpha(mx, my),
+            );
+        }
+        paint(mapID, artColor(pieces, tint), artAlpha(pieces, mask));
     }
     for (const mapID of world.mapsOfType("zone")) {
         if (zones.includes(mapID) || !overlaps(mapID)) continue;
@@ -159,8 +176,10 @@ if (import.meta.main) {
     const downloads = new Downloads(repoRoot, false);
     const world = new World(await loadTables(downloads, build));
     const zoneMasks = new Map<number, Image>();
+    const blanks = new Map<number, Image>();
     for (const mapID of world.zones()) {
         if (existsSync(path.join(media, "zone", `${mapID}.png`))) zoneMasks.set(mapID, await read(`zone/${mapID}.png`));
+        if (existsSync(path.join(media, "blank", `${mapID}.png`))) blanks.set(mapID, await read(`blank/${mapID}.png`));
     }
     const lands = new Map<number, Image>();
     for (const mapID of world.mapsOfType("continent")) {
@@ -168,6 +187,7 @@ if (import.meta.main) {
     }
     const image = await renderPreview(world, downloads, build, box, pxPerUnit, {
         zoneMasks,
+        blanks,
         lands,
         cityMask: await read("feather-round.png"),
         papers: { land: await read("land.png"), sea: await read("sea.png"), landSize: Number(sizes[1]), seaSize: Number(sizes[2]) },

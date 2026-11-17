@@ -367,6 +367,8 @@ viewFrame:SetScript("OnUpdate", function(self)
     local u, v, zoom = CurrentView()
     local pu, pv = PerPx(zoom)
     local halfU, halfV = sc:GetWidth() / 2 * pu, sc:GetHeight() / 2 * pv
+    -- (first: a map newly drawn whole gets its tiles in this Cull)
+    Art:SetMiddle(u, v)
     Art:Cull(u - halfU, v - halfV, u + halfU, v + halfV)
     -- (on the view, not the canvas: it moves with every pan and zoom, not only the ticker's)
     UpdateArrow()

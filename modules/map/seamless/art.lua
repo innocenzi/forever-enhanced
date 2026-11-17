@@ -18,8 +18,19 @@
 --                from Seamless.Pieces, shown with "unexplored" on), all through its
 --                share of the world (media/zone, tools/seamless/ownership.ts: every
 --                place inside some zone's map is one zone's, fading into the next),
---                tinted toward the palette every zone shares (Seamless.Tints) (DETAIL)
+--                tinted toward the palette every zone shares (Seamless.Tints) (DETAIL),
+--                and over its base art's blank parchment (media/blank), under its
+--                pieces, the blank land paper: unexplored land looks the same in every
+--                zone, and as past them, not like each zone's own parchment (tinted its
+--                way, its edges showing where zones meet)
 --   cities       their base art, round-faded, as they come to fill the view (CITY_IN)
+--   whole        the zone or city in the middle of the view (SetMiddle: the deepest one
+--                zoomed in on far enough, WHOLE_IN), whole: its art unmasked, on blank
+--                land paper covering what's around it and fading into it further out, so
+--                the map reads as it does on its own, its neighbours giving way. Built the
+--                first time it's in the middle; fading over WHOLE_FADE seconds as the
+--                middle moves to another (as the view moves, not once it rests, as the
+--                map underneath does).
 -- A zone without its share takes its whole map less a thin border (media/feather-thin).
 --
 -- Only what's near the view is drawn (Cull): a zone's textures get their file
@@ -49,6 +60,14 @@ local HINT = 0.3
 local DETAIL = { 3, 4.5 }
 -- A city: shares of the zoom where it fills the view.
 local CITY_IN = { 0.2, 0.4 }
+-- The map in the middle, whole: shares of the zoom where it fills the view (a zone only
+-- zoomed in past it: before that, its neighbours are worth seeing); seconds it fades over
+-- as the middle moves to another; the blank paper under it, WHOLE_PAPER times its size each
+-- way, faded at its edges (feather-wide: whole from a fifth of the way in, so whole under
+-- the map and past it).
+local WHOLE_IN = { city = { 0.5, 0.85 }, zone = { 1.4, 1.9 } }
+local WHOLE_FADE = 0.2
+local WHOLE_PAPER = 2
 -- The world and continent art giving way to blank paper. The sea paper reaches
 -- SEA_REACH world sizes past the world on every side; a paper tile spans as much of the
 -- world as on the map it comes from (Seamless.Papers), drawn twice: at its size, and at
@@ -82,10 +101,17 @@ local places = {}
 local files = {}
 -- texture -> whether ShowZone shows it
 local shown = {}
--- mapID -> { kind = "zone" | "city", entries = { { texture, u0, v0, u1, v1, piece } }, near, visible }
+-- mapID -> { kind = "zone" | "city", entries = { { texture, u0, v0, u1, v1, piece } }, near, visible,
+-- fill = the zoom where it fills the view }
 local zones = {}
 -- { frame, mapID, fill = the zoom where it fills the view, alpha }
 local cities = {}
+-- mapID -> the map whole: { kind = "whole", frame, entries, near, visible, weight, alpha },
+-- weight going to 1 while it's the map in the middle, to 0 after
+local wholes = {}
+-- the maps under the view's middle (Geometry:ChainAt), and which of them is drawn whole
+local middle
+local wholeMapID
 -- mapID -> piece key -> { unexplored }: one per piece, shared by its copies
 local pieces = {}
 -- the world's and continents' art textures, muted as the zones come in
@@ -129,8 +155,12 @@ local fading = {}
 local loader = CreateFrame("Frame")
 loader:Hide()
 
-local function Load(texture)
+-- texture -> true: it shows as soon as it has its file (its frame fades in itself)
+local instant = {}
+
+local function Load(texture, instantly)
     if files[texture] and not queued[texture] then
+        instant[texture] = instantly or nil
         queued[texture] = true
         queueEnd = queueEnd + 1
         queue[queueEnd] = texture
@@ -149,8 +179,12 @@ loader:SetScript("OnUpdate", function(self)
         queued[texture] = nil
         texture:SetTexture(files[texture], nil, nil, "TRILINEAR")
         files[texture] = nil
-        texture:SetAlpha(0)
-        fading[texture] = now
+        if instant[texture] then
+            instant[texture] = nil
+        else
+            texture:SetAlpha(0)
+            fading[texture] = now
+        end
     end
     if queueStart > queueEnd then
         queue, queueStart, queueEnd = {}, 1, 0
@@ -302,23 +336,77 @@ local function HasPieces(mapID)
         or #(C_MapExplorationInfo.GetExploredMapTextures(mapID) or {}) > 0
 end
 
--- A zone, on its own frame: its base art, then its pieces, all through its share of the world.
-local function ZoneArt(frame, mapID, entries)
+-- Copy `copy` (1 or 2, see Paper) of blank paper ("land" or "sea", media/<kind>.png) over a
+-- rectangle in world units, not anchored yet. Its tiling follows the world, not the
+-- rectangle, so papers that overlap or meet match.
+local function PaperTexture(parent, drawLayer, sublevel, kind, copy, x, y, width, height)
+    local tile = Seamless.Papers[kind] * (copy == 1 and 1 or PAPER_OVER)
+    local shift = copy == 1 and 0 or PAPER_OVER_SHIFT
+    local texture = parent:CreateTexture(nil, drawLayer, nil, sublevel + copy - 1)
+    texture:SetTexture(MEDIA .. kind .. ".png", "REPEAT", "REPEAT")
+    local s, t = x / tile + shift, y / tile + shift * 1.7
+    texture:SetTexCoord(s, s + width / tile, t, t + height / tile)
+    texture:SetVertexColor(1, 1, 1, copy == 1 and 1 or PAPER_OVER_ALPHA)
+    places[texture] = { x, y, width, height }
+    return texture
+end
+
+-- Blank paper tiled over a rectangle in world units, twice (PAPER_OVER): the two textures,
+-- the second over the first (its strength in its vertex colour).
+local function Paper(parent, drawLayer, sublevel, kind, x, y, width, height)
+    local list = {}
+    for copy = 1, 2 do
+        local texture = PaperTexture(parent, drawLayer, sublevel, kind, copy, x, y, width, height)
+        Anchor(texture)
+        table.insert(list, texture)
+    end
+    return list
+end
+
+-- A zone, on its own frame: its base art, the land paper over its blank parchment, then its
+-- pieces, all through its share of the world (unless `whole`). Sublevels: base art 0, the
+-- paper 1 and 2, unexplored pieces 3, explored ones 4.
+local function ZoneArt(frame, mapID, entries, whole)
     local placement = Placement(mapID)
     if not placement then
         return
     end
-    local share = Seamless.Zones[mapID] and MEDIA .. "zone\\" .. mapID .. ".png" or FEATHER_THIN
-    local masks = { Mask(frame, placement, share) }
+    local masks = {}
+    if not whole then
+        local share = Seamless.Zones[mapID] and MEDIA .. "zone\\" .. mapID .. ".png" or FEATHER_THIN
+        masks[1] = Mask(frame, placement, share)
+    end
     local tint = Seamless.Tints[mapID]
     BaseArt(frame, mapID, function()
         return masks
     end, entries, tint)
+    if Seamless.Zones[mapID] then
+        local layer = placement.layer
+        local width, height = layer.layerWidth * placement.sx, layer.layerHeight * placement.sy
+        local blankMask = Mask(frame, placement, MEDIA .. "blank\\" .. mapID .. ".png")
+        for copy = 1, 2 do
+            local texture =
+                PaperTexture(frame, "ARTWORK", 1, "land", copy, placement.left, placement.top, width, height)
+            if masks[1] then
+                texture:AddMaskTexture(masks[1])
+            end
+            texture:AddMaskTexture(blankMask)
+            texture:Hide()
+            local right, bottom = placement.left + width, placement.top + height
+            table.insert(entries, {
+                texture,
+                placement.left / worldWidth,
+                placement.top / worldHeight,
+                right / worldWidth,
+                bottom / worldHeight,
+            })
+        end
+    end
     EachPiece(mapID, function(list, x, y, width, height, piece)
         -- (explored pieces over the rest, where they overlap)
         local options = {
             overlay = true,
-            sublevel = piece.unexplored and 1 or 2,
+            sublevel = piece.unexplored and 3 or 4,
             masks = masks,
             entries = entries,
             piece = piece,
@@ -335,10 +423,10 @@ local function IsNear(entry)
     return entry[4] > box[1] and entry[2] < box[3] and entry[5] > box[2] and entry[3] < box[4]
 end
 
--- Shows the zone's textures near the view, as far as its layer shows, and loads their files.
-local function ShowZone(mapID)
-    local zone = zones[mapID]
-    local drawn = zone.near and (zone.kind == "zone" and detailShown or zone.kind == "city" and zone.visible)
+-- Shows a zone's (or a whole map's) textures near the view, as far as its layer shows, and
+-- loads their files.
+local function ShowArt(zone)
+    local drawn = zone.near and (zone.kind == "zone" and detailShown or zone.kind ~= "zone" and zone.visible)
     for _, entry in ipairs(zone.entries) do
         local texture, piece = entry[1], entry[6]
         local show = drawn and IsNear(entry) and not (piece and piece.unexplored and not unexploredShown) or false
@@ -347,12 +435,20 @@ local function ShowZone(mapID)
             if show then
                 Anchor(texture)
                 texture:Show()
-                Load(texture)
+                -- (a whole map fades in itself, as the middle moves to it)
+                Load(texture, zone.kind == "whole")
             else
                 texture:Hide()
                 texture:ClearAllPoints()
             end
         end
+    end
+end
+
+local function ShowZone(mapID)
+    ShowArt(zones[mapID])
+    if wholes[mapID] then
+        ShowArt(wholes[mapID])
     end
 end
 
@@ -366,24 +462,6 @@ local function ShowZones()
 end
 
 -- Building -------------------------------------------------------------------------------
-
--- Blank paper ("land" or "sea", media/<kind>.png) tiled over a rectangle in world units,
--- twice (PAPER_OVER): the two textures, the second over the first (its strength in its
--- vertex colour).
-local function Paper(parent, drawLayer, sublevel, kind, x, y, width, height)
-    local list = {}
-    for copy = 1, 2 do
-        local tile = Seamless.Papers[kind] * (copy == 1 and 1 or PAPER_OVER)
-        local shift = copy == 1 and 0 or PAPER_OVER_SHIFT
-        local texture = parent:CreateTexture(nil, drawLayer, nil, sublevel + copy - 1)
-        texture:SetTexture(MEDIA .. kind .. ".png", "REPEAT", "REPEAT")
-        texture:SetTexCoord(shift, shift + width / tile, shift * 1.7, shift * 1.7 + height / tile)
-        texture:SetVertexColor(1, 1, 1, copy == 1 and 1 or PAPER_OVER_ALPHA)
-        Put(texture, x, y, width, height)
-        table.insert(list, texture)
-    end
-    return list
-end
 
 -- A frame for art at frame level `level`, under `parent` (root by default) for its alpha.
 local function Layer(level, parent)
@@ -404,7 +482,8 @@ function Art:Build(canvas, level, range)
     layers.world = Layer(level)
     layers.continents = Layer(level + 1)
     layers.zones = Layer(level + 2)
-    layers.cities = Layer(level + range - 1)
+    layers.cities = Layer(level + range - 2)
+    layers.wholes = Layer(level + range - 1)
 
     local reachX, reachY = SEA_REACH * worldWidth, SEA_REACH * worldHeight
     Paper(layers.world, "BACKGROUND", -8, "sea", -reachX, -reachY, worldWidth + 2 * reachX, worldHeight + 2 * reachY)
@@ -449,18 +528,111 @@ function Art:Build(canvas, level, range)
     for _, mapID in ipairs(list) do
         local entries = {}
         if HasPieces(mapID) then
-            zoneLevel = math.min(zoneLevel + 1, level + range - 2)
+            zoneLevel = math.min(zoneLevel + 1, level + range - 3)
             ZoneArt(Layer(zoneLevel, layers.zones), mapID, entries)
-            zones[mapID] = { kind = "zone", entries = entries }
+            local left, right = Geometry:Rect(mapID)
+            zones[mapID] = { kind = "zone", entries = entries, fill = 1 / (right - left) }
         else
-            local frame = Layer(level + range - 1, layers.cities)
+            local frame = Layer(level + range - 2, layers.cities)
             BaseArt(frame, mapID, function(placement)
                 return { Mask(frame, placement, FEATHER_ROUND) }
             end, entries)
             local left, right = Geometry:Rect(mapID)
-            zones[mapID] = { kind = "city", entries = entries }
+            zones[mapID] = { kind = "city", entries = entries, fill = 1 / (right - left) }
             table.insert(cities, { frame = frame, mapID = mapID, fill = 1 / (right - left) })
         end
+    end
+end
+
+-- The map whole (see the top of the file), on its own frame.
+local function BuildWhole(mapID)
+    local frame = Layer(layers.wholes:GetFrameLevel(), layers.wholes)
+    local left, right, top, bottom = Geometry:Rect(mapID)
+    local width, height = (right - left) * worldWidth, (bottom - top) * worldHeight
+    local x, y = (left + right) / 2 * worldWidth, (top + bottom) / 2 * worldHeight
+    local paperWidth, paperHeight = width * WHOLE_PAPER, height * WHOLE_PAPER
+    local paperMask = frame:CreateMaskTexture()
+    paperMask:SetTexture(FEATHER_WIDE, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+    Put(paperMask, x - paperWidth / 2, y - paperHeight / 2, paperWidth, paperHeight)
+    local paper =
+        Paper(frame, "BACKGROUND", 0, "land", x - paperWidth / 2, y - paperHeight / 2, paperWidth, paperHeight)
+    for _, texture in ipairs(paper) do
+        texture:AddMaskTexture(paperMask)
+    end
+    local entries = {}
+    if zones[mapID].kind == "zone" then
+        ZoneArt(frame, mapID, entries, true)
+    else
+        BaseArt(frame, mapID, function()
+            return {}
+        end, entries)
+    end
+    Fade(frame, 0)
+    wholes[mapID] = { kind = "whole", frame = frame, entries = entries, weight = 0 }
+    -- (its tiles near the view: from the next full Cull)
+    cullBox = nil
+end
+
+-- 0 to 1 as the view zooms in on the zone or city far enough to draw it whole.
+local function WholeZoom(mapID)
+    local zone = zones[mapID]
+    local range = WHOLE_IN[zone.kind]
+    return Smooth(range[1] * zone.fill, range[2] * zone.fill)
+end
+
+-- A whole map's alpha: how far it fills the view, as far as it's (still) the map in the middle.
+local function FadeWhole(mapID)
+    local whole = wholes[mapID]
+    local alpha = whole.weight * WholeZoom(mapID)
+    if whole.alpha ~= alpha then
+        whole.alpha = alpha
+        Fade(whole.frame, alpha)
+        if whole.visible ~= (alpha > GONE) then
+            whole.visible = alpha > GONE
+            if cullBox then
+                ShowArt(whole)
+            end
+        end
+    end
+end
+
+-- The whole maps' weights, toward the map in the middle.
+local crossfade = CreateFrame("Frame")
+crossfade:Hide()
+crossfade:SetScript("OnUpdate", function(self, elapsed)
+    local moving = false
+    for mapID, whole in pairs(wholes) do
+        local target = mapID == wholeMapID and 1 or 0
+        if whole.weight ~= target then
+            local step = elapsed / WHOLE_FADE
+            if target > whole.weight then
+                whole.weight = math.min(target, whole.weight + step)
+            else
+                whole.weight = math.max(target, whole.weight - step)
+            end
+            FadeWhole(mapID)
+            moving = moving or whole.weight ~= target
+        end
+    end
+    if not moving then
+        self:Hide()
+    end
+end)
+
+-- The map drawn whole: the deepest zone or city under the view's middle zoomed in on far enough.
+local function PickWhole()
+    local pick
+    for _, mapID in ipairs(middle or {}) do
+        if zones[mapID] and WholeZoom(mapID) > GONE then
+            pick = mapID
+        end
+    end
+    if pick ~= wholeMapID then
+        wholeMapID = pick
+        if pick and not wholes[pick] then
+            BuildWhole(pick)
+        end
+        crossfade:Show()
     end
 end
 
@@ -517,6 +689,10 @@ function Art:SetZoom(zoom)
     local detailNow = detail > 0.001
     local changed = detailNow ~= detailShown
     detailShown = detailNow
+    PickWhole()
+    for mapID in pairs(wholes) do
+        FadeWhole(mapID)
+    end
     for _, city in ipairs(cities) do
         local alpha = Smooth(CITY_IN[1] * city.fill, CITY_IN[2] * city.fill)
         if city.alpha ~= alpha then
@@ -526,7 +702,7 @@ function Art:SetZoom(zoom)
             if zone.visible ~= (alpha > GONE) then
                 zone.visible = alpha > GONE
                 if cullBox and not changed then
-                    ShowZone(city.mapID)
+                    ShowArt(zone)
                 end
             end
         end
@@ -561,9 +737,23 @@ function Art:Cull(u0, v0, u1, v1)
         -- (a zone in view: its tiles near the new box)
         if near or zone.near ~= near then
             zone.near = near
-            ShowZone(mapID)
+            ShowArt(zone)
+        end
+        local whole = wholes[mapID]
+        if whole and (near or whole.near ~= near) then
+            whole.near = near
+            ShowArt(whole)
         end
     end
+end
+
+-- The view's middle (u, v) on the world: the map drawn whole follows it.
+function Art:SetMiddle(u, v)
+    if not root then
+        return
+    end
+    middle = Geometry:ChainAt(u, v)
+    PickWhole()
 end
 
 -- The map shown again: the next Cull runs in full.

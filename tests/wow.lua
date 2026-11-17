@@ -325,7 +325,6 @@ for _, name in ipairs({
     "SetIgnoreParentAlpha",
     "SetWordWrap",
     "SetFontObject",
-    "AddMaskTexture",
 }) do
     Region[name] = NoOp
 end
@@ -5750,6 +5749,26 @@ function world:MapArt()
     return files
 end
 
+-- How many of the textures drawn on the world map's canvas with `file` are masked by a
+-- mask with `maskFile`.
+function world:MapArtMasked(file, maskFile)
+    local count = 0
+    for _, texture in ipairs(self.textures) do
+        local frame = texture.owner
+        while frame and frame ~= WorldMapFrame.ScrollContainer.Child do
+            frame = frame.parent
+        end
+        if frame and texture.texture == file and IsDrawn(texture) then
+            for _, mask in ipairs(texture.masks or {}) do
+                if mask.texture == maskFile then
+                    count = count + 1
+                end
+            end
+        end
+    end
+    return count
+end
+
 -- The vertex colour ({ r, g, b }) of the first texture with `file`.
 function world:MapArtTint(file)
     for _, texture in ipairs(self.textures) do
@@ -6779,6 +6798,11 @@ end
 
 function Region:CreateMaskTexture()
     return NewRegion({ owner = self })
+end
+
+function Region:AddMaskTexture(mask)
+    self.masks = self.masks or {}
+    table.insert(self.masks, mask)
 end
 
 -- Wraps nothing: one line.

@@ -3,6 +3,8 @@
 // their open sea, each the cleanest found on any zone's base art (the least ink, all of
 // it that zone's own land, or its own painted sea, inside its frame), made to tile.
 // OpenMap's blank paper is the same idea (MapPaper, from Westfall's map).
+// And where each zone's base art is blank parchment (blankMask): the map lays the land
+// paper over it there, so blank land looks the same in every zone and past them.
 
 import { blank, type Image, sample } from "./images";
 import type { MaskSources } from "./ownership";
@@ -17,8 +19,26 @@ const SEA_BLUE = -50;
 // The share of a patch that must be blank land, or the painted sea (whose colour varies more).
 const COVERAGE = { land: 0.999, sea: 0.97 };
 
-/** A map's whole art, with its explored-area pieces over it when `pieces`. */
-export async function composeArt(world: World, downloads: Downloads, build: string, mapID: number, pieces: boolean) {
+// Blank parchment: the ink around a pixel (its mean over BLANK_RADIUS pixels either way)
+// below BLANK_INK, fading out over BLANK_FADE more; the parchment's own grain is about 12
+// to 16, mountains, coasts, roads and names well above. A mask's side, in pixels (as the shares).
+const BLANK_RADIUS = 6;
+const BLANK_INK = 17;
+const BLANK_FADE = 5;
+const BLANK_SIZE = 256;
+// Its alpha in steps of BLANK_STEP: the grain of the ink has no use in a fade, and costs.
+const BLANK_STEP = 17;
+
+/** A map's whole art, with its explored-area pieces over it when `pieces`; without its base art
+ * (the pieces alone, on transparent) when `base` is false. */
+export async function composeArt(
+    world: World,
+    downloads: Downloads,
+    build: string,
+    mapID: number,
+    pieces: boolean,
+    base = true,
+) {
     const art = world.art(mapID);
     if (!art) return undefined;
     const image = blank(art.width, art.height);
@@ -32,13 +52,19 @@ export async function composeArt(world: World, downloads: Downloads, build: stri
                 if (ix < 0 || ix >= art.width) continue;
                 const s = (ty * tile.width + tx) * 4;
                 const d = (iy * art.width + ix) * 4;
+                // (over what's drawn: without base art, a piece's soft edge keeps its colour)
                 const a = tile.rgba[s + 3] / 255;
-                for (let c = 0; c < 3; c++) image.rgba[d + c] = tile.rgba[s + c] * a + image.rgba[d + c] * (1 - a);
-                image.rgba[d + 3] = Math.max(image.rgba[d + 3], tile.rgba[s + 3]);
+                const under = (image.rgba[d + 3] / 255) * (1 - a);
+                const out = a + under;
+                if (out <= 0) continue;
+                for (let c = 0; c < 3; c++) {
+                    image.rgba[d + c] = Math.round((tile.rgba[s + c] * a + image.rgba[d + c] * under) / out);
+                }
+                image.rgba[d + 3] = Math.round(out * 255);
             }
         }
     };
-    for (let i = 0; i < art.tiles.length; i++) {
+    for (let i = 0; base && i < art.tiles.length; i++) {
         draw(await downloads.texture(art.tiles[i], build), (i % cols) * art.tileWidth, Math.floor(i / cols) * art.tileHeight);
     }
     if (pieces) {
@@ -51,6 +77,22 @@ export async function composeArt(world: World, downloads: Downloads, build: stri
         }
     }
     return image;
+}
+
+// How much each pixel differs from its neighbours (drawn lines, names, hatching).
+function inkOf(art: Image): Float32Array {
+    const { width, height } = art;
+    const ink = new Float32Array(width * height);
+    const lum = (x: number, y: number) => {
+        const p = (y * width + x) * 4;
+        return 0.3 * art.rgba[p] + 0.59 * art.rgba[p + 1] + 0.11 * art.rgba[p + 2];
+    };
+    for (let y = 1; y < height - 1; y++) {
+        for (let x = 1; x < width - 1; x++) {
+            ink[y * width + x] = Math.abs(lum(x + 1, y) - lum(x - 1, y)) + Math.abs(lum(x, y + 1) - lum(x, y - 1));
+        }
+    }
+    return ink;
 }
 
 // A table of sums over the image (one more row and column), for any rectangle's sum at once.
@@ -123,18 +165,12 @@ export async function findPapers(
         const art = await composeArt(world, downloads, build, mapID, false);
         if (!art) continue;
         const { width, height } = art;
-        // ink: how much each pixel differs from its neighbours (drawn lines, names, hatching)
-        const ink = new Float32Array(width * height);
+        const ink = inkOf(art);
         const isLand = new Float32Array(width * height);
         const isSea = new Float32Array(width * height);
-        const lum = (x: number, y: number) => {
-            const p = (y * width + x) * 4;
-            return 0.3 * art.rgba[p] + 0.59 * art.rgba[p + 1] + 0.11 * art.rgba[p + 2];
-        };
         for (let y = 1; y < height - 1; y++) {
             for (let x = 1; x < width - 1; x++) {
                 const i = y * width + x;
-                ink[i] = Math.abs(lum(x + 1, y) - lum(x - 1, y)) + Math.abs(lum(x, y + 1) - lum(x, y - 1));
                 const mx = (x + 0.5) / width;
                 const my = (y + 0.5) / height;
                 const inFrame = sample(edge, mx * edge.width, my * edge.height, 3) > 240;
@@ -177,4 +213,40 @@ export async function findPapers(
         };
     };
     return { land: paper(best.land, "land"), sea: paper(best.sea, "sea") };
+}
+
+/** Where the zone's base art is blank parchment (alpha; white), over its whole map, BLANK_SIZE
+ * pixels a side: little ink around, and not the painted sea's grey. */
+export async function blankMask(world: World, downloads: Downloads, build: string, mapID: number): Promise<Image> {
+    const art = await composeArt(world, downloads, build, mapID, false);
+    if (!art) throw new Error(`no art for ${world.name(mapID)} (${mapID})`);
+    const { width, height } = art;
+    const sums = integral(inkOf(art), width, height);
+    const blankness = new Float32Array(width * height);
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const x0 = Math.max(0, x - BLANK_RADIUS);
+            const y0 = Math.max(0, y - BLANK_RADIUS);
+            const x1 = Math.min(width, x + BLANK_RADIUS + 1);
+            const y1 = Math.min(height, y + BLANK_RADIUS + 1);
+            const w = width + 1;
+            const sum = sums[y1 * w + x1] - sums[y0 * w + x1] - sums[y1 * w + x0] + sums[y0 * w + x0];
+            const mean = sum / ((x1 - x0) * (y1 - y0));
+            const p = (y * width + x) * 4;
+            const sea = art.rgba[p + 2] - art.rgba[p] > SEA_BLUE;
+            blankness[y * width + x] = sea ? 0 : Math.min(1, Math.max(0, (BLANK_INK + BLANK_FADE - mean) / BLANK_FADE));
+        }
+    }
+    const field: Image = blank(width, height);
+    for (let i = 0; i < width * height; i++) field.rgba[i * 4 + 3] = Math.round(blankness[i] * 255);
+    const mask = blank(BLANK_SIZE, BLANK_SIZE);
+    for (let y = 0; y < BLANK_SIZE; y++) {
+        for (let x = 0; x < BLANK_SIZE; x++) {
+            const p = (y * BLANK_SIZE + x) * 4;
+            mask.rgba[p] = mask.rgba[p + 1] = mask.rgba[p + 2] = 255;
+            const alpha = sample(field, ((x + 0.5) / BLANK_SIZE) * width, ((y + 0.5) / BLANK_SIZE) * height, 3);
+            mask.rgba[p + 3] = Math.round(alpha / BLANK_STEP) * BLANK_STEP;
+        }
+    }
+    return mask;
 }
