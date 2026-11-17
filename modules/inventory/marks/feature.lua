@@ -12,7 +12,8 @@
 --              glow while the bank is open ("bankGlow");
 --   "mail":    Mark for mail, asking who to send the item to (shown in its
 --              tooltip), the mail icon in bags and bank; marked bag items glow
---              while the mailbox is open ("mailGlow").
+--              while the mailbox is open ("mailGlow") or while trading with
+--              their recipient ("mailTradeGlow").
 -- Junk excludes the other marks; auction house, bank and mail combine, the
 -- item showing the icon of its next stop (the window open for one of its
 -- marks, otherwise bank, then mail, then auction house; no bank icon in the
@@ -57,6 +58,7 @@ local Marks = ns:RegisterFeature("inventory", "marks", {
         { key = "bankGlow", type = "toggle", default = true, requires = { bank = true } },
         { key = "mail", type = "toggle", default = true },
         { key = "mailGlow", type = "toggle", default = true, requires = { mail = true } },
+        { key = "mailTradeGlow", type = "toggle", default = true, requires = { mail = true } },
         { key = "notes", type = "toggle", default = true },
         { key = "wowhead", type = "toggle", default = false },
         {
@@ -73,6 +75,7 @@ local Marks = ns:RegisterFeature("inventory", "marks", {
             auctionGlow = true,
             bankGlow = true,
             mailGlow = true,
+            mailTradeGlow = true,
             notes = true,
             wowhead = false,
         },
@@ -82,6 +85,7 @@ local Marks = ns:RegisterFeature("inventory", "marks", {
             auctionGlow = true,
             bankGlow = true,
             mailGlow = true,
+            mailTradeGlow = true,
             notes = true,
             wowhead = true,
         },
@@ -130,7 +134,7 @@ end
 
 function Marks:OnSettingChanged(key)
     self:SyncParts()
-    if key == "junkCoin" or key == "auctionGlow" or key == "bankGlow" or key == "mailGlow" then
+    if key == "junkCoin" or key:find("Glow$") then
         ns:RefreshItemButtons()
     end
 end

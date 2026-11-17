@@ -14,7 +14,8 @@
 -- While the auction house is open, bag items showing the auction house icon
 -- also glow ("auctionGlow"); while the bank is open, those showing the bank
 -- icon do ("bankGlow"); while the mailbox is open, those showing the mail icon
--- do ("mailGlow"). The glow is Blizzard's new item glow and pulse
+-- do ("mailGlow"), and while trading with their recipient ("mailTradeGlow").
+-- The glow is Blizzard's new item glow and pulse
 -- (NewItemTexture and newitemglowAnim, ContainerFrameItemButtonTemplate) in
 -- a color of their own.
 
@@ -153,23 +154,54 @@ local function IsMailboxOpen()
     return MailFrame:IsShown()
 end
 
+-- `name` as "Name-Realm" (on `realm`, by default the player's, when it names
+-- none), without spaces and lowercased: how a typed recipient and a unit's
+-- name compare.
+local function ToFullName(name, realm)
+    if not name:find("-", 1, true) then
+        name = name .. "-" .. (realm or GetNormalizedRealmName())
+    end
+    return (name:gsub("%s", "")):lower()
+end
+
+-- Whether the trade window is open with the player the item is mailed to.
+-- TradeFrame shows before addons get TRADE_SHOW; the trade partner is the
+-- "NPC" unit, as for Blizzard's TradeFrame.
+local function IsTradingWithRecipient(itemID)
+    local recipient = TradeFrame:IsShown() and Marks:GetRecipient(itemID)
+    if not recipient then
+        return false
+    end
+    local name, realm = UnitName("NPC")
+    if not name or issecretvalue(name) or issecretvalue(realm) then
+        return false
+    end
+    return ToFullName(name, realm ~= "" and realm or nil) == ToFullName(recipient)
+end
+
 -- The marks that combine, in the order their icons win while none of their
--- windows is open, each with its window.
+-- windows is open, each with whether its window is open for an item ID.
 local NEXT_STOPS = {
     { destination = "bank", IsOpen = IsBankOpen },
-    { destination = "mail", IsOpen = IsMailboxOpen },
+    {
+        destination = "mail",
+        IsOpen = function(itemID)
+            return IsMailboxOpen() or IsTradingWithRecipient(itemID)
+        end,
+    },
     { destination = "auction", IsOpen = IsAuctionHouseOpen },
 }
 
 -- An item marked for several destinations shows the icon of its next stop: the
--- one whose window is open, otherwise the first in NEXT_STOPS. (In the bank,
--- the bank icon never shows: bagsOnly.)
+-- one whose window is open (for mail, a trade with its recipient counts),
+-- otherwise the first in NEXT_STOPS. (In the bank, the bank icon never shows:
+-- bagsOnly.)
 local function GetNextStop(itemID, inBag)
     local first
     for _, stop in ipairs(NEXT_STOPS) do
         local destination = stop.destination
         if (inBag or not MARKS[destination].bagsOnly) and Marks:IsMarked(itemID, destination) then
-            if stop.IsOpen() then
+            if stop.IsOpen(itemID) then
                 return destination
             end
             first = first or destination
@@ -193,23 +225,21 @@ local function ShowsIcon(destination, itemLocation, guid)
     return GetNextStop(C_Item.GetItemID(itemLocation), inBag) == destination
 end
 
--- Per destination that glows:
---   setting   the toggle that turns its glow on
---   IsOpen()  whether its window is open
+-- Per destination that glows, when its items glow:
+--   setting         the toggle that turns that glow on
+--   IsOpen(itemID)  whether its window is open for the item
 -- Only bag items glow: bank items can't be posted, and bank marks show in the
 -- bags only.
 local GLOWS = {
     auction = {
-        setting = "auctionGlow",
-        IsOpen = IsAuctionHouseOpen,
+        { setting = "auctionGlow", IsOpen = IsAuctionHouseOpen },
     },
     bank = {
-        setting = "bankGlow",
-        IsOpen = IsBankOpen,
+        { setting = "bankGlow", IsOpen = IsBankOpen },
     },
     mail = {
-        setting = "mailGlow",
-        IsOpen = IsMailboxOpen,
+        { setting = "mailGlow", IsOpen = IsMailboxOpen },
+        { setting = "mailTradeGlow", IsOpen = IsTradingWithRecipient },
     },
 }
 
@@ -257,11 +287,16 @@ local function ShowGlow(destination, button, shown)
 end
 
 local function ShowsGlow(destination, itemLocation, guid)
-    local glow = GLOWS[destination]
-    return Marks:GetSetting(glow.setting)
-        and glow.IsOpen()
-        and ns.Containers:IsBag((itemLocation:GetBagAndSlot()))
-        and ShowsIcon(destination, itemLocation, guid)
+    if not ns.Containers:IsBag((itemLocation:GetBagAndSlot())) or not ShowsIcon(destination, itemLocation, guid) then
+        return false
+    end
+    local itemID = C_Item.GetItemID(itemLocation)
+    for _, glow in ipairs(GLOWS[destination]) do
+        if Marks:GetSetting(glow.setting) and glow.IsOpen(itemID) then
+            return true
+        end
+    end
+    return false
 end
 
 function Buttons:HideAll(destination)

@@ -194,6 +194,48 @@ test("mail: turning the mark off hides its dialog, icon and tooltip line", funct
     equal(RecipientLine(world, "G2"), world.L["inventory.marks.mailRecipient"]:format("Alt"), "recipient kept")
 end)
 
+test("mail: marked items glow while trading with their recipient", function(world)
+    Toggle(world, 1, "mail") -- for "Alt"
+    Toggle(world, 2, "bank")
+
+    world:OpenTrade("Someone")
+    expect(not world:Glow(1), "no glow trading with someone else")
+    world:CloseTrade()
+
+    world:OpenTrade("alt")
+    expect(world:Glow(1), "glows trading with the recipient, whatever the case")
+    expect(not world:Glow(2), "items marked for elsewhere don't")
+    world:CloseTrade()
+    expect(not world:Glow(1), "gone once the trade closes")
+
+    world:OpenTrade("Alt", "OtherRealm")
+    expect(not world:Glow(1), "a namesake from another realm doesn't count")
+    world:CloseTrade()
+
+    Toggle(world, 1, "mail")
+    Entry(world, 1, "mail").select()
+    world:TypeInDialog("Alt-Other Realm")
+    world:ClickDialogButton(1)
+    world:OpenTrade("Alt", "OtherRealm")
+    expect(world:Glow(1), "a recipient with a realm matches it, spaces aside")
+    world:CloseTrade()
+end)
+
+test("mail: the trade glow follows its setting, and shows the mail icon", function(world)
+    Toggle(world, 1, "mail")
+    Toggle(world, 1, "bank")
+    expect(world:BankMark(1), "bank icon first")
+
+    world:OpenTrade("Alt")
+    expect(world:MailMark(1) and not world:BankMark(1), "the mail icon while trading with the recipient")
+    expect(world:Glow(1), "and its glow")
+
+    world:Setting("inventory.marks.mailTradeGlow"):SetValue(false)
+    expect(not world:Glow(1), "its toggle hides the glow")
+    expect(world:MailMark(1), "the icon stays")
+    world:CloseTrade()
+end)
+
 test("an item marked for auction house, bank and mail shows its next stop", function(world)
     Toggle(world, 1, "auction")
     Toggle(world, 1, "mail")

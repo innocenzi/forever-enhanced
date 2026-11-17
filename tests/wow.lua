@@ -1980,7 +1980,15 @@ function UnitGUID(unit)
     return guid
 end
 
-function UnitName()
+-- The player, or the trade partner ("NPC": name, and realm when not the player's).
+function UnitName(unit)
+    if unit == "NPC" then
+        local partner = world.tradePartner
+        if partner then
+            return partner.name, partner.realm
+        end
+        return nil
+    end
     return world.player.name
 end
 
@@ -5205,6 +5213,20 @@ end
 function world:CloseMailbox()
     MailFrame:Hide()
     self:Fire("MAIL_CLOSED")
+end
+
+-- Trading with `name` (of `realm`, nil for the player's): like the mailbox,
+-- Blizzard's handler shows TradeFrame before addons see TRADE_SHOW.
+function world:OpenTrade(name, realm)
+    self.tradePartner = { name = name, realm = realm }
+    TradeFrame:Show()
+    self:Fire("TRADE_SHOW")
+end
+
+function world:CloseTrade()
+    self.tradePartner = nil
+    TradeFrame:Hide()
+    self:Fire("TRADE_CLOSED")
 end
 
 -- The player types in the bags' search box.
