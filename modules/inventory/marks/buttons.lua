@@ -2,8 +2,8 @@
 -- the destination's icon on our own frame laid over the button, top-left where
 -- Blizzard draws its junk coin, and adding the mark's entry to the item menu;
 -- plus Alt Left Click, when "altClick" picks a mark. Icons never stack: junk
--- excludes the other marks, and an item marked for both the auction house and
--- the bank shows the icon of its next stop (IsNextStop).
+-- excludes the other marks, and an item marked for several of auction house,
+-- bank and mail shows the icon of its next stop (GetNextStop).
 --
 -- The junk coin is Blizzard's, on the items Sell All Junk Items would sell
 -- (core/junk.lua: not locked or in an excluded bag). Blizzard shows its coin on
@@ -13,7 +13,8 @@
 --
 -- While the auction house is open, bag items showing the auction house icon
 -- also glow ("auctionGlow"); while the bank is open, those showing the bank
--- icon do ("bankGlow"). The glow is Blizzard's new item glow and pulse
+-- icon do ("bankGlow"); while the mailbox is open, those showing the mail icon
+-- do ("mailGlow"). The glow is Blizzard's new item glow and pulse
 -- (NewItemTexture and newitemglowAnim, ContainerFrameItemButtonTemplate) in
 -- a color of their own.
 
@@ -49,6 +50,7 @@ end
 --   ShowsIcon(itemLocation, guid)   replaces the default rule (marked, not locked)
 --   CanMark(info)                   whether the item can take the mark
 --   IsShownMarked(info)             the menu checkbox shows it marked anyway
+--   Mark(info, itemLocation)        replaces marking an unmarked item
 local MARKS = {
     -- Blizzard's JunkIcon (ContainerFrameItemButtonTemplate).
     junk = {
@@ -88,6 +90,23 @@ local MARKS = {
             return not IsPoor(info)
         end,
     },
+    -- The minimap's mailbox tracking icon, a letter.
+    mail = {
+        atlas = "mailbox",
+        width = 16,
+        height = 16,
+        offsetX = 1,
+        offsetY = -1,
+        menuText = "inventory.marks.markForMail",
+        -- Poor items are junk; bound items can't be mailed.
+        CanMark = function(info)
+            return not IsPoor(info) and not info.isBound
+        end,
+        -- Asks who it goes to first.
+        Mark = function(_, itemLocation)
+            Marks.Mail:AskRecipient(itemLocation)
+        end,
+    },
 }
 
 -- Per destination, per Blizzard item button: our icon holder frame.
@@ -124,12 +143,39 @@ local function IsAuctionHouseOpen()
     return AuctionHouseFrame ~= nil and AuctionHouseFrame:IsShown()
 end
 
--- A bag item marked for both the auction house and the bank shows the icon of
--- its next stop: the auction house while it's open, the bank otherwise. (In the
--- bank, only the auction house icon can show: bagsOnly.)
-local function IsNextStop(destination, itemID)
-    local other = destination == "auction" and "bank" or "auction"
-    return not Marks:IsMarked(itemID, other) or (destination == "auction") == IsAuctionHouseOpen()
+-- BankFrame shows before addons get BANKFRAME_OPENED; the saved bank is a
+-- frame of our own, so it doesn't count.
+local function IsBankOpen()
+    return BankFrame:IsShown()
+end
+
+local function IsMailboxOpen()
+    return MailFrame:IsShown()
+end
+
+-- The marks that combine, in the order their icons win while none of their
+-- windows is open, each with its window.
+local NEXT_STOPS = {
+    { destination = "bank", IsOpen = IsBankOpen },
+    { destination = "mail", IsOpen = IsMailboxOpen },
+    { destination = "auction", IsOpen = IsAuctionHouseOpen },
+}
+
+-- An item marked for several destinations shows the icon of its next stop: the
+-- one whose window is open, otherwise the first in NEXT_STOPS. (In the bank,
+-- the bank icon never shows: bagsOnly.)
+local function GetNextStop(itemID, inBag)
+    local first
+    for _, stop in ipairs(NEXT_STOPS) do
+        local destination = stop.destination
+        if (inBag or not MARKS[destination].bagsOnly) and Marks:IsMarked(itemID, destination) then
+            if stop.IsOpen() then
+                return destination
+            end
+            first = first or destination
+        end
+    end
+    return first
 end
 
 local function ShowsIcon(destination, itemLocation, guid)
@@ -144,8 +190,7 @@ local function ShowsIcon(destination, itemLocation, guid)
     if Locking:IsGUIDLocked(guid) or (mark.bagsOnly and not inBag) then
         return false
     end
-    local itemID = C_Item.GetItemID(itemLocation)
-    return Marks:IsMarked(itemID, destination) and (not inBag or IsNextStop(destination, itemID))
+    return GetNextStop(C_Item.GetItemID(itemLocation), inBag) == destination
 end
 
 -- Per destination that glows:
@@ -158,13 +203,13 @@ local GLOWS = {
         setting = "auctionGlow",
         IsOpen = IsAuctionHouseOpen,
     },
-    -- BankFrame shows before addons get BANKFRAME_OPENED; the saved bank is a
-    -- frame of our own, so it doesn't count.
     bank = {
         setting = "bankGlow",
-        IsOpen = function()
-            return BankFrame:IsShown()
-        end,
+        IsOpen = IsBankOpen,
+    },
+    mail = {
+        setting = "mailGlow",
+        IsOpen = IsMailboxOpen,
     },
 }
 
@@ -232,6 +277,16 @@ local function GetItemInfo(itemLocation)
     return C_Container.GetContainerItemInfo(itemLocation:GetBagAndSlot())
 end
 
+-- Marks the item for `destination`, or unmarks it.
+local function Toggle(destination, info, itemLocation)
+    local mark = MARKS[destination]
+    if mark.Mark and not Marks:IsMarked(info.itemID, destination) then
+        mark.Mark(info, itemLocation)
+    else
+        Marks:ToggleDestination(info.itemID, destination)
+    end
+end
+
 local function AddMenuEntry(destination, rootDescription, itemLocation)
     local info = GetItemInfo(itemLocation)
     if not info then
@@ -241,7 +296,7 @@ local function AddMenuEntry(destination, rootDescription, itemLocation)
     local checkbox = rootDescription:CreateCheckbox(L[mark.menuText], function()
         return (mark.IsShownMarked and mark.IsShownMarked(info)) or Marks:IsMarked(info.itemID, destination)
     end, function()
-        Marks:ToggleDestination(info.itemID, destination)
+        Toggle(destination, info, itemLocation)
     end)
     checkbox:SetEnabled(mark.CanMark(info))
 end
@@ -259,7 +314,7 @@ end
 local function OnAltClick(destination, itemLocation)
     local info = Marks:GetAltClickDestination() == destination and GetItemInfo(itemLocation)
     if info and MARKS[destination].CanMark(info) then
-        Marks:ToggleDestination(info.itemID, destination)
+        Toggle(destination, info, itemLocation)
     end
 end
 

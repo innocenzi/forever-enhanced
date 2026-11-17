@@ -1,11 +1,12 @@
--- Item marks: the auction house and bank marks, their menu entries and icons;
--- junk excludes the other marks, auction house and bank combine.
+-- Item marks: the auction house, bank and mail marks, their menu entries and icons;
+-- junk excludes the other marks, auction house, bank and mail combine.
 -- The fake bag starts as: G1 G2 - GJUNK (GJUNK is poor quality); items are their own IDs.
 
 local TEXTS = {
     auction = "inventory.marks.markForAuction",
     bank = "inventory.marks.markForBank",
     junk = "inventory.marks.markAsJunk",
+    mail = "inventory.marks.markForMail",
 }
 
 local function Entry(world, slot, mark)
@@ -13,8 +14,20 @@ local function Entry(world, slot, mark)
     return world:MenuEntry(menu, world.L[TEXTS[mark]])
 end
 
+local MAIL_DIALOG = "FOREVER_ENHANCED_MAIL_RECIPIENT"
+
+-- Marking for mail asks who the item goes to: answers "Alt".
+local function AnswerRecipient(world)
+    local dialog = world:Dialog()
+    if dialog and dialog.which == MAIL_DIALOG then
+        world:TypeInDialog("Alt")
+        world:ClickDialogButton(1)
+    end
+end
+
 local function Toggle(world, slot, mark)
     assert(Entry(world, slot, mark), mark .. " entry").select()
+    AnswerRecipient(world)
 end
 
 local function IsMarked(world, slot, mark)
@@ -25,15 +38,16 @@ local function Icon(world, slot)
     local icon
     for _, texture in ipairs(world.textures) do
         local atlas = texture.atlas
-        if (atlas == "auctioneer" or atlas == "banker") and texture.owner.parent == world.buttons[slot] then
+        local isMark = atlas == "auctioneer" or atlas == "banker" or atlas == "mailbox"
+        if isMark and texture.owner.parent == world.buttons[slot] then
             icon = texture
         end
     end
     return icon
 end
 
-for _, mark in ipairs({ "auction", "bank" }) do
-    local Shown = mark == "auction" and "AuctionMark" or "BankMark"
+for _, mark in ipairs({ "auction", "bank", "mail" }) do
+    local Shown = ({ auction = "AuctionMark", bank = "BankMark", mail = "MailMark" })[mark]
 
     test(mark .. ": marks every copy of an item", function(world)
         world.itemIDs.G1, world.itemIDs.G2 = "CLOTH", "CLOTH"
@@ -44,6 +58,7 @@ for _, mark in ipairs({ "auction", "bank" }) do
         expect(not world[Shown](world, 1), "no icon yet")
 
         entry.select()
+        AnswerRecipient(world)
         expect(IsMarked(world, 2, mark), "the other copy is marked")
         expect(world[Shown](world, 1) and world[Shown](world, 2), "icon on both copies")
         expect(not world[Shown](world, 4), "no icon on other items")
@@ -84,20 +99,119 @@ test("poor items can't be marked, bound items only for the bank", function(world
     expect(not Entry(world, 4, "auction").enabled, "poor: no auction house")
     expect(not Entry(world, 4, "bank").enabled, "poor: no bank")
 
+    expect(not Entry(world, 4, "mail").enabled, "poor: no mail")
+
     world.bound.G1 = true
     expect(not Entry(world, 1, "auction").enabled, "bound: no auction house")
+    expect(not Entry(world, 1, "mail").enabled, "bound: no mail")
     expect(Entry(world, 1, "bank").enabled, "bound: bank")
 end)
 
 local function Marked(world, slot)
     local marked = {}
-    for _, mark in ipairs({ "junk", "auction", "bank" }) do
+    for _, mark in ipairs({ "junk", "auction", "bank", "mail" }) do
         if IsMarked(world, slot, mark) then
             table.insert(marked, mark)
         end
     end
     return table.concat(marked, " ")
 end
+
+local function RecipientLine(world, itemID)
+    local prefix = world.L["inventory.marks.mailRecipient"]:gsub("%%s.*", "")
+    for _, line in ipairs(world:ItemTooltip({ guid = itemID, id = itemID })) do
+        if line:sub(1, #prefix) == prefix then
+            return line
+        end
+    end
+end
+
+test("mail: marking asks who the item goes to, shown in its tooltip", function(world)
+    world.itemIDs.G1, world.itemIDs.G2 = "CLOTH", "CLOTH"
+    Entry(world, 1, "mail").select()
+    local dialog = assert(world:Dialog(), "dialog shown")
+    equal(dialog.which, MAIL_DIALOG, "the recipient dialog")
+    equal(
+        dialog.text,
+        world.L["inventory.marks.mailPrompt"]:format(C_Item.GetItemLink(ItemLocation:CreateFromBagAndSlot(0, 1))),
+        "names the item"
+    )
+    equal(dialog:GetEditBox():GetText(), "", "empty the first time")
+    equal(dialog.info.autoCompleteSource, C_AutoComplete.GetAutoCompleteResults, "completes names")
+    equal(dialog.info.autoCompleteArgs[1], AUTOCOMPLETE_LIST.MAIL.include, "like the mail window")
+    expect(not IsMarked(world, 1, "mail"), "not marked before answering")
+
+    world:TypeInDialog("  Bank-Alt  ")
+    world:PressEnterInDialog()
+    expect(IsMarked(world, 1, "mail") and world:MailMark(2), "marked once answered")
+    equal(RecipientLine(world, "CLOTH"), world.L["inventory.marks.mailRecipient"]:format("Bank-Alt"), "tooltip line")
+    equal(
+        world.env.ForeverEnhancedCharacterDB.inventory.marks.recipients.CLOTH,
+        "Bank-Alt",
+        "recipient saved per character"
+    )
+
+    Entry(world, 2, "mail").select()
+    expect(not world:Dialog(), "unmarking asks nothing")
+    expect(not IsMarked(world, 1, "mail"), "unmarked")
+    equal(RecipientLine(world, "CLOTH"), nil, "no tooltip line")
+    equal(world.env.ForeverEnhancedCharacterDB.inventory.marks.recipients.CLOTH, nil, "recipient forgotten")
+
+    Entry(world, 2, "mail").select()
+    equal(world:Dialog():GetEditBox():GetText(), "Bank-Alt", "pre-filled with the last recipient")
+end)
+
+test("mail: Cancel or a blank name leaves the item unmarked", function(world)
+    Entry(world, 1, "mail").select()
+    world:TypeInDialog("Alt")
+    world:ClickDialogButton(2)
+    expect(not IsMarked(world, 1, "mail"), "cancelled")
+
+    Entry(world, 1, "mail").select()
+    world:TypeInDialog("   ")
+    world:ClickDialogButton(1)
+    expect(not IsMarked(world, 1, "mail"), "blank")
+end)
+
+test("mail: junk replaces the mark and forgets the recipient", function(world)
+    Toggle(world, 1, "mail")
+    Toggle(world, 1, "junk")
+    equal(Marked(world, 1), "junk", "junk replaces mail")
+    equal(RecipientLine(world, "G1"), nil, "no tooltip line")
+    equal(world.env.ForeverEnhancedCharacterDB.inventory.marks.recipients.G1, nil, "recipient forgotten")
+end)
+
+test("mail: turning the mark off hides its dialog, icon and tooltip line", function(world)
+    Toggle(world, 2, "mail")
+    Entry(world, 1, "mail").select()
+    world:Setting("inventory.marks.mail"):SetValue(false)
+    expect(not world:Dialog(), "dialog hidden")
+    expect(not world:MailMark(2), "icon hidden")
+    equal(RecipientLine(world, "G2"), nil, "no tooltip line")
+
+    world:Setting("inventory.marks.mail"):SetValue(true)
+    expect(world:MailMark(2), "icon back")
+    equal(RecipientLine(world, "G2"), world.L["inventory.marks.mailRecipient"]:format("Alt"), "recipient kept")
+end)
+
+test("an item marked for auction house, bank and mail shows its next stop", function(world)
+    Toggle(world, 1, "auction")
+    Toggle(world, 1, "mail")
+    expect(world:MailMark(1) and not world:AuctionMark(1), "bags: mail before auction house")
+
+    Toggle(world, 1, "bank")
+    expect(world:BankMark(1) and not world:MailMark(1), "bags: bank first")
+
+    world:OpenMailbox()
+    expect(world:MailMark(1) and not world:BankMark(1), "mailbox open: its icon")
+    expect(world:Glow(1), "and its glow")
+    world:CloseMailbox()
+    expect(world:BankMark(1) and not world:MailMark(1), "the bank icon once closed")
+
+    world:OpenAuctionHouse()
+    expect(world:AuctionMark(1) and not world:MailMark(1), "auction house open: its icon")
+    world:CloseAuctionHouse()
+end)
 
 test("junk excludes the other marks, auction house and bank combine", function(world)
     world:Setting("inventory.marks.junkCoin"):SetValue("always")
@@ -181,6 +295,7 @@ local GLOWS = {
         close = "CloseAuctionHouse",
     },
     { mark = "bank", other = "auction", name = "the bank", open = "OpenBank", close = "CloseBank" },
+    { mark = "mail", other = "auction", name = "the mailbox", open = "OpenMailbox", close = "CloseMailbox" },
 }
 
 for _, glow in ipairs(GLOWS) do
@@ -234,10 +349,11 @@ for _, glow in ipairs(GLOWS) do
     end)
 end
 
-for _, mark in ipairs({ "junk", "auction", "bank" }) do
+for _, mark in ipairs({ "junk", "auction", "bank", "mail" }) do
     test("Alt Left Click can mark for " .. mark .. " instead of locking", function(world)
         world:Setting("inventory.marks.altClick"):SetValue(mark)
         world:AltClick(1)
+        AnswerRecipient(world)
         expect(IsMarked(world, 1, mark), "marked")
         expect(not world.ns:GetFeature("inventory", "locking"):IsGUIDLocked("G1"), "not locked")
 

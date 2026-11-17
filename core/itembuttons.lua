@@ -87,8 +87,8 @@ local sources = {
 --                                       entries of the Alt Right Click item menu, and
 --                                       where they go in it (required with them): lower
 --                                       first. Spaced by tens, entries that go together
---                                       under one ten: 10 lock, 21-23 marks (junk,
---                                       auction house, bank), 30 Wowhead link, 40 note
+--                                       under one ten: 10 lock, 21-24 marks (junk,
+--                                       auction house, bank, mail), 30 Wowhead link, 40 note
 local handlers = {}
 -- The entries of handlers adding menu entries, by menuOrder.
 local menuHandlers = {}

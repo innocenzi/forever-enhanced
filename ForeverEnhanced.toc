@@ -64,6 +64,7 @@ modules\inventory\marks\feature.lua
 modules\inventory\marks\locales.lua
 modules\inventory\marks\store.lua
 modules\inventory\marks\junk.lua
+modules\inventory\marks\mail.lua
 modules\inventory\marks\buttons.lua
 modules\inventory\marks\notes.lua
 modules\inventory\marks\wowhead.lua

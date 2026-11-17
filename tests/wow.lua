@@ -3914,6 +3914,14 @@ function strtrim(text)
     return (text:gsub("^%s+", ""):gsub("%s+$", ""))
 end
 
+-- Name completion for edit boxes (Blizzard_AutoComplete): dialogs only declare it.
+C_AutoComplete = {
+    GetAutoCompleteResults = function()
+        return {}
+    end,
+}
+AUTOCOMPLETE_LIST = { MAIL = { include = 1, exclude = 0 } }
+
 -- Named dialogs (StaticPopupDialogs): the last one shown is world.dialog. Its
 -- edit box, when it has one, is a child EditBox; OnShow runs once shown, like the client.
 StaticPopupDialogs = {}
@@ -4371,7 +4379,7 @@ function world:AuctionMark(slot)
     return holder ~= nil and holder.shown
 end
 
--- Whether a bag button shows one of our mark glows (auction house, bank), pulsing.
+-- Whether a bag button shows one of our mark glows (auction house, bank, mail), pulsing.
 function world:Glow(slot)
     for _, texture in ipairs(self.textures) do
         local owner = texture.owner
@@ -4396,6 +4404,12 @@ end
 -- Whether a bag button shows our bank mark.
 function world:BankMark(slot)
     local holder = OverlayWith(slot, { banker = true })
+    return holder ~= nil and holder.shown
+end
+
+-- Whether a bag button shows our mail mark.
+function world:MailMark(slot)
+    local holder = OverlayWith(slot, { mailbox = true })
     return holder ~= nil and holder.shown
 end
 
@@ -5174,6 +5188,17 @@ function world:CloseBank()
     BankFrame:Hide()
     self:CloseBags()
     self:Fire("BANKFRAME_CLOSED")
+end
+
+-- Blizzard's handler shows MailFrame before addons see MAIL_SHOW.
+function world:OpenMailbox()
+    MailFrame:Show()
+    self:Fire("MAIL_SHOW")
+end
+
+function world:CloseMailbox()
+    MailFrame:Hide()
+    self:Fire("MAIL_CLOSED")
 end
 
 -- The player types in the bags' search box.

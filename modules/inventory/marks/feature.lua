@@ -9,10 +9,14 @@
 --              ("auctionGlow");
 --   "bank":    Mark for bank, the banker's icon in the bags; Deposit moves them
 --              to the bank (bank feature, "marked" transfer); marked bag items
---              glow while the bank is open ("bankGlow").
--- Junk excludes the other marks; auction house and bank combine, the item
--- showing the icon of its next stop (bank in the bags, auction house in the
--- bank or while it's open). Locked items show no icon. "altClick" picks what
+--              glow while the bank is open ("bankGlow");
+--   "mail":    Mark for mail, asking who to send the item to (shown in its
+--              tooltip), the mail icon in bags and bank; marked bag items glow
+--              while the mailbox is open ("mailGlow").
+-- Junk excludes the other marks; auction house, bank and mail combine, the
+-- item showing the icon of its next stop (the window open for one of its
+-- marks, otherwise bank, then mail, then auction house; no bank icon in the
+-- bank). Locked items show no icon. "altClick" picks what
 -- Alt Left Click does: lock the item (Item locking, by default) or one of the
 -- marks.
 -- Two more parts, each behind its toggle:
@@ -25,6 +29,7 @@
 --   feature.lua  registration, schema and lifecycle (this file)
 --   locales.lua  strings
 --   store.lua    each item ID's destinations and public API
+--   mail.lua     mail: recipient dialog and tooltip line
 --   junk.lua     adds items marked as junk to the junk Sell All Junk sells
 --   buttons.lua  icons, Alt Left Click and the marks' item menu entries
 --   notes.lua    notes: store, dialog, menu entry and tooltip line
@@ -33,7 +38,7 @@
 local _, ns = ...
 
 -- Destinations, in menu order; each is a part behind the toggle of the same key.
-local DESTINATIONS = { "junk", "auction", "bank" }
+local DESTINATIONS = { "junk", "auction", "bank", "mail" }
 
 local Marks = ns:RegisterFeature("inventory", "marks", {
     order = 4,
@@ -50,9 +55,16 @@ local Marks = ns:RegisterFeature("inventory", "marks", {
         { key = "auctionGlow", type = "toggle", default = true, requires = { auction = true } },
         { key = "bank", type = "toggle", default = true },
         { key = "bankGlow", type = "toggle", default = true, requires = { bank = true } },
+        { key = "mail", type = "toggle", default = true },
+        { key = "mailGlow", type = "toggle", default = true, requires = { mail = true } },
         { key = "notes", type = "toggle", default = true },
         { key = "wowhead", type = "toggle", default = false },
-        { key = "altClick", type = "dropdown", default = "lock", options = { "lock", "junk", "auction", "bank" } },
+        {
+            key = "altClick",
+            type = "dropdown",
+            default = "lock",
+            options = { "lock", "junk", "auction", "bank", "mail" },
+        },
     },
     presets = {
         minimal = {
@@ -60,6 +72,7 @@ local Marks = ns:RegisterFeature("inventory", "marks", {
             junkCoin = "merchant",
             auctionGlow = true,
             bankGlow = true,
+            mailGlow = true,
             notes = true,
             wowhead = false,
         },
@@ -68,6 +81,7 @@ local Marks = ns:RegisterFeature("inventory", "marks", {
             junkCoin = "always",
             auctionGlow = true,
             bankGlow = true,
+            mailGlow = true,
             notes = true,
             wowhead = true,
         },
@@ -86,6 +100,9 @@ local function GetPart(destination)
                 ns:RefreshJunk()
             end,
             Disable = function()
+                if destination == "mail" then
+                    Marks.Mail:HideDialog()
+                end
                 Marks.Buttons:HideAll(destination)
                 ns:RefreshItemButtons()
                 ns:RefreshJunk()
@@ -113,7 +130,7 @@ end
 
 function Marks:OnSettingChanged(key)
     self:SyncParts()
-    if key == "junkCoin" or key == "auctionGlow" or key == "bankGlow" then
+    if key == "junkCoin" or key == "auctionGlow" or key == "bankGlow" or key == "mailGlow" then
         ns:RefreshItemButtons()
     end
 end
