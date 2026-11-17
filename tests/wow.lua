@@ -1149,6 +1149,12 @@ function Initializer:GetParentInitializer()
     return self.parentInitializer
 end
 
+-- Like Blizzard's: one 15 px step when the parent is on the page, at any depth
+-- (rows are always shown on their own page here).
+function Initializer:GetIndent()
+    return self:GetParentInitializer() and 15 or 0
+end
+
 function Initializer:AddModifyPredicate(predicate)
     self.predicate = predicate
 end

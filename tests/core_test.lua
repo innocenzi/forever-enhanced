@@ -76,6 +76,8 @@ test("a setting that requires another sits under it and greys out", function(wor
     local range = QuestsInitializer(world, "range")
     equal(range:GetParentInitializer(), QuestsInitializer(world, "scope"), "parent")
     equal(range.parentInitializer, nil, "parent field the settings search reads left untouched")
+    equal(QuestsInitializer(world, "scope"):GetIndent(), 15, "settings one step in")
+    equal(range:GetIndent(), 30, "nested settings one step further")
     expect(not range.predicate(), "greyed out unless the scope is 'range'")
     world:Setting("quests.tracking.scope"):SetValue("range")
     expect(range.predicate(), "editable with the scope set to 'range'")

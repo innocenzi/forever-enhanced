@@ -16,8 +16,9 @@
 --   <module>.<feature>.<key>.default for an entry without a `default`
 --   <module>.<feature>.<key> is also an action's button text
 --
--- An entry with `requires = { key = value }` sits under that earlier entry and
--- is greyed out unless it has that value (and that entry is editable).
+-- An entry with `requires = { key = value }` sits under that earlier entry,
+-- indented one step further, and is greyed out unless it has that value (and
+-- that entry is editable).
 
 local _, ns = ...
 
@@ -255,6 +256,29 @@ local function SetParent(initializer, parent)
     end
 end
 
+-- How many entries up the entry's requires chain goes (0: under the feature toggle).
+local function GetDepth(feature, entry)
+    local key = GetRequirement(entry)
+    return key and 1 + GetDepth(feature, FindEntry(feature, key)) or 0
+end
+
+-- Blizzard's indent step (indentSize in Blizzard_SettingControls.lua).
+local INDENT = 15
+
+-- Blizzard indents a row's label one step when its parent is on the page,
+-- however deep it sits: rows nested under an entry go one step further per
+-- level. In search results, where Blizzard draws them flat, they stay flat.
+local function SetDepth(initializer, depth)
+    if depth == 0 then
+        return
+    end
+    local GetIndent = initializer.GetIndent
+    initializer.GetIndent = function(self)
+        local indent = GetIndent(self)
+        return indent > 0 and indent + depth * INDENT or indent
+    end
+end
+
 local function AddSchemaEntry(category, feature, entry, parentInitializer)
     local control = assert(controls[entry.type], "unknown setting type: " .. tostring(entry.type))
     local labelKey = feature:GetLocaleKey(entry.key)
@@ -263,6 +287,7 @@ local function AddSchemaEntry(category, feature, entry, parentInitializer)
 
     local initializer = control.create(category, setting, OptionalText(labelKey .. ".tooltip"), entry, labelKey)
     SetParent(initializer, parentInitializer)
+    SetDepth(initializer, GetDepth(feature, entry))
     -- Predicates aren't inherited from grandparents: check the whole chain here.
     initializer:AddModifyPredicate(function()
         return feature.db.enabled and RequirementMet(feature, entry)
