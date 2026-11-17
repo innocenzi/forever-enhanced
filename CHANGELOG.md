@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.3.0 - 2026-11-17
+
+
+### Features
+- **inventory:** add a search box to merchants
+- **inventory:** let items be marked for both the auction house and the bank
+- **interface:** add a search box to the macro icon picker
+- **interface:** add a Duplicate button to the macro window
+- **interface:** gather macro window options and group its buttons
+- **interface:** hide macro names on action bars
+
+
+### Fixes
+- **professions:** stop the skinning chance from erroring on corpses whose unit is secret
+- **combat:** spell action bars "barres d’actions" like the game in French
+
+
+### Performance
+- **quests:** stop rescanning bags for leftover quest items on quest progress
+- **quests:** announce objectives from the quests that progressed
+- **interface:** skip object glow refreshes on quest log updates without an object
+- **quests:** leave the objective tracker alone when tracked quests are unchanged
+- **core:** redraw bag and bank item marks only when they can change
+- **combat:** stop rebuilding the action button list on every power tick
+
 ## 1.2.0 - 2026-11-15
 
 
