@@ -64,6 +64,7 @@ Handlers are registered at file load; core only calls those of active features (
 - enUS: sentence case everywhere (titles, labels, dropdown options, menu entries); only proper nouns and Blizzard button names keep capitals ("Questie", "Sell All Junk Items"). Tooltips start with a third-person verb ("Shows…"); "When disabled, …" only when not obvious; confirmations "Are you sure you want to…?"; clicks "Alt Left Click", "Right Click"; value lines `Label: %d`.
 - frFR: correct accents, sentence case, infinitive labels ("Ouvrir avec les sacs"); tooltips start with a third-person verb ("Affiche…"); "Si cette option est désactivée, …"; confirmations "Voulez-vous vraiment… ?"; clicks "Alt-clic gauche", "clic droit"; typographic apostrophe `’`; a no-break space (U+00A0) before `: ? ! ;` and inside `« »`.
 - Plurals: `|4singular:plural;` immediately after the number, with no color code between (`"%d |4item:items;"`). Put every word agreeing with the count inside the token (`"%d |4objet sera conservé:objets seront conservés;"`).
+- Reviewing text: the `wording` skill, after adding or changing player-facing strings (it also fetches the game's own GlobalStrings in both languages).
 
 ## Lua style
 
