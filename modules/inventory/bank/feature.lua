@@ -13,6 +13,7 @@
 -- slots). Deposit also moves the items marked for the bank (Item marks). Locked
 -- items (Item Locking) never move. Opening the bank can refill the bags'
 -- partial stacks ("autoRefill") and deposit the marked items ("autoDeposit").
+-- With "autoSort", a transfer that moved items ends with the bank's Clean Up.
 --
 -- Files of this slice:
 --   feature.lua    registration, schema and lifecycle (this file)
@@ -46,6 +47,7 @@ local Bank = ns:RegisterFeature("inventory", "bank", {
         { key = "transfers", type = "toggle", default = true },
         { key = "autoRefill", type = "toggle", default = false, requires = { transfers = true } },
         { key = "autoDeposit", type = "toggle", default = false, requires = { transfers = true } },
+        { key = "autoSort", type = "toggle", default = false, requires = { transfers = true } },
     },
     presets = {
         minimal = {
@@ -55,6 +57,7 @@ local Bank = ns:RegisterFeature("inventory", "bank", {
             transfers = true,
             autoRefill = false,
             autoDeposit = false,
+            autoSort = true,
         },
         enhanced = {
             enabled = true,
@@ -63,6 +66,7 @@ local Bank = ns:RegisterFeature("inventory", "bank", {
             transfers = true,
             autoRefill = true,
             autoDeposit = true,
+            autoSort = true,
         },
     },
 })

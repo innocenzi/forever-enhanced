@@ -5,6 +5,10 @@
 -- the bags' partial stacks from the bank (but not those of items marked for the
 -- bank), "autoDeposit" deposits the items marked for the bank. Both go in one
 -- run: they never touch the same item, so their moves never conflict.
+--
+-- With "autoSort", a transfer that moved items (automatic ones included) ends
+-- with the bank's Clean Up (C_Container.SortBank). Item locking and Reserved
+-- slots hook the sort, so locked items and reserved slots go back in place.
 
 local _, ns = ...
 
@@ -29,6 +33,11 @@ local mover = ns:CreateMover({
         return moves
     end,
     maxMovesPerKey = MAX_MOVES_PER_ITEM,
+    OnFinished = function(movedCount)
+        if movedCount > 0 and Bank:GetSetting("autoSort") and C_Bank.CanViewBank(Enum.BankType.Character) then
+            C_Container.SortBank(Enum.BankType.Character)
+        end
+    end,
 })
 
 -- Starts the given transfers, unless one is running or the bank is closed.

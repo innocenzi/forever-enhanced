@@ -112,6 +112,8 @@ local world = {
     itemSearch = "",
     modifiedClicks = {},
     sortRequested = false,
+    -- Bank types C_Container.SortBank was called with, in order.
+    bankSorts = {},
     questLog = {},
     watches = {},
     superTracked = 0,
@@ -1721,7 +1723,9 @@ C_Container = {
     SortBags = function()
         world.sortRequested = true
     end,
-    SortBank = NoOp,
+    SortBank = function(bankType)
+        table.insert(world.bankSorts, bankType)
+    end,
     SortBankBags = NoOp,
     SortAccountBankBags = NoOp,
 }

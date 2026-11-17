@@ -24,7 +24,10 @@ end
 
 -- The entry of a mode in the Deposit or Withdraw menu, if listed.
 local function Entry(world, direction, mode)
-    return world:MenuEntry(world:TransferMenu(direction), world.L["inventory.bank.transfers." .. mode])
+    return world:MenuEntry(
+        world:TransferMenu(direction),
+        world.L["inventory.bank.transfers." .. direction .. "." .. mode]
+    )
 end
 
 -- Picks a mode in the Deposit or Withdraw menu and lets the transfer finish.
@@ -182,11 +185,11 @@ test("Deposit lists all matching items first, Withdraw existing stacks first", f
         L3 = { "linen", 12 },
     })
     local deposit = world:TransferMenu("deposit")
-    equal(deposit[1].text, world.L["inventory.bank.transfers.all"], "deposit first mode")
-    equal(deposit[2].text, world.L["inventory.bank.transfers.stacks"], "deposit second mode")
+    equal(deposit[1].text, world.L["inventory.bank.transfers.deposit.all"], "deposit first mode")
+    equal(deposit[2].text, world.L["inventory.bank.transfers.deposit.stacks"], "deposit second mode")
     local withdraw = world:TransferMenu("withdraw")
-    equal(withdraw[1].text, world.L["inventory.bank.transfers.stacks"], "withdraw first mode")
-    equal(withdraw[2].text, world.L["inventory.bank.transfers.all"], "withdraw second mode")
+    equal(withdraw[1].text, world.L["inventory.bank.transfers.withdraw.stacks"], "withdraw first mode")
+    equal(withdraw[2].text, world.L["inventory.bank.transfers.withdraw.all"], "withdraw second mode")
 end)
 
 test("menu entries that would move nothing are disabled", function(world)
@@ -274,7 +277,7 @@ test("marked items are only offered by Deposit, while the bank mark is on", func
         L1 = { "linen", 15 },
         L3 = { "linen", 12 },
     })
-    local marked = world.L["inventory.bank.transfers.marked"]
+    local marked = world.L["inventory.bank.transfers.deposit.marked"]
     equal(world:TransferMenu("deposit")[3].text, marked, "third deposit entry")
     expect(not world:MenuEntry(world:TransferMenu("withdraw"), marked), "not in withdraw")
 
@@ -389,4 +392,80 @@ test("the automatic transfers need the Deposit and Withdraw buttons", function(w
     world:OpenBank()
     world:Elapse(5)
     equal(world:Slots(0), "L1(15) - - -", "bags")
+end)
+
+test("cleans up the bank once a transfer is done", function(world)
+    Setup(world, { "L1", "L2" }, { "L3" }, {}, {
+        L1 = { "linen", 3 },
+        L2 = { "linen", 4 },
+        L3 = { "linen", 12 },
+    })
+    world:Setting("inventory.bank.autoSort"):SetValue(true)
+    Entry(world, "deposit", "stacks").callback()
+    world:Elapse(0)
+    equal(#world.bankSorts, 0, "no cleanup while moves remain")
+    world:Elapse(5)
+    equal(world:Slots(6), "L3(19) - - -", "bank")
+    equal(#world.bankSorts, 1, "one cleanup")
+    equal(world.bankSorts[1], Enum.BankType.Character, "character bank")
+end)
+
+test("leaves the bank as is by default", function(world)
+    Setup(world, { "L1" }, { "L3" }, {}, {
+        L1 = { "linen", 15 },
+        L3 = { "linen", 12 },
+    })
+    Transfer(world, "deposit", "stacks")
+    equal(#world.bankSorts, 0, "no cleanup")
+end)
+
+test("cleans up the bank after the automatic transfers", function(world)
+    Stock(world, { "L1" }, { "L4", "L3" }, {}, {
+        L1 = { "linen", 15 },
+        L3 = { "linen", 12 },
+        L4 = { "linen", 20 },
+    })
+    world:Setting("inventory.bank.autoRefill"):SetValue(true)
+    world:Setting("inventory.bank.autoSort"):SetValue(true)
+    world:OpenBank()
+    world:Elapse(5)
+    equal(world:Slots(0), "L1(20) - - -", "bags refilled")
+    equal(#world.bankSorts, 1, "one cleanup")
+end)
+
+test("no cleanup when the automatic transfers move nothing", function(world)
+    Stock(world, { "L1" }, { "W1" }, {}, {
+        L1 = { "linen", 15 },
+        W1 = { "wool", 5 },
+    })
+    world:Setting("inventory.bank.autoRefill"):SetValue(true)
+    world:Setting("inventory.bank.autoSort"):SetValue(true)
+    world:OpenBank()
+    world:Elapse(5)
+    equal(#world.bankSorts, 0, "no cleanup")
+end)
+
+test("no cleanup when the bank closes during a transfer", function(world)
+    Setup(world, { "L1", "L2" }, { "L3" }, {}, {
+        L1 = { "linen", 3 },
+        L2 = { "linen", 4 },
+        L3 = { "linen", 12 },
+    })
+    world:Setting("inventory.bank.autoSort"):SetValue(true)
+    Entry(world, "deposit", "stacks").callback()
+    world:Elapse(0)
+    world:CloseBank()
+    world:Elapse(5)
+    equal(#world.bankSorts, 0, "no cleanup")
+end)
+
+test("no cleanup when a move is blocked", function(world)
+    Setup(world, { "L1" }, { "L3" }, {}, {
+        L1 = { "linen", 15 },
+        L3 = { "linen", 12 },
+    })
+    world:Setting("inventory.bank.autoSort"):SetValue(true)
+    world.blockDrops = true
+    Transfer(world, "deposit", "stacks")
+    equal(#world.bankSorts, 0, "no cleanup")
 end)

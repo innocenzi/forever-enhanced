@@ -8,6 +8,8 @@
 --   Plan() reads the live containers and returns the moves still needed:
 --   { { from = { bagID, slot }, to = { bagID, slot }, key = <item GUID> }, ... }
 --   An empty list (or only moves out of attempts) ends the run.
+--   Optional OnFinished(movedCount) runs when a run ends that way, with the
+--   number of moves it sent; never when it's stopped, gives up or a drop fails.
 --
 -- Each round sends every move that shares no slot with another and touches no
 -- busy slot, as two pickups: onto the same item, the client merges the stacks;
@@ -63,6 +65,7 @@ function MoverMixin:Begin()
     end
     self.running = true
     self.moveCounts = {}
+    self.movedCount = 0
     self.pending = {}
     self:StartGiveUpTimer()
     self.listener:Start()
@@ -139,6 +142,7 @@ function MoverMixin:RunRound()
             if not used[fromKey] and not used[toKey] and not IsSlotBusy(move.from) and not IsSlotBusy(move.to) then
                 used[fromKey], used[toKey] = true, true
                 self.moveCounts[move.key] = count + 1
+                self.movedCount = self.movedCount + 1
                 Pickup(move.from)
                 Pickup(move.to)
                 -- A completed drop empties the cursor at once; anything left was refused.
@@ -155,6 +159,9 @@ function MoverMixin:RunRound()
 
     if not remaining then
         self:Stop()
+        if self.definition.OnFinished then
+            self.definition.OnFinished(self.movedCount)
+        end
         return
     end
     self.pending = pending
@@ -187,7 +194,7 @@ function MoverMixin:OnBagsUpdated()
     end
 end
 
--- definition: { Plan = function() return moves end, maxMovesPerKey }
+-- definition: { Plan = function() return moves end, maxMovesPerKey, OnFinished }
 function ns:CreateMover(definition)
     local mover = Mixin({ definition = definition, running = false }, MoverMixin)
     mover.listener = ns:CreateEventListener({

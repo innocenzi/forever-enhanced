@@ -79,9 +79,12 @@ local listener = ns:CreateEventListener({
 local function GenerateMenu(direction)
     return function(_, rootDescription)
         for _, mode in ipairs(GetModes(direction)) do
-            local entry = rootDescription:CreateButton(L["inventory.bank.transfers." .. mode], function()
-                Transfers:Run(direction, mode)
-            end)
+            local entry = rootDescription:CreateButton(
+                L["inventory.bank.transfers." .. direction .. "." .. mode],
+                function()
+                    Transfers:Run(direction, mode)
+                end
+            )
             entry:SetEnabled(not Transfers:IsRunning() and HasMoves(direction, mode))
         end
     end
