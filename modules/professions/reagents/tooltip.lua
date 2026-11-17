@@ -16,7 +16,10 @@ local Reagents = ns:GetFeature("professions", "reagents")
 local Tooltip = {}
 Reagents.Tooltip = Tooltip
 
-local MAX_RECIPES = 8
+-- Recipe lines the whole tooltip shows, shared between the item's professions;
+-- a profession whose cut would hide this few recipes or fewer shows them all.
+local RECIPE_BUDGET = 20
+local LEEWAY = 3
 
 -- The uses of the item to show, by skill line, and those skill lines in the
 -- data's order (the generator sorts each item's uses by profession).
@@ -91,16 +94,39 @@ local function SortedRecipes(uses, skillLine, playerSkillLines)
     return recipes
 end
 
+-- How many recipes each profession shows (recipesBySkillLine: their lists).
+-- The budget is shared smallest first, so what a short list leaves goes to the
+-- longer ones.
+local function Allotments(recipesBySkillLine, order)
+    local bySize = { unpack(order) }
+    table.sort(bySize, function(a, b)
+        return #recipesBySkillLine[a] < #recipesBySkillLine[b]
+    end)
+    local shown, remaining = {}, RECIPE_BUDGET
+    for index, skillLine in ipairs(bySize) do
+        local count = #recipesBySkillLine[skillLine]
+        local share = math.min(count, math.floor(remaining / (#bySize - index + 1)))
+        remaining = remaining - share
+        shown[skillLine] = count - share <= LEEWAY and count or share
+    end
+    return shown
+end
+
 local function AddRecipes(tooltip, groups, order, playerSkillLines)
+    local recipesBySkillLine = {}
+    for _, skillLine in ipairs(order) do
+        recipesBySkillLine[skillLine] = SortedRecipes(groups[skillLine], skillLine, playerSkillLines)
+    end
+    local shown = Allotments(recipesBySkillLine, order)
     tooltip:AddLine(" ")
     for _, skillLine in ipairs(order) do
         tooltip:AddLine(NORMAL_FONT_COLOR:WrapTextInColorCode(ProfessionName(skillLine)))
-        local recipes = SortedRecipes(groups[skillLine], skillLine, playerSkillLines)
-        for index = 1, math.min(#recipes, MAX_RECIPES) do
+        local recipes = recipesBySkillLine[skillLine]
+        for index = 1, shown[skillLine] do
             tooltip:AddLine(RecipeLine(recipes[index]))
         end
-        if #recipes > MAX_RECIPES then
-            local line = ns.L["professions.reagents.more"]:format(#recipes - MAX_RECIPES)
+        if #recipes > shown[skillLine] then
+            local line = ns.L["professions.reagents.more"]:format(#recipes - shown[skillLine])
             tooltip:AddLine(GRAY_FONT_COLOR:WrapTextInColorCode(line))
         end
     end

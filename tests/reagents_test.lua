@@ -123,19 +123,80 @@ test("lists rogue poisons, a profession once the Poisons spell is known", functi
     equal(headers[1], poisons, "poisons")
 end)
 
-test("caps the recipes of a profession", function(world)
-    world.shift = true
-    local uses = world.ns:GetFeature("professions", "reagents").Data[2996] -- Bolt of Linen Cloth
-    local tailoring = 0
-    for _, use in ipairs(uses) do
-        if use[2] == TAILORING then
-            tailoring = tailoring + 1
+local RECIPE_BUDGET = 20
+local LEEWAY = 3
+
+-- The number of recipes of each profession using itemID, by skill line, and
+-- those skill lines in the data's order.
+local function RecipeCounts(world, itemID)
+    local counts, order = {}, {}
+    for _, use in ipairs(world.ns:GetFeature("professions", "reagents").Data[itemID]) do
+        if not counts[use[2]] then
+            counts[use[2]] = 0
+            table.insert(order, use[2])
+        end
+        counts[use[2]] = counts[use[2]] + 1
+    end
+    return counts, order
+end
+
+-- The recipes the tooltip shows under each profession, and how many its "more"
+-- line hides (0 without one), by skill line. Lines are in the data's order.
+local function Shown(world, lines, order, counts)
+    local shown, hidden = {}, {}
+    local index = 2 -- after the blank line
+    for _, skillLine in ipairs(order) do
+        index = index + 1 -- the header
+        shown[skillLine], hidden[skillLine] = 0, 0
+        while lines[index] and lines[index]:find("^ ") do
+            local rest = counts[skillLine] - shown[skillLine]
+            if lines[index] == world.L["professions.reagents.more"]:format(rest) then
+                hidden[skillLine] = rest
+            else
+                shown[skillLine] = shown[skillLine] + 1
+            end
+            index = index + 1
         end
     end
-    expect(tailoring > 8, "Bolt of Linen Cloth has many Tailoring recipes")
-    local section = Section(Lines(world, 2996), TAILORING)
-    equal(#section, 9, "8 recipes and the rest")
-    equal(section[9], world.L["professions.reagents.more"]:format(tailoring - 8), "more")
+    return shown, hidden
+end
+
+test("caps the recipes of a long list, sharing the budget between professions", function(world)
+    world.shift = true
+    local BOLT_OF_LINEN = 2996
+    local counts, order = RecipeCounts(world, BOLT_OF_LINEN)
+    equal(counts[ENGINEERING], 1, "one engineering recipe")
+    expect(counts[TAILORING] > RECIPE_BUDGET + LEEWAY, "many tailoring recipes")
+    local shown, hidden = Shown(world, Lines(world, BOLT_OF_LINEN), order, counts)
+    equal(shown[ENGINEERING], 1, "engineering")
+    equal(shown[TAILORING], RECIPE_BUDGET - 1, "tailoring gets the rest of the budget")
+    equal(hidden[TAILORING], counts[TAILORING] - (RECIPE_BUDGET - 1), "and the rest")
+end)
+
+test("shows every recipe of a short list", function(world)
+    world.shift = true
+    local DEATHWEED = 5173
+    local counts, order = RecipeCounts(world, DEATHWEED)
+    equal(#order, 1, "poisons only")
+    expect(counts[order[1]] > 8 and counts[order[1]] <= RECIPE_BUDGET, "a short list")
+    local shown, hidden = Shown(world, Lines(world, DEATHWEED), order, counts)
+    equal(shown[order[1]], counts[order[1]], "every recipe")
+    equal(hidden[order[1]], 0, "no more line")
+end)
+
+test("never hides only a few recipes, and stays within the budget", function(world)
+    world.shift = true
+    for itemID in pairs(world.ns:GetFeature("professions", "reagents").Data) do
+        local counts, order = RecipeCounts(world, itemID)
+        local shown, hidden = Shown(world, Lines(world, itemID), order, counts)
+        local total = 0
+        for _, skillLine in ipairs(order) do
+            equal(shown[skillLine] + hidden[skillLine], counts[skillLine], itemID .. " every recipe accounted for")
+            expect(hidden[skillLine] == 0 or hidden[skillLine] > LEEWAY, itemID .. " hides more than a few")
+            total = total + shown[skillLine]
+        end
+        expect(total <= RECIPE_BUDGET + LEEWAY * #order, itemID .. " within the budget")
+    end
 end)
 
 test("lists the recipes the profession window shows as learned first", function(world)
