@@ -1,7 +1,8 @@
 -- Item tooltips of reagents, while Shift is held: the recipes using the item,
 -- under each profession ("Bolt of Linen Cloth x2"), known ones first and in
 -- white, those the bags hold all the reagents of marked with a check, those
--- they hold some of with a question mark. Without Shift the client's own
+-- they hold some of with a question mark. Long lists are cut ("and 43 more
+-- recipes") to keep the tooltip on screen. Without Shift the client's own
 -- "Crafting Reagent" line is enough.
 --
 -- Tooltips whose owner rebuilds them (bags, bank, merchant, character slots)
@@ -18,8 +19,8 @@ Reagents.Tooltip = Tooltip
 
 -- Recipe lines the whole tooltip shows, shared between the item's professions;
 -- a profession whose cut would hide this few recipes or fewer shows them all.
-local RECIPE_BUDGET = 20
-local LEEWAY = 3
+Tooltip.RECIPE_BUDGET = 20
+Tooltip.LEEWAY = 3
 
 -- The uses of the item to show, by skill line, and those skill lines in the
 -- data's order (the generator sorts each item's uses by profession).
@@ -102,12 +103,12 @@ local function Allotments(recipesBySkillLine, order)
     table.sort(bySize, function(a, b)
         return #recipesBySkillLine[a] < #recipesBySkillLine[b]
     end)
-    local shown, remaining = {}, RECIPE_BUDGET
+    local shown, remaining = {}, Tooltip.RECIPE_BUDGET
     for index, skillLine in ipairs(bySize) do
         local count = #recipesBySkillLine[skillLine]
         local share = math.min(count, math.floor(remaining / (#bySize - index + 1)))
         remaining = remaining - share
-        shown[skillLine] = count - share <= LEEWAY and count or share
+        shown[skillLine] = count - share <= Tooltip.LEEWAY and count or share
     end
     return shown
 end

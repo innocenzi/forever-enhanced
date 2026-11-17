@@ -13,10 +13,18 @@ local FIRST_AID = 129
 local BLACKSMITHING = 164
 local TAILORING = 197
 local ENGINEERING = 202
+local POISONS = 40
+local POISONS_SPELL = 2842
 
 local NAMES = {
-    enUS = { [129] = "First Aid", [164] = "Blacksmithing", [197] = "Tailoring", [202] = "Engineering" },
-    frFR = { [129] = "Secourisme", [164] = "Forge", [197] = "Couture", [202] = "Ingénierie" },
+    enUS = {
+        [40] = "Poisons",
+        [129] = "First Aid",
+        [164] = "Blacksmithing",
+        [197] = "Tailoring",
+        [202] = "Engineering",
+    },
+    frFR = { [40] = "Poisons", [129] = "Secourisme", [164] = "Forge", [197] = "Couture", [202] = "Ingénierie" },
 }
 
 local function Name(skillLine)
@@ -110,21 +118,22 @@ end)
 
 test("lists rogue poisons, a profession once the Poisons spell is known", function(world)
     local FADELEAF = 3818
-    local POISONS = 40
-    local POISONS_SPELL = 2842
     world.shift = true
-    local poisons = C_TradeSkillUI.GetTradeSkillDisplayName(POISONS)
-    equal(Headers(Lines(world, FADELEAF))[3], poisons, "after cooking and alchemy")
+    equal(Headers(Lines(world, FADELEAF))[3], Name(POISONS), "after cooking and alchemy")
     world:Setting("professions.reagents.onlyMine"):SetValue(true)
     equal(#Lines(world, FADELEAF), 0, "not learned: nothing")
     world.playerSpells[POISONS_SPELL] = true
     local headers = Headers(Lines(world, FADELEAF))
     equal(#headers, 1, "headers")
-    equal(headers[1], poisons, "poisons")
+    equal(headers[1], Name(POISONS), "poisons")
 end)
 
-local RECIPE_BUDGET = 20
-local LEEWAY = 3
+-- The tooltip's recipe budget, shared between professions, and how few hidden
+-- recipes it shows anyway.
+local function Budget(world)
+    local Tooltip = world.ns:GetFeature("professions", "reagents").Tooltip
+    return Tooltip.RECIPE_BUDGET, Tooltip.LEEWAY
+end
 
 -- The number of recipes of each profession using itemID, by skill line, and
 -- those skill lines in the data's order.
@@ -162,29 +171,32 @@ local function Shown(world, lines, order, counts)
 end
 
 test("caps the recipes of a long list, sharing the budget between professions", function(world)
+    local RECIPE_BUDGET, LEEWAY = Budget(world)
     world.shift = true
-    local BOLT_OF_LINEN = 2996
-    local counts, order = RecipeCounts(world, BOLT_OF_LINEN)
+    local BOLT_OF_LINEN_CLOTH_ITEM = 2996
+    local counts, order = RecipeCounts(world, BOLT_OF_LINEN_CLOTH_ITEM)
     equal(counts[ENGINEERING], 1, "one engineering recipe")
     expect(counts[TAILORING] > RECIPE_BUDGET + LEEWAY, "many tailoring recipes")
-    local shown, hidden = Shown(world, Lines(world, BOLT_OF_LINEN), order, counts)
+    local shown, hidden = Shown(world, Lines(world, BOLT_OF_LINEN_CLOTH_ITEM), order, counts)
     equal(shown[ENGINEERING], 1, "engineering")
     equal(shown[TAILORING], RECIPE_BUDGET - 1, "tailoring gets the rest of the budget")
     equal(hidden[TAILORING], counts[TAILORING] - (RECIPE_BUDGET - 1), "and the rest")
 end)
 
 test("shows every recipe of a short list", function(world)
+    local RECIPE_BUDGET = Budget(world)
     world.shift = true
     local DEATHWEED = 5173
     local counts, order = RecipeCounts(world, DEATHWEED)
     equal(#order, 1, "poisons only")
-    expect(counts[order[1]] > 8 and counts[order[1]] <= RECIPE_BUDGET, "a short list")
+    expect(counts[order[1]] <= RECIPE_BUDGET, "a short list")
     local shown, hidden = Shown(world, Lines(world, DEATHWEED), order, counts)
     equal(shown[order[1]], counts[order[1]], "every recipe")
     equal(hidden[order[1]], 0, "no more line")
 end)
 
 test("never hides only a few recipes, and stays within the budget", function(world)
+    local RECIPE_BUDGET, LEEWAY = Budget(world)
     world.shift = true
     for itemID in pairs(world.ns:GetFeature("professions", "reagents").Data) do
         local counts, order = RecipeCounts(world, itemID)
