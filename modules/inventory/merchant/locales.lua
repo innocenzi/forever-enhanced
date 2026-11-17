@@ -2,9 +2,9 @@ local _, ns = ...
 
 ns:RegisterLocale("enUS", {
     ["inventory.merchant.title"] = "Merchant",
-    ["inventory.merchant.description"] = "Helps you find, sell and repair at merchants.",
+    ["inventory.merchant.description"] = "Adds a search box to merchants, and can sell your junk and repair your items for you.",
     ["inventory.merchant.search"] = "Search box",
-    ["inventory.merchant.search.tooltip"] = "Finds a merchant's items across all their pages.",
+    ["inventory.merchant.search.tooltip"] = "Searches a merchant's items across all pages.",
     ["inventory.merchant.autoSellJunk"] = "Auto sell junk",
     ["inventory.merchant.autoSellJunk.tooltip"] = "Sells your junk when you visit a merchant.",
     ["inventory.merchant.autoRepair"] = "Auto repair",
@@ -21,9 +21,9 @@ ns:RegisterLocale("enUS", {
 
 ns:RegisterLocale("frFR", {
     ["inventory.merchant.title"] = "Marchand",
-    ["inventory.merchant.description"] = "Vous aide à trouver, vendre et réparer chez les marchands.",
+    ["inventory.merchant.description"] = "Ajoute un champ de recherche aux marchands, et peut vendre votre camelote et réparer vos objets à votre place.",
     ["inventory.merchant.search"] = "Champ de recherche",
-    ["inventory.merchant.search.tooltip"] = "Trouve les objets d’un marchand sur toutes ses pages.",
+    ["inventory.merchant.search.tooltip"] = "Recherche parmi les objets d’un marchand, sur toutes ses pages.",
     ["inventory.merchant.autoSellJunk"] = "Vendre la camelote",
     ["inventory.merchant.autoSellJunk.tooltip"] = "Vend votre camelote quand vous parlez à un marchand.",
     ["inventory.merchant.autoRepair"] = "Réparer l’équipement",

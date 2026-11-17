@@ -19,7 +19,7 @@ ns:RegisterLocale("frFR", {
     ["quests.announce.template.tooltip"] = "Définit le message envoyé à votre groupe. {quest} : lien de la quête, {objective} : objectif, {current} et {total} : progression. Laissez vide pour rétablir le message par défaut.",
     ["quests.announce.template.default"] = "[Forever Enhanced] J’ai fini « {objective} » ({current}/{total})",
     ["quests.announce.channel"] = "Canal",
-    ["quests.announce.channel.tooltip"] = "Contrôle où le message est envoyé.",
+    ["quests.announce.channel.tooltip"] = "Définit où le message est envoyé.",
     ["quests.announce.channel.instance"] = "Instance ou groupe",
     ["quests.announce.channel.party"] = "Groupe uniquement",
 })

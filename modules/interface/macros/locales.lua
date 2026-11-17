@@ -9,7 +9,7 @@ ns:RegisterLocale("enUS", {
     ["interface.macros.duplicate.tooltip"] = "Lets you copy the selected macro in one click.",
     ["interface.macros.duplicate.button"] = "Duplicate",
     ["interface.macros.duplicate.button.tooltip"] = "Creates a copy of the selected macro.",
-    ["interface.macros.save"] = "Grey out Save when saved",
+    ["interface.macros.save"] = "Gray out Save when saved",
     ["interface.macros.save.tooltip"] = "Shows at a glance whether the macro has unsaved changes.",
     ["interface.macros.layout"] = "Simplified layout",
     ["interface.macros.layout.tooltip"] = "Groups the macro window's buttons by what they act on and hides Cancel and Exit.",

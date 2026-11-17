@@ -25,7 +25,7 @@ ns:RegisterLocale("frFR", {
     ["quests.tracking.title"] = "Suivi des quêtes proches",
     ["quests.tracking.description"] = "Suit les quêtes les plus proches de vous à mesure que vous vous déplacez. Une quête que vous ne suivez plus reste écartée jusqu’au prochain changement de zone.",
     ["quests.tracking.scope"] = "Quêtes à suivre",
-    ["quests.tracking.scope.tooltip"] = "Contrôle les quêtes qui peuvent être suivies.",
+    ["quests.tracking.scope.tooltip"] = "Définit les quêtes qui peuvent être suivies.",
     ["quests.tracking.scope.anywhere"] = "Partout",
     ["quests.tracking.scope.range"] = "À portée",
     ["quests.tracking.scope.zone"] = "Zone actuelle",
@@ -38,6 +38,6 @@ ns:RegisterLocale("frFR", {
     ["quests.tracking.sort.tooltip"] = "Classe les quêtes suivies de la plus proche à la plus éloignée.",
     ["quests.tracking.dungeons"] = "Suivre les quêtes de donjon",
     ["quests.tracking.dungeons.tooltip"] = "Si cette option est désactivée, les quêtes de donjon et de raid ne sont suivies qu’à l’intérieur de leur donjon ou raid.",
-    ["quests.tracking.keepManual"] = "Garder mes quêtes suivies",
+    ["quests.tracking.keepManual"] = "Garder les suivis manuels",
     ["quests.tracking.keepManual.tooltip"] = "Garde les quêtes que vous suivez vous-même, même si elles sont éloignées.",
 })

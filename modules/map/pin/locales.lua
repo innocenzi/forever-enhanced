@@ -19,7 +19,7 @@ ns:RegisterLocale("enUS", {
 })
 
 ns:RegisterLocale("frFR", {
-    ["map.pin.title"] = "Repère sur la carte",
+    ["map.pin.title"] = "Repère cartographique",
     ["map.pin.description"] = "Place votre repère sur la carte avec les commandes /way de TomTom, et le retire lorsque vous l’atteignez.",
     ["map.pin.commands"] = "Commandes TomTom",
     ["map.pin.commands.tooltip"] = "Place votre repère sur la carte à partir des coordonnées /way écrites pour TomTom.",
@@ -30,7 +30,7 @@ ns:RegisterLocale("frFR", {
     ["map.pin.range"] = "Distance d’arrivée",
     ["map.pin.range.tooltip"] = "Définit à quelle distance du repère vous devez vous approcher.",
     ["map.pin.range.format"] = "%d m",
-    ["map.pin.announce"] = "Afficher un message",
+    ["map.pin.announce"] = "Annoncer l’arrivée",
     ["map.pin.announce.tooltip"] = "Affiche un message en haut de l’écran lorsque vous atteignez le repère.",
     ["map.pin.unknownZone"] = "Zone inconnue : %s",
     ["map.pin.usage"] = "Utilisation : /way [zone] x y [description], /way reset, /wayb [description], /cway",

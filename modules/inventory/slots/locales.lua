@@ -10,8 +10,8 @@ ns:RegisterLocale("enUS", {
 
 ns:RegisterLocale("frFR", {
     ["inventory.slots.title"] = "Emplacements réservés",
-    ["inventory.slots.description"] = "Réserve un emplacement de vos sacs ou de votre banque à un objet depuis le menu des objets (Alt-clic droit) : quand vous récupérez l’objet ou rangez vos sacs, il retourne à cet emplacement.",
-    ["inventory.slots.showIcon"] = "Afficher dans les emplacements vides",
+    ["inventory.slots.description"] = "Réserve un emplacement de vos sacs ou de votre banque à un objet depuis le menu des objets (Alt-clic droit) : quand vous récupérez l’objet ou rangez vos sacs ou votre banque, il retourne à cet emplacement.",
+    ["inventory.slots.showIcon"] = "Afficher l’objet réservé",
     ["inventory.slots.showIcon.tooltip"] = "Affiche l’icône estompée de l’objet réservé tant que son emplacement est vide.",
     ["inventory.slots.reserve"] = "Réserver cet emplacement",
 })

@@ -9,7 +9,7 @@ ns:RegisterLocale("enUS", {
     ["combat.swaps.editor.replacement"] = "Replace with",
     ["combat.swaps.editor.pick"] = "Click to choose a spell.",
     ["combat.swaps.editor.notSpell"] = "Only spells can be placed here.",
-    ["combat.swaps.editor.offGlobalCooldown"] = "This spell doesn't trigger the global cooldown: the key may cast both spells.",
+    ["combat.swaps.editor.offGlobalCooldown"] = "This spell doesn't trigger the global cooldown: the key may cast both spells at once.",
     ["combat.swaps.editor.sameSpell"] = "A spell can't replace itself.",
     ["combat.swaps.editor.alreadySwapped"] = "That spell is already replaced.",
 })
@@ -23,7 +23,7 @@ ns:RegisterLocale("frFR", {
     ["combat.swaps.editor.replacement"] = "Remplacer par",
     ["combat.swaps.editor.pick"] = "Cliquez pour choisir un sort.",
     ["combat.swaps.editor.notSpell"] = "Seuls des sorts peuvent être placés ici.",
-    ["combat.swaps.editor.offGlobalCooldown"] = "Ce sort ne déclenche pas le temps de recharge global : la touche peut lancer les deux sorts.",
+    ["combat.swaps.editor.offGlobalCooldown"] = "Ce sort ne déclenche pas le temps de recharge global : la touche peut lancer les deux sorts à la fois.",
     ["combat.swaps.editor.sameSpell"] = "Un sort ne peut pas se remplacer lui-même.",
     ["combat.swaps.editor.alreadySwapped"] = "Ce sort est déjà remplacé.",
 })

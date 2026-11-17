@@ -11,7 +11,7 @@ ns:RegisterLocale("enUS", {
 
 ns:RegisterLocale("frFR", {
     ["map.seamless.title"] = "Carte du monde continue",
-    ["map.seamless.description"] = "Affiche la carte du monde d’un seul tenant : dézoomez d’une zone vers ses voisines, son continent et le monde, et déplacez-vous partout.",
+    ["map.seamless.description"] = "Affiche la carte du monde d’un seul tenant : effectuez un zoom arrière depuis une zone vers ses voisines, son continent et le monde, et faites-la défiler partout.",
     ["map.seamless.unexplored"] = "Afficher les zones inexplorées",
     ["map.seamless.unexplored.tooltip"] = "Dessine les terres que vous n’avez pas encore explorées.",
     ["map.seamless.quests"] = "Afficher toutes les quêtes",

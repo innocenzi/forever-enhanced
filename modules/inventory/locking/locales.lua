@@ -24,7 +24,7 @@ ns:RegisterLocale("frFR", {
     ["inventory.locking.title"] = "Verrouillage d’objets",
     ["inventory.locking.description"] = "Verrouille un objet de vos sacs ou de votre banque d’un Alt-clic gauche ou depuis le menu des objets (Alt-clic droit) : il ne peut plus être déplacé, vendu, détruit, envoyé, échangé ni mis aux enchères, mais peut toujours être utilisé ou équipé.",
     ["inventory.locking.indicator"] = "Indicateur de verrouillage",
-    ["inventory.locking.indicator.tooltip"] = "Contrôle comment les objets verrouillés sont signalés.",
+    ["inventory.locking.indicator.tooltip"] = "Définit comment les objets verrouillés sont signalés.",
     ["inventory.locking.indicator.padlock"] = "Petit cadenas",
     ["inventory.locking.indicator.center"] = "Grand cadenas",
     ["inventory.locking.indicator.corner"] = "Cadenas dans le coin",

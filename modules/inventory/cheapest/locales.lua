@@ -11,19 +11,19 @@ ns:RegisterLocale("enUS", {
     ["inventory.cheapest.indicator.cross"] = "Red cross",
     ["inventory.cheapest.indicator.coin"] = "Copper coin",
     ["inventory.cheapest.excludeReagentBag"] = "Exclude reagent bag",
-    ["inventory.cheapest.excludeReagentBag.tooltip"] = "Never marks items in your reagent bag, and doesn't count its free slots.",
+    ["inventory.cheapest.excludeReagentBag.tooltip"] = "Never marks items in your reagent bag, and ignores its free slots when checking whether your bags are full.",
 })
 
 ns:RegisterLocale("frFR", {
     ["inventory.cheapest.title"] = "Objets de moindre valeur",
     ["inventory.cheapest.description"] = "Marque les objets de vos sacs qui valent le moins, au prix de vente ou aux enchères, pour savoir lesquels détruire.",
-    ["inventory.cheapest.onlyWhenFull"] = "Seulement si sacs pleins",
+    ["inventory.cheapest.onlyWhenFull"] = "Si les sacs sont pleins",
     ["inventory.cheapest.onlyWhenFull.tooltip"] = "Affiche la marque seulement quand vos sacs n’ont plus d’emplacement libre.",
     ["inventory.cheapest.indicator"] = "Indicateur",
-    ["inventory.cheapest.indicator.tooltip"] = "Contrôle comment les objets de moindre valeur sont signalés.",
+    ["inventory.cheapest.indicator.tooltip"] = "Définit comment les objets de moindre valeur sont signalés.",
     ["inventory.cheapest.indicator.glow"] = "Lueur rouge",
     ["inventory.cheapest.indicator.cross"] = "Croix rouge",
     ["inventory.cheapest.indicator.coin"] = "Pièce de cuivre",
     ["inventory.cheapest.excludeReagentBag"] = "Exclure le sac de composants",
-    ["inventory.cheapest.excludeReagentBag.tooltip"] = "Ne marque jamais les objets de votre sac de composants et ne compte pas ses emplacements libres.",
+    ["inventory.cheapest.excludeReagentBag.tooltip"] = "Ne marque jamais les objets de votre sac de composants, et ignore ses emplacements libres pour savoir si vos sacs sont pleins.",
 })
