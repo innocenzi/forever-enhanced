@@ -1,13 +1,13 @@
--- What an icon matches: its file name (Icons.NAMES), and the names of the
+-- What an icon matches: its file name (Macros.NAMES), and the names of the
 -- player's spells and items showing it (spellbook, bags, equipment), so a
 -- search in the player's language finds their own icons too.
 
 local _, ns = ...
 
-local Icons = ns:GetFeature("interface", "icons")
+local Macros = ns:GetFeature("interface", "macros")
 
 local Names = {}
-Icons.Names = Names
+Macros.Names = Names
 
 -- The lowercased words of the search.
 local terms = {}
@@ -25,13 +25,13 @@ local function HasAllTerms(text)
     return true
 end
 
--- Reads Icons.NAMES through, decoding each name (tools/icons.ts, encodeIcons):
+-- Reads Macros.NAMES through, decoding each name (tools/icons.ts, encodeIcons):
 -- a base 36 file ID, a letter for how many characters it shares with the name
 -- before (A for none), then the rest of the name. Keeps only the matches.
 local function FindMatchingFiles()
     wipe(matchingFiles)
     local name = ""
-    for id, shared, rest in Icons.NAMES:gmatch("([%l%d]+)(%u)([^\n]*)") do
+    for id, shared, rest in Macros.NAMES:gmatch("([%l%d]+)(%u)([^\n]*)") do
         name = name:sub(1, shared:byte() - 65) .. rest
         if HasAllTerms(name) then
             matchingFiles[tonumber(id, 36)] = true

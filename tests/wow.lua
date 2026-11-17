@@ -6868,9 +6868,21 @@ local function LoadMacroFrame()
             frame.textChanged = true
         end
     end)
-    for _, name in ipairs({ "MacroEditButton", "MacroDeleteButton", "MacroNewButton", "MacroExitButton" }) do
-        CreateFrame("Button", name, frame, "UIPanelButtonTemplate")
+    -- The buttons, at their XML anchors.
+    local background = CreateFrame("Frame", "MacroFrameSelectedMacroBackground", frame)
+    background:SetPoint("TOPLEFT", 5, -218)
+    local scrollFrame = CreateFrame("ScrollFrame", "MacroFrameScrollFrame", frame)
+    scrollFrame:SetPoint("TOPLEFT", background, "BOTTOMLEFT", 11, -13)
+    local function AddButton(name, ...)
+        local button = CreateFrame("Button", name, frame, "UIPanelButtonTemplate")
+        button:SetPoint(...)
     end
+    AddButton("MacroEditButton", "TOPLEFT", background, "TOPLEFT", 55, -30)
+    AddButton("MacroCancelButton", "BOTTOMRIGHT", scrollFrame, "TOPRIGHT", 25, 10)
+    AddButton("MacroSaveButton", "BOTTOM", MacroCancelButton, "TOP", 0, 15)
+    AddButton("MacroDeleteButton", "BOTTOMLEFT", frame, "BOTTOMLEFT", 4, 4)
+    AddButton("MacroNewButton", "BOTTOMRIGHT", frame, "BOTTOMRIGHT", -82, 4)
+    AddButton("MacroExitButton", "BOTTOMRIGHT", frame, "BOTTOMRIGHT", -5, 4)
 
     function frame:ChangeTab(tab)
         self:SaveMacro()
@@ -6890,7 +6902,9 @@ local function LoadMacroFrame()
     function frame:Update()
         self:UpdateButtons()
     end
+    -- MacroFrameMixin:UpdateButtons shows the selected macro's details, or hides them.
     function frame:UpdateButtons()
+        MacroEditButton:SetShown(self:GetSelectedIndex() ~= nil)
         local numMacros = select(self.selectedTab, GetNumMacros())
         MacroNewButton:SetEnabled(numMacros < self.macroMax and not InClickBindingMode())
         local editable = self:GetSelectedIndex() ~= nil and not MacroPopupFrame:IsShown() and not InClickBindingMode()
@@ -7134,8 +7148,20 @@ function world:DuplicateMacroButton()
     return FindFrame(function(frame)
         return frame.template == "UIPanelButtonTemplate"
             and frame.parent == MacroFrame
-            and frame.text == self.L["interface.macros.duplicate"]
+            and frame.text == self.L["interface.macros.duplicate.button"]
     end)
+end
+
+-- A button's anchors, "POINT Relative RELATIVEPOINT x y" each, joined by ", ";
+-- the Duplicate button is "Duplicate".
+function world:MacroButtonAnchors(button)
+    local anchors = {}
+    for index = 1, button:GetNumPoints() do
+        local point, relativeTo, relativePoint, x, y = button:GetPoint(index)
+        local relativeName = relativeTo == self:DuplicateMacroButton() and "Duplicate" or relativeTo.name
+        table.insert(anchors, table.concat({ point, relativeName, relativePoint, x, y }, " "))
+    end
+    return table.concat(anchors, ", ")
 end
 
 -- Clicks the Duplicate button: the client runs OnClick only while it's enabled.

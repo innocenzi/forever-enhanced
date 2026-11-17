@@ -3,9 +3,9 @@
 
 local _, ns = ...
 
-local Icons = ns:GetFeature("interface", "icons")
+local Macros = ns:GetFeature("interface", "macros")
 
-Icons.NAMES = [[
+Macros.NAMES = [[
 36owgA10_2_raidability_black
 36owhTue
 36owiSronze

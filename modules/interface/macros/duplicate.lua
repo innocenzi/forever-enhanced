@@ -1,5 +1,5 @@
--- The Duplicate button, left of Blizzard's New button at the bottom of
--- MacroFrame (load-on-demand with Blizzard_MacroUI).
+-- duplicate: the Duplicate button, beside Blizzard's New button at the bottom
+-- of MacroFrame: left of it in Blizzard's layout, right of it in ours.
 --
 -- It copies the selected macro into the same tab and selects the copy, the way
 -- MacroPopupFrameMixin:OkayButton_OnClick does for a new macro. The icon comes
@@ -16,13 +16,17 @@ local _, ns = ...
 local L = ns.L
 local Macros = ns:GetFeature("interface", "macros")
 
-local Button = {}
-Macros.Button = Button
+local Duplicate = {}
+Macros.Duplicate = Duplicate
 
-local MACRO_ADDON = "Blizzard_MacroUI"
 local BUTTON_WIDTH, BUTTON_HEIGHT = 80, 22
+local SPACING = 2
 
 local button
+
+local function IsActive()
+    return Macros:IsPartActive("duplicate")
+end
 
 local function IsCharacterTab(frame)
     return frame.macroBase > 0
@@ -45,7 +49,7 @@ local function CanDuplicate()
 end
 
 local function UpdateButton()
-    if button and Macros:IsActive() then
+    if button and IsActive() then
         button:SetEnabled(CanDuplicate())
     end
 end
@@ -60,7 +64,7 @@ local listener = ns:CreateEventListener({
     PLAYER_REGEN_ENABLED = UpdateButton,
 })
 
-local function Duplicate()
+local function DuplicateSelected()
     if not CanDuplicate() then
         return
     end
@@ -77,19 +81,31 @@ local function Duplicate()
     MacroFrameText:ClearFocus()
 end
 
+-- Beside New, on the side the layout leaves free.
+function Duplicate:UpdateAnchor()
+    if not button then
+        return
+    end
+    button:ClearAllPoints()
+    if Macros:IsPartActive("layout") then
+        button:SetPoint("LEFT", MacroNewButton, "RIGHT", SPACING, 0)
+    else
+        button:SetPoint("RIGHT", MacroNewButton, "LEFT", -SPACING, 0)
+    end
+end
+
 local function Install()
     button = CreateFrame("Button", nil, MacroFrame, "UIPanelButtonTemplate")
     button:SetSize(BUTTON_WIDTH, BUTTON_HEIGHT)
-    button:SetPoint("RIGHT", MacroNewButton, "LEFT", -2, 0)
-    button:SetText(L["interface.macros.duplicate"])
+    button:SetText(L["interface.macros.duplicate.button"])
     button:SetMotionScriptsWhileDisabled(true)
     button:SetScript("OnClick", function()
         PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
-        Duplicate()
+        DuplicateSelected()
     end)
     button:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(L["interface.macros.duplicate.tooltip"])
+        GameTooltip:SetText(L["interface.macros.duplicate.button.tooltip"])
         if InClickBindingMode() then
             GameTooltip_AddErrorLine(GameTooltip, CLICK_BINDING_BUTTON_DISABLED)
         elseif InCombatLockdown() then
@@ -98,7 +114,8 @@ local function Install()
         GameTooltip:Show()
     end)
     button:SetScript("OnLeave", GameTooltip_Hide)
-    button:SetShown(Macros:IsActive())
+    button:SetShown(IsActive())
+    Duplicate:UpdateAnchor()
 
     -- Called after every selection, tab change and macro change.
     ns:HookSecureFunc(MacroFrame, "UpdateButtons", UpdateButton)
@@ -108,20 +125,9 @@ local function Install()
     UpdateButton()
 end
 
-if C_AddOns.IsAddOnLoaded(MACRO_ADDON) then
-    Install()
-else
-    ns:CreateEventListener({
-        ADDON_LOADED = function(self, addonName)
-            if addonName == MACRO_ADDON then
-                self:Stop()
-                Install()
-            end
-        end,
-    }):Start()
-end
+Macros:OnMacroUILoaded(Install)
 
-function Button:Enable()
+function Duplicate:Enable()
     listener:Start()
     if button then
         button:Show()
@@ -129,7 +135,7 @@ function Button:Enable()
     end
 end
 
-function Button:Disable()
+function Duplicate:Disable()
     listener:Stop()
     if button then
         button:Hide()

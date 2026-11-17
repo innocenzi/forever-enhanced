@@ -33,7 +33,7 @@ local TEST_FILES = {
     "tests/combopoints_test.lua",
     "tests/dots_test.lua",
     "tests/glow_test.lua",
-    "tests/icons_test.lua",
+    "tests/macros_search_test.lua",
     "tests/macros_test.lua",
     "tests/swaps_test.lua",
     "tests/ranks_test.lua",

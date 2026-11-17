@@ -1,5 +1,7 @@
--- Duplicate macros: the Duplicate button copies the selected macro (name, the
--- icon the player picked, text) into the same tab and selects the copy.
+-- Macro window, Duplicate button and grouped buttons. The Duplicate button
+-- copies the selected macro (name, the icon the player picked, text) into the
+-- same tab and selects the copy; the layout moves Blizzard's buttons next to
+-- what they act on and puts them back when turned off.
 
 local QUESTION_MARK = 134400
 local SINISTER_STRIKE_ICON = 136189
@@ -87,16 +89,90 @@ test("is disabled in combat and in click binding mode", function(world)
     expect(not world:DuplicateMacroButton():IsEnabled(), "click binding")
     local tooltip
     tooltip, lines = world:DuplicateMacroTooltip()
-    equal(tooltip, world.L["interface.macros.duplicate.tooltip"], "tooltip")
+    equal(tooltip, world.L["interface.macros.duplicate.button.tooltip"], "tooltip")
     equal(lines[1], CLICK_BINDING_BUTTON_DISABLED, "click binding reason")
 end)
 
 test("hides the button when disabled", function(world)
     AddMacros(world)
     world:OpenMacros()
+    world:Setting("interface.macros.duplicate"):SetValue(false)
+    expect(not world:DuplicateMacroButton():IsShown(), "hidden by its toggle")
+    world:Setting("interface.macros.duplicate"):SetValue(true)
+    expect(world:DuplicateMacroButton():IsShown(), "shown")
+
     world:Setting("interface.macros.enabled"):SetValue(false)
-    expect(not world:DuplicateMacroButton():IsShown(), "hidden")
+    expect(not world:DuplicateMacroButton():IsShown(), "hidden with the feature")
     world:Setting("interface.macros.enabled"):SetValue(true)
     expect(world:DuplicateMacroButton():IsShown(), "shown")
     expect(world:DuplicateMacroButton():IsEnabled(), "enabled")
+end)
+
+-- Blizzard's XML anchors.
+local BLIZZARD_ANCHORS = {
+    MacroDeleteButton = "BOTTOMLEFT MacroFrame BOTTOMLEFT 4 4",
+    MacroNewButton = "BOTTOMRIGHT MacroFrame BOTTOMRIGHT -82 4",
+    MacroSaveButton = "BOTTOM MacroCancelButton TOP 0 15",
+    MacroCancelButton = "BOTTOMRIGHT MacroFrameScrollFrame TOPRIGHT 25 10",
+}
+
+local function ExpectBlizzardLayout(world, context)
+    for name, anchors in pairs(BLIZZARD_ANCHORS) do
+        equal(world:MacroButtonAnchors(_G[name]), anchors, context .. ": " .. name)
+    end
+    expect(MacroCancelButton:IsShown(), context .. ": Cancel shown")
+    expect(MacroExitButton:IsShown(), context .. ": Exit shown")
+    expect(MacroDeleteButton:IsShown(), context .. ": Delete shown")
+    equal(
+        world:MacroButtonAnchors(world:DuplicateMacroButton()),
+        "RIGHT MacroNewButton LEFT -2 0",
+        context .. ": Duplicate"
+    )
+end
+
+test("groups the buttons by what they act on", function(world)
+    AddMacros(world)
+    world:OpenMacros()
+    equal(world:MacroButtonAnchors(MacroDeleteButton), "LEFT MacroEditButton RIGHT 2 0", "Delete beside Edit")
+    equal(world:MacroButtonAnchors(MacroNewButton), "BOTTOMLEFT MacroFrame BOTTOMLEFT 4 4", "New bottom left")
+    equal(
+        world:MacroButtonAnchors(world:DuplicateMacroButton()),
+        "LEFT MacroNewButton RIGHT 2 0",
+        "Duplicate after New"
+    )
+    equal(world:MacroButtonAnchors(MacroSaveButton), "BOTTOMRIGHT MacroFrame BOTTOMRIGHT -5 4", "Save bottom right")
+    expect(not MacroCancelButton:IsShown(), "Cancel hidden")
+    expect(not MacroExitButton:IsShown(), "Exit hidden")
+end)
+
+test("hides Delete along with the macro's details when the tab has none", function(world)
+    AddMacros(world)
+    world.macros.character = {}
+    world:OpenMacros()
+    expect(MacroDeleteButton:IsShown(), "macro selected")
+    world:OpenMacros(2)
+    expect(not MacroEditButton:IsShown() and not MacroDeleteButton:IsShown(), "no macro")
+    MacroFrame:ChangeTab(1)
+    expect(MacroDeleteButton:IsShown(), "macro selected again")
+end)
+
+test("puts Blizzard's layout back when the layout or the feature is disabled", function(world)
+    AddMacros(world)
+    world.macros.character = {}
+    world:OpenMacros(2)
+    world:Setting("interface.macros.layout"):SetValue(false)
+    ExpectBlizzardLayout(world, "layout off")
+
+    world:Setting("interface.macros.layout"):SetValue(true)
+    expect(not MacroCancelButton:IsShown() and not MacroExitButton:IsShown(), "Cancel and Exit hidden again")
+    world:Setting("interface.macros.enabled"):SetValue(false)
+    ExpectBlizzardLayout(world, "feature off")
+end)
+
+test("lays out the window when its addon loads after login", function(world)
+    world:Setting("interface.macros.layout"):SetValue(false)
+    world:OpenMacros()
+    ExpectBlizzardLayout(world, "loaded with the layout off")
+    world:Setting("interface.macros.layout"):SetValue(true)
+    equal(world:MacroButtonAnchors(MacroNewButton), "BOTTOMLEFT MacroFrame BOTTOMLEFT 4 4", "applied")
 end)

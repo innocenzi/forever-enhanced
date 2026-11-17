@@ -11,7 +11,7 @@ Never edit generated files by hand: change the generator and rerun it.
 | --- | --- | --- |
 | `bun run professions` | `tools/professions.ts` | `modules/professions/reagents/data.lua`, `modules/professions/skillups/data.lua` |
 | `bun run instances` | `tools/instances.ts` | `modules/quests/tracking/data.lua` |
-| `bun run icons` | `tools/icons.ts` | `modules/interface/icons/data.lua` |
+| `bun run icons` | `tools/icons.ts` | `modules/interface/macros/data.lua` |
 | `bun run seamless` | `tools/seamless.ts` | `modules/map/seamless/data.lua`, `modules/map/seamless/media/` |
 | `bun run dots` | `tools/dots.ts` | `modules/combat/dots/data.lua` |
 | `bun run icon` | `tools/icon.ts` | `media/icon.tga`, `tools/icon/logo.png` |

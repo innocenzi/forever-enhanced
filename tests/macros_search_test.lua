@@ -1,4 +1,4 @@
--- Macro icon search: the picker's grid shows the icons matching the search
+-- Macro window, icon search: the picker's grid shows the icons matching the search
 -- (by file name, or the name of a spell or item of the player's showing them),
 -- each once, and Blizzard's selection keeps working through it.
 -- Icons (see world.macroIcons): 132090 ability_backstab (Backstab), 136189
@@ -95,16 +95,16 @@ end)
 test("puts the full list back when disabled", function(world)
     world:OpenMacroIcons()
     world:SearchMacroIcons("fireball")
-    world:Setting("interface.icons.enabled"):SetValue(false)
+    world:Setting("interface.macros.search"):SetValue(false)
     expect(not world:MacroIconSearchBox():IsShown(), "search box hidden")
     equal(world:MacroIcons(), FULL_LIST, "full list")
 
-    world:Setting("interface.icons.enabled"):SetValue(true)
+    world:Setting("interface.macros.search"):SetValue(true)
     expect(world:MacroIconSearchBox():IsShown(), "search box shown")
 end)
 
 test("reads every icon name of the data", function(world)
-    local names = world.ns:GetFeature("interface", "icons").NAMES
+    local names = world.ns:GetFeature("interface", "macros").NAMES
     local _, lines = names:gsub("\n", "")
     local _, decoded = names:gsub("[%l%d]+%u[^\n]*", "")
     equal(decoded, lines, "every line decodes")

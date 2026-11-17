@@ -1,4 +1,4 @@
-// Generates modules/interface/icons/data.lua: the name of every icon of the
+// Generates modules/interface/macros/data.lua: the name of every icon of the
 // Forever client (the files in Interface\Icons), by file ID, from its own DB2
 // table ManifestInterfaceData as exported by wago.tools. The macro icon picker
 // only gets file IDs from the client (GetMacroIcons), so the names are what
@@ -12,7 +12,7 @@ import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { integer, latestBuild, parseCsv, table } from "./wago";
 
-const OUTPUT = "modules/interface/icons/data.lua";
+const OUTPUT = "modules/interface/macros/data.lua";
 const CACHE = "tools/.cache/icons";
 
 const ICONS_FOLDER = "interface\\icons\\";
@@ -72,9 +72,9 @@ export function renderLua(icons: [number, string][], build: string): string {
         "",
         "local _, ns = ...",
         "",
-        'local Icons = ns:GetFeature("interface", "icons")',
+        'local Macros = ns:GetFeature("interface", "macros")',
         "",
-        "Icons.NAMES = [[",
+        "Macros.NAMES = [[",
         encodeIcons(icons),
         "]]",
         "",

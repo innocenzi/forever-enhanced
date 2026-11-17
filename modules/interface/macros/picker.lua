@@ -1,4 +1,4 @@
--- The search box in the macro icon picker (MacroPopupFrame, load-on-demand
+-- search: the search box in the macro icon picker (MacroPopupFrame, load-on-demand
 -- with Blizzard_MacroUI), beside the icon type dropdown; it hides with the
 -- dropdown while the player drags something onto the picker.
 --
@@ -9,16 +9,14 @@
 -- icon by its index in the full list (the type dropdown, dropping a spell or
 -- an item) is followed by ours: the type dropdown searches again, a drop ends
 -- the search so the dropped icon shows selected in the full list.
--- Nothing in the picker is protected: macros can't be edited in combat.
 
 local _, ns = ...
 
-local Icons = ns:GetFeature("interface", "icons")
+local Macros = ns:GetFeature("interface", "macros")
 
 local Picker = {}
-Icons.Picker = Picker
+Macros.Picker = Picker
 
-local MACRO_ADDON = "Blizzard_MacroUI"
 local BOX_WIDTH = 120
 local BOX_HEIGHT = 20
 
@@ -29,6 +27,10 @@ local terms = {}
 local matches = {}
 -- Whether the grid shows our matches (until Blizzard's next OnShow gives it the full list).
 local filtered = false
+
+local function IsActive()
+    return Macros:IsPartActive("search")
+end
 
 local function GetMatch(index)
     return matches[index]
@@ -44,14 +46,14 @@ end
 
 local function ShowMatches(popup)
     filtered = true
-    Icons.Names:Search(terms)
+    Macros.Names:Search(terms)
     wipe(matches)
     local seen = {}
     for index = 1, popup:GetNumIcons() do
         local icon = popup:GetIconByIndex(index)
         if icon and not seen[icon] then
             seen[icon] = true
-            if Icons.Names:Matches(icon) then
+            if Macros.Names:Matches(icon) then
                 table.insert(matches, icon)
             end
         end
@@ -79,7 +81,7 @@ local function Refresh()
     local popup = MacroPopupFrame
     if not popup:IsShown() then
         filtered = false
-    elseif Icons:IsActive() and #terms > 0 then
+    elseif IsActive() and #terms > 0 then
         ShowMatches(popup)
     elseif filtered then
         ShowAll(popup)
@@ -112,7 +114,7 @@ local function Install()
     box = CreateFrame("EditBox", nil, dropdown, "SearchBoxTemplate")
     box:SetSize(BOX_WIDTH, BOX_HEIGHT)
     box:SetPoint("RIGHT", dropdown, "LEFT", -10, 0)
-    box:SetShown(Icons:IsActive())
+    box:SetShown(IsActive())
     box:HookScript("OnTextChanged", function(editBox)
         SetText(editBox:GetText())
     end)
@@ -130,18 +132,7 @@ local function Install()
     end)
 end
 
-if C_AddOns.IsAddOnLoaded(MACRO_ADDON) then
-    Install()
-else
-    ns:CreateEventListener({
-        ADDON_LOADED = function(listener, addonName)
-            if addonName == MACRO_ADDON then
-                listener:Stop()
-                Install()
-            end
-        end,
-    }):Start()
-end
+Macros:OnMacroUILoaded(Install)
 
 function Picker:Enable()
     if box then
@@ -151,7 +142,7 @@ end
 
 function Picker:Disable()
     if box then
-        -- The feature is inactive by now: the full list comes back.
+        -- The part is inactive by now: the full list comes back.
         ClearBox()
         box:Hide()
     end
