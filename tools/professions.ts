@@ -18,9 +18,18 @@ const REAGENT_SLOTS = 8;
 
 // Skill lines whose recipes use reagents: First Aid, Blacksmithing,
 // Leatherworking, Alchemy, Cooking, Mining (smelting), Tailoring, Engineering,
-// Enchanting. Each item's uses follow this order, and tooltips list the
-// professions in it.
-export const SKILL_LINES = [129, 185, 171, 164, 165, 197, 202, 333, 186];
+// Enchanting, Herbalism, Skinning, Fishing (Forever's crafts: Greenhouse, Camp
+// Chair, Fishing Hut...), Poisons. Each item's uses follow this order, and
+// tooltips list the professions in it.
+export const SKILL_LINES = [129, 185, 171, 164, 165, 197, 202, 333, 186, 182, 393, 356, 40];
+
+// Skill lines with profession recipes (a skill-up line or skill range) using
+// reagents that tooltips leave out on purpose. Any other one fails the
+// generation, so a profession a new build adds can't go missing silently.
+const IGNORED_SKILL_LINES = new Map([
+    [142, "Survival, not a profession (Bright Campfire)"],
+    [2933, "a test copy of Mining (Smelt Copper (Test))"],
+]);
 
 /** A recipe that uses an item: spell, skill line, quantity of the item. */
 export type Use = [spellID: number, skillLineID: number, quantity: number];
@@ -50,12 +59,28 @@ export function collectUses(spellReagentsCsv: string, skillLineAbilityCsv: strin
     // A few recipes belong to two professions (Synthetic Gordok Ogre Suit:
     // Tailoring and Leatherworking): one use per profession.
     const recipes = new Set<string>();
+    const unknown = new Set<number>();
     for (const row of parseCsv(skillLineAbilityCsv)) {
         const skillLineID = integer(row, "SkillLine");
         const spellID = integer(row, "Spell");
-        if (SKILL_LINES.includes(skillLineID) && reagentsBySpell.has(spellID)) {
-            recipes.add(`${spellID}:${skillLineID}`);
+        if (!reagentsBySpell.has(spellID)) {
+            continue;
         }
+        if (SKILL_LINES.includes(skillLineID)) {
+            recipes.add(`${spellID}:${skillLineID}`);
+        } else if (
+            (integer(row, "SkillupSkillLineID") > 0 || integer(row, "TrivialSkillLineRankHigh") > 0) &&
+            !IGNORED_SKILL_LINES.has(skillLineID)
+        ) {
+            // Class spells and runes using reagents have neither.
+            unknown.add(skillLineID);
+        }
+    }
+    if (unknown.size > 0) {
+        throw new Error(
+            `Skill lines ${[...unknown].join(", ")} have profession recipes using reagents: ` +
+                "add them to SKILL_LINES or IGNORED_SKILL_LINES",
+        );
     }
 
     const uses = new Map<number, Use[]>();

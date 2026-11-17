@@ -108,6 +108,21 @@ test("lists only the player's professions when asked", function(world)
     equal(headers[2], Name(TAILORING), "tailoring")
 end)
 
+test("lists rogue poisons, a profession once the Poisons spell is known", function(world)
+    local FADELEAF = 3818
+    local POISONS = 40
+    local POISONS_SPELL = 2842
+    world.shift = true
+    local poisons = C_TradeSkillUI.GetTradeSkillDisplayName(POISONS)
+    equal(Headers(Lines(world, FADELEAF))[3], poisons, "after cooking and alchemy")
+    world:Setting("professions.reagents.onlyMine"):SetValue(true)
+    equal(#Lines(world, FADELEAF), 0, "not learned: nothing")
+    world.playerSpells[POISONS_SPELL] = true
+    local headers = Headers(Lines(world, FADELEAF))
+    equal(#headers, 1, "headers")
+    equal(headers[1], poisons, "poisons")
+end)
+
 test("caps the recipes of a profession", function(world)
     world.shift = true
     local uses = world.ns:GetFeature("professions", "reagents").Data[2996] -- Bolt of Linen Cloth

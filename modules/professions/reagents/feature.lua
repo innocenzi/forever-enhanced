@@ -26,6 +26,10 @@ local Reagents = ns:RegisterFeature("professions", "reagents", {
     },
 })
 
+-- Rogues' Poisons, which GetProfessions() leaves out: learned with its spell.
+local POISONS_SKILL_LINE = 40
+local POISONS_SPELL = 2842
+
 -- Skill line IDs of the professions this character has learned, as a set.
 function Reagents:GetPlayerSkillLines()
     local skillLines = {}
@@ -35,6 +39,9 @@ function Reagents:GetPlayerSkillLines()
         if skillLine then
             skillLines[skillLine] = true
         end
+    end
+    if IsPlayerSpell(POISONS_SPELL) then
+        skillLines[POISONS_SKILL_LINE] = true
     end
     return skillLines
 end

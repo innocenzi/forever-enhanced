@@ -4874,6 +4874,8 @@ end
 -- Professions the player has learned, by GetProfessions slot (1-2 primary, then
 -- First Aid, Fishing, Cooking...): { skillLine, rank }. Empty slots are nil.
 world.professions = {}
+-- Spells the player knows (IsPlayerSpell), as a set: Poisons (2842) for one.
+world.playerSpells = {}
 -- The open profession window: the recipe IDs its list shows, and which of
 -- every recipe the player has learned.
 world.tradeSkillList = {}
@@ -4884,6 +4886,7 @@ world.recipeNames = {}
 local PROFESSION_SLOTS = 7
 local PROFESSION_NAMES = {
     enUS = {
+        [40] = "Poisons",
         [129] = "First Aid",
         [164] = "Blacksmithing",
         [165] = "Leatherworking",
@@ -4894,9 +4897,11 @@ local PROFESSION_NAMES = {
         [197] = "Tailoring",
         [202] = "Engineering",
         [333] = "Enchanting",
+        [356] = "Fishing",
         [393] = "Skinning",
     },
     frFR = {
+        [40] = "Poisons",
         [129] = "Secourisme",
         [164] = "Forge",
         [165] = "Travail du cuir",
@@ -4907,9 +4912,14 @@ local PROFESSION_NAMES = {
         [197] = "Couture",
         [202] = "Ingénierie",
         [333] = "Enchantement",
+        [356] = "Pêche",
         [393] = "Dépeçage",
     },
 }
+
+function IsPlayerSpell(spellID)
+    return world.playerSpells[spellID] == true
+end
 
 -- One index per slot, nil for empty ones, like the client.
 function GetProfessions()
