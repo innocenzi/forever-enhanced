@@ -10,9 +10,11 @@
 --   "bank":    Mark for bank, the banker's icon in the bags; Deposit moves them
 --              to the bank (bank feature, "marked" transfer); marked bag items
 --              glow while the bank is open ("bankGlow").
--- An item has one destination at most: marking one removes the others. Locked
--- items show no icon. "altClick" picks what Alt Left Click does: lock the item
--- (Item locking, by default) or one of the marks.
+-- Junk excludes the other marks; auction house and bank combine, the item
+-- showing the icon of its next stop (bank in the bags, auction house in the
+-- bank or while it's open). Locked items show no icon. "altClick" picks what
+-- Alt Left Click does: lock the item (Item locking, by default) or one of the
+-- marks.
 -- Two more parts, each behind its toggle:
 --   "notes":   Add note writes a note on that exact item (by GUID, unlike
 --              marks), shown in its tooltip;
@@ -22,7 +24,7 @@
 -- Files of this slice:
 --   feature.lua  registration, schema and lifecycle (this file)
 --   locales.lua  strings
---   store.lua    each item ID's destination and public API
+--   store.lua    each item ID's destinations and public API
 --   junk.lua     adds items marked as junk to the junk Sell All Junk sells
 --   buttons.lua  icons, Alt Left Click and the marks' item menu entries
 --   notes.lua    notes: store, dialog, menu entry and tooltip line

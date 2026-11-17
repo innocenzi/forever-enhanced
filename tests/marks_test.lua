@@ -1,5 +1,5 @@
--- Item marks: the auction house and bank marks, their menu entries and icons,
--- and one destination per item (junk included).
+-- Item marks: the auction house and bank marks, their menu entries and icons;
+-- junk excludes the other marks, auction house and bank combine.
 -- The fake bag starts as: G1 G2 - GJUNK (GJUNK is poor quality); items are their own IDs.
 
 local TEXTS = {
@@ -48,7 +48,11 @@ for _, mark in ipairs({ "auction", "bank" }) do
         expect(world[Shown](world, 1) and world[Shown](world, 2), "icon on both copies")
         expect(not world[Shown](world, 4), "no icon on other items")
         equal(Icon(world, 1).point, "TOPLEFT", "icon top-left, where the junk coin goes")
-        equal(world.env.ForeverEnhancedCharacterDB.inventory.marks.destinations.CLOTH, mark, "saved per character")
+        equal(
+            world.env.ForeverEnhancedCharacterDB.inventory.marks.destinations.CLOTH[mark],
+            true,
+            "saved per character"
+        )
 
         Toggle(world, 2, mark)
         expect(not IsMarked(world, 1, mark), "unmarked")
@@ -85,40 +89,74 @@ test("poor items can't be marked, bound items only for the bank", function(world
     expect(Entry(world, 1, "bank").enabled, "bound: bank")
 end)
 
-test("an item has one destination: junk, auction house or bank", function(world)
+local function Marked(world, slot)
+    local marked = {}
+    for _, mark in ipairs({ "junk", "auction", "bank" }) do
+        if IsMarked(world, slot, mark) then
+            table.insert(marked, mark)
+        end
+    end
+    return table.concat(marked, " ")
+end
+
+test("junk excludes the other marks, auction house and bank combine", function(world)
     world:Setting("inventory.marks.junkCoin"):SetValue("always")
     world:Setting("inventory.merchant.enabled"):SetValue(true)
-    local function Marked()
-        local marked = {}
-        for _, mark in ipairs({ "junk", "auction", "bank" }) do
-            if IsMarked(world, 1, mark) then
-                table.insert(marked, mark)
-            end
-        end
-        return table.concat(marked, " ")
-    end
 
     Toggle(world, 1, "junk")
     Toggle(world, 1, "auction")
-    equal(Marked(), "auction", "auction house replaces junk")
+    equal(Marked(world, 1), "auction", "auction house replaces junk")
     expect(world:AuctionMark(1) and not world:JunkCoin(1), "icon instead of the coin")
 
     Toggle(world, 1, "bank")
-    equal(Marked(), "bank", "bank replaces auction house")
-    expect(world:BankMark(1) and not world:AuctionMark(1), "bank icon only")
-
-    Toggle(world, 1, "auction")
-    equal(Marked(), "auction", "auction house replaces bank")
+    equal(Marked(world, 1), "auction bank", "bank joins auction house")
 
     Toggle(world, 1, "junk")
-    equal(Marked(), "junk", "junk replaces auction house")
-    expect(world:JunkCoin(1) and not world:AuctionMark(1), "coin instead of the icon")
+    equal(Marked(world, 1), "junk", "junk replaces both")
+    expect(world:JunkCoin(1) and not world:AuctionMark(1) and not world:BankMark(1), "coin instead of the icons")
 
     Toggle(world, 1, "bank")
-    equal(Marked(), "bank", "bank replaces junk")
+    equal(Marked(world, 1), "bank", "bank replaces junk")
 
+    Toggle(world, 1, "auction")
     Toggle(world, 1, "bank")
-    equal(Marked(), "", "unmarking leaves none")
+    equal(Marked(world, 1), "auction", "unmarking bank keeps auction house")
+
+    Toggle(world, 1, "auction")
+    equal(Marked(world, 1), "", "unmarking leaves none")
+    equal(world.env.ForeverEnhancedCharacterDB.inventory.marks.destinations.G1, nil, "nothing saved")
+end)
+
+test("an item marked for auction house and bank shows its next stop", function(world)
+    Toggle(world, 1, "auction")
+    Toggle(world, 1, "bank")
+    expect(world:BankMark(1) and not world:AuctionMark(1), "bags: the bank icon")
+
+    world:OpenAuctionHouse()
+    expect(world:AuctionMark(1) and not world:BankMark(1), "auction house open: its icon")
+    expect(world:Glow(1), "and its glow")
+
+    world:CloseAuctionHouse()
+    expect(world:BankMark(1) and not world:AuctionMark(1), "the bank icon once closed")
+
+    world:OpenBank()
+    expect(world:BankMark(1) and world:Glow(1), "bank open: its icon and glow")
+    world:CloseBank()
+    world:OpenBags() -- closing the bank closes the bags
+
+    world:Setting("inventory.marks.bank"):SetValue(false)
+    expect(world:AuctionMark(1) and not world:BankMark(1), "bank mark off: the auction house icon")
+end)
+
+test("older saves holding one destination still read", function(world)
+    world.itemIDs.G1 = "CLOTH"
+    world.env.ForeverEnhancedCharacterDB.inventory.marks.destinations = { CLOTH = "bank" }
+    world.ns:RefreshItemButtons()
+    expect(world:BankMark(1), "bank icon")
+    equal(Marked(world, 1), "bank", "marked for the bank")
+
+    Toggle(world, 1, "auction")
+    equal(Marked(world, 1), "auction bank", "auction house joins it")
 end)
 
 test("disabling item marks hides the icons and the entries", function(world)
@@ -162,6 +200,7 @@ for _, glow in ipairs(GLOWS) do
         world:OpenBags() -- closing the bank closes the bags
         expect(not world:Glow(1) and not world:Glow(2), "gone once closed")
 
+        Toggle(world, 1, mark)
         Toggle(world, 1, other)
         world[glow.open](world)
         expect(not world:Glow(1), "items marked for " .. other .. " don't glow")

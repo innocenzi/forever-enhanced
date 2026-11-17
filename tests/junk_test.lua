@@ -28,7 +28,7 @@ test("marks every copy of an item as junk", function(world)
     entry.select()
     expect(MarkEntry(world, 2).isSelected(), "the other copy is marked")
     expect(world:JunkCoin(1) and world:JunkCoin(2), "coin on both copies")
-    equal(world.env.ForeverEnhancedCharacterDB.inventory.marks.destinations.CLOTH, "junk", "saved per character")
+    equal(world.env.ForeverEnhancedCharacterDB.inventory.marks.destinations.CLOTH.junk, true, "saved per character")
 
     ToggleMark(world, 2)
     expect(not MarkEntry(world, 1).isSelected(), "unmarked")

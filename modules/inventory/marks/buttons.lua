@@ -1,8 +1,9 @@
 -- Item buttons (core/itembuttons.lua): one handler per mark (its part), drawing
 -- the destination's icon on our own frame laid over the button, top-left where
--- Blizzard draws its junk coin (an item has one destination, so they never
--- stack), and adding the mark's entry to the item menu; plus Alt Left Click,
--- when "altClick" picks a mark.
+-- Blizzard draws its junk coin, and adding the mark's entry to the item menu;
+-- plus Alt Left Click, when "altClick" picks a mark. Icons never stack: junk
+-- excludes the other marks, and an item marked for both the auction house and
+-- the bank shows the icon of its next stop (IsNextStop).
 --
 -- The junk coin is Blizzard's, on the items Sell All Junk Items would sell
 -- (core/junk.lua: not locked or in an excluded bag). Blizzard shows its coin on
@@ -118,6 +119,19 @@ local function ShowIcon(destination, button, shown)
     end
 end
 
+-- AuctionHouseFrame is load-on-demand.
+local function IsAuctionHouseOpen()
+    return AuctionHouseFrame ~= nil and AuctionHouseFrame:IsShown()
+end
+
+-- A bag item marked for both the auction house and the bank shows the icon of
+-- its next stop: the auction house while it's open, the bank otherwise. (In the
+-- bank, only the auction house icon can show: bagsOnly.)
+local function IsNextStop(destination, itemID)
+    local other = destination == "auction" and "bank" or "auction"
+    return not Marks:IsMarked(itemID, other) or (destination == "auction") == IsAuctionHouseOpen()
+end
+
 local function ShowsIcon(destination, itemLocation, guid)
     local mark = MARKS[destination]
     if guid == nil then
@@ -126,10 +140,12 @@ local function ShowsIcon(destination, itemLocation, guid)
     if mark.ShowsIcon then
         return mark.ShowsIcon(itemLocation, guid)
     end
-    if Locking:IsGUIDLocked(guid) or (mark.bagsOnly and not ns.Containers:IsBag((itemLocation:GetBagAndSlot()))) then
+    local inBag = ns.Containers:IsBag((itemLocation:GetBagAndSlot()))
+    if Locking:IsGUIDLocked(guid) or (mark.bagsOnly and not inBag) then
         return false
     end
-    return Marks:IsMarked(C_Item.GetItemID(itemLocation), destination)
+    local itemID = C_Item.GetItemID(itemLocation)
+    return Marks:IsMarked(itemID, destination) and (not inBag or IsNextStop(destination, itemID))
 end
 
 -- Per destination that glows:
@@ -138,12 +154,9 @@ end
 -- Only bag items glow: bank items can't be posted, and bank marks show in the
 -- bags only.
 local GLOWS = {
-    -- AuctionHouseFrame is load-on-demand.
     auction = {
         setting = "auctionGlow",
-        IsOpen = function()
-            return AuctionHouseFrame ~= nil and AuctionHouseFrame:IsShown()
-        end,
+        IsOpen = IsAuctionHouseOpen,
     },
     -- BankFrame shows before addons get BANKFRAME_OPENED; the saved bank is a
     -- frame of our own, so it doesn't count.

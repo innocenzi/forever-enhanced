@@ -2,7 +2,7 @@ local _, ns = ...
 
 ns:RegisterLocale("enUS", {
     ["inventory.marks.title"] = "Item marks and notes",
-    ["inventory.marks.description"] = "From the item menu (Alt Right Click), marks items as junk, for the auction house or for the bank, and adds notes. A mark shows on every copy of an item; a note only on the item you wrote it on.",
+    ["inventory.marks.description"] = "From the item menu (Alt Right Click), marks items as junk, for the auction house and for the bank, and adds notes. A mark shows on every copy of an item; a note only on the item you wrote it on.",
     ["inventory.marks.junk"] = "Junk",
     ["inventory.marks.junk.tooltip"] = 'Adds "Mark as junk" to the item menu: marked items are sold with your junk.',
     ["inventory.marks.junkCoin"] = "Show coin",
@@ -41,7 +41,7 @@ ns:RegisterLocale("enUS", {
 
 ns:RegisterLocale("frFR", {
     ["inventory.marks.title"] = "Marques et notes d’objets",
-    ["inventory.marks.description"] = "Depuis le menu des objets (Alt-clic droit), marque des objets comme camelote, pour l’hôtel des ventes ou pour la banque, et ajoute des notes. Une marque s’affiche sur chaque exemplaire d’un objet ; une note seulement sur celui où vous l’avez écrite.",
+    ["inventory.marks.description"] = "Depuis le menu des objets (Alt-clic droit), marque des objets comme camelote, pour l’hôtel des ventes et pour la banque, et ajoute des notes. Une marque s’affiche sur chaque exemplaire d’un objet ; une note seulement sur celui où vous l’avez écrite.",
     ["inventory.marks.junk"] = "Camelote",
     ["inventory.marks.junk.tooltip"] = "Ajoute « Marquer comme camelote » au menu des objets : les objets marqués sont vendus avec votre camelote.",
     ["inventory.marks.junkCoin"] = "Afficher une pièce",
