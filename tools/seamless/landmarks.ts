@@ -243,6 +243,61 @@ export const LANDMARKS: Landmark[] = [
         fade: 1.5,
     },
 
+    // Elwynn Forest, north of Stormwind -------------------------------------------------
+
+    // No zone's map covers the sea north of Stormwind: Eastern Kingdoms' land paper filled it,
+    // and Elwynn's share stopped short of its mountains. The coast is Elwynn's mountains east of
+    // the city, up to its map's top edge, then the city; not its blank parchment above them
+    // (west of the city, a few faint ridges on it).
+    {
+        mapID: 1429,
+        name: "Elwynn Forest's mountains east of Stormwind",
+        polygon: [
+            [0.31, 0.2],
+            [0.33, 0.15],
+            [0.35, 0.11],
+            [0.4, 0.07],
+            [0.45, 0.04],
+            [0.508, 0.03],
+            [0.508, 0.2],
+        ],
+        fade: 1,
+        edgeKeep: 1,
+        edgeFade: 1,
+    },
+    {
+        mapID: 1429,
+        name: "Elwynn Forest above its mountains and Stormwind",
+        hide: true,
+        polygon: [
+            [-0.03, -0.03],
+            [0.508, -0.03],
+            [0.508, 0.025],
+            [0.45, 0.035],
+            [0.4, 0.065],
+            [0.35, 0.105],
+            [0.33, 0.145],
+            [0.31, 0.19],
+            [-0.03, 0.15],
+        ],
+        fade: 1,
+    },
+    {
+        mapID: 1415,
+        name: "North of Stormwind, off Eastern Kingdoms' land",
+        hide: true,
+        polygon: [
+            [0.398, 0.5964],
+            [0.4663, 0.5964],
+            [0.4652, 0.6641],
+            [0.4486, 0.6724],
+            [0.4185, 0.6772],
+            [0.4138, 0.6964],
+            [0.398, 0.6964],
+        ],
+        fade: 1.5,
+    },
+
     // Elwynn Forest, Duskwood and Westfall -----------------------------------------------
 
     // The rivers are the seams: Elwynn down to the middle of its river east, Duskwood from it,
