@@ -5249,15 +5249,21 @@ function world:CloseBank()
     self:Fire("BANKFRAME_CLOSED")
 end
 
--- Blizzard's handler shows MailFrame before addons see MAIL_SHOW.
+-- Like the client: Blizzard shows MailFrame (opening the bags) from
+-- PLAYER_INTERACTION_MANAGER_FRAME_SHOW, which addons can see after MAIL_SHOW
+-- (marks once missed their mailbox glow); closing, likewise after MAIL_CLOSED.
+-- The player looks a frame later.
 function world:OpenMailbox()
-    MailFrame:Show()
     self:Fire("MAIL_SHOW")
+    MailFrame:Show()
+    self:OpenBags()
+    self:NextFrame()
 end
 
 function world:CloseMailbox()
-    MailFrame:Hide()
     self:Fire("MAIL_CLOSED")
+    MailFrame:Hide()
+    self:NextFrame()
 end
 
 -- Trading with `name` (of `realm`, nil for the player's): like the mailbox,

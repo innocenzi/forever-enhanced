@@ -480,6 +480,27 @@ local function Refresh()
     ns:RefreshItemButtons()
 end
 
+local redrawQueued = false
+
+local function RedrawQueued()
+    redrawQueued = false
+    if listening then
+        ns:RefreshItemButtons()
+    end
+end
+
+-- A window opened or closed: what marks draw depends on whether it's shown.
+-- Blizzard shows and hides windows from PLAYER_INTERACTION_MANAGER_FRAME_SHOW
+-- and _HIDE, in no set order with the window's own event (MAIL_SHOW came first:
+-- MailFrame still hidden), so marks are redrawn at once and again next frame.
+local function OnWindowToggled()
+    Refresh()
+    if not redrawQueued then
+        redrawQueued = true
+        C_Timer.After(0, RedrawQueued)
+    end
+end
+
 local function SyncShieldsOnly()
     SyncShields()
 end
@@ -508,16 +529,16 @@ local listener = ns:CreateEventListener({
     end,
     -- The bag's "exclude from Sell All Junk" option: junk coins follow it.
     BAG_SLOT_FLAGS_UPDATED = Refresh,
-    MERCHANT_SHOW = Refresh,
-    MERCHANT_CLOSED = Refresh,
-    MAIL_SHOW = Refresh,
-    MAIL_CLOSED = Refresh,
-    TRADE_SHOW = Refresh,
-    TRADE_CLOSED = Refresh,
-    AUCTION_HOUSE_SHOW = Refresh,
-    AUCTION_HOUSE_CLOSED = Refresh,
-    BANKFRAME_OPENED = Refresh,
-    BANKFRAME_CLOSED = Refresh,
+    MERCHANT_SHOW = OnWindowToggled,
+    MERCHANT_CLOSED = OnWindowToggled,
+    MAIL_SHOW = OnWindowToggled,
+    MAIL_CLOSED = OnWindowToggled,
+    TRADE_SHOW = OnWindowToggled,
+    TRADE_CLOSED = OnWindowToggled,
+    AUCTION_HOUSE_SHOW = OnWindowToggled,
+    AUCTION_HOUSE_CLOSED = OnWindowToggled,
+    BANKFRAME_OPENED = OnWindowToggled,
+    BANKFRAME_CLOSED = OnWindowToggled,
 })
 
 local function HideShields()
