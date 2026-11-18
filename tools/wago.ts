@@ -94,12 +94,30 @@ export async function latestBuild(): Promise<string> {
     return build;
 }
 
+// wago.tools answers 429 when downloads come too fast: wait (its Retry-After, else twice
+// longer each time from RETRY_SECONDS) and try again, up to RETRIES times.
+const RETRIES = 6;
+const RETRY_SECONDS = 5;
+
+async function fetchPolitely(url: string): Promise<Response> {
+    for (let attempt = 0; ; attempt++) {
+        const response = await fetch(url);
+        if (response.status !== 429 || attempt >= RETRIES) {
+            return response;
+        }
+        const after = Number(response.headers.get("retry-after"));
+        const seconds = after > 0 ? after : RETRY_SECONDS * 2 ** attempt;
+        console.warn(`wago.tools: too many requests, waiting ${seconds} s`);
+        await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
+    }
+}
+
 /** `url`'s content, kept at `at` (downloaded again when `refresh`, or when it isn't there). */
 export async function cached(at: string, url: string, refresh: boolean): Promise<Uint8Array> {
     if (!refresh && existsSync(at)) {
         return new Uint8Array(await readFile(at));
     }
-    const response = await fetch(url);
+    const response = await fetchPolitely(url);
     if (!response.ok) {
         throw new Error(`Failed to download ${url}: HTTP ${response.status}`);
     }
