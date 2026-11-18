@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.4.0 - 2026-11-18
+
+
+### Features
+- **inventory:** mark items for mail to a character
+- **core:** indent nested settings one step per level
+- **inventory:** highlight items marked for mail while trading with their recipient
+- **professions:** list poisons and gathering crafts in reagent tooltips
+- **professions:** show more reagent recipes when the tooltip has room
+- **interface:** grey out Save in the macro window when there's nothing to save
+- **map:** show zoomed-in maps whole and blank land as plain paper
+- **inventory:** reserve a bag or bank slot for an item
+- **inventory:** mark the Waylaid Crate components the bags or bank hold enough of
+- **inventory:** clean up the bank after deposits and withdrawals
+
+
+### Fixes
+- reword settings text to be clearer and closer to the game's own
+- **map:** draw whole the zone the seamless map is on, well zoomed in
+- **map:** draw the seamless map's border landmarks whole
+
 ## 1.3.0 - 2026-11-17
 
 
