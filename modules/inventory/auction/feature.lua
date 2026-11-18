@@ -25,7 +25,7 @@
 local _, ns = ...
 
 local Auction = ns:RegisterFeature("inventory", "auction", {
-    order = 6,
+    order = 7,
     settings = {
         { key = "scan", type = "toggle", default = true },
         { key = "unit", type = "toggle", default = true },

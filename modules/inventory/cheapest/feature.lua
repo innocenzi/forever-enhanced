@@ -19,7 +19,7 @@
 local _, ns = ...
 
 local Cheapest = ns:RegisterFeature("inventory", "cheapest", {
-    order = 7,
+    order = 8,
     enabledByDefault = false,
     settings = {
         { key = "onlyWhenFull", type = "toggle", default = true },

@@ -153,6 +153,7 @@ end)
 
 test("a bank slot fills when the item is deposited, not from the bags", function(world)
     world.itemIDs.F1, world.itemIDs.F2 = "FOOD", "FOOD"
+    world.itemIcons.FOOD = FOOD_ICON
     world:OpenBank()
     Slots(world):ToggleReservation(ItemLocation:CreateFromBagAndSlot(6, 2), "FOOD")
     Change(world, 0, { [3] = "F2" })

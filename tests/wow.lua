@@ -4145,10 +4145,25 @@ end)
 BankFrame = CreateFrame("Frame")
 BankFrame.shown = false
 
+-- Shown with the bank, on its first tab: its buttons (world.bankButtons) hold
+-- the slots of CharacterBankTab_1.
 BankPanel = CreateFrame("Frame")
 BankPanel.shown = false
+world.bankButtons = {}
+for slot = 1, BAG_SIZE do
+    local button = CreateFrame("Button", nil, BankPanel)
+    function button:GetItemLocation()
+        return ItemLocation:CreateFromBagAndSlot(Enum.BagIndex.CharacterBankTab_1, slot)
+    end
+    world.bankButtons[slot] = button
+end
+-- Like the button pool it enumerates: the buttons are the keys.
+local bankButtonSet = {}
+for _, button in ipairs(world.bankButtons) do
+    bankButtonSet[button] = true
+end
 function BankPanel:EnumerateValidItems()
-    return pairs({})
+    return pairs(bankButtonSet)
 end
 BankPanel.GenerateItemSlotsForSelectedTab = NoOp
 BankPanel.RefreshAllItemsForSelectedTab = NoOp
@@ -5238,6 +5253,7 @@ end
 function world:OpenBank()
     self.bankOpen = true
     BankFrame:Show()
+    BankPanel:Show()
     self:OpenBags()
     self:Fire("BANKFRAME_OPENED")
 end
@@ -5245,6 +5261,7 @@ end
 function world:CloseBank()
     self.bankOpen = false
     BankFrame:Hide()
+    BankPanel:Hide()
     self:CloseBags()
     self:Fire("BANKFRAME_CLOSED")
 end

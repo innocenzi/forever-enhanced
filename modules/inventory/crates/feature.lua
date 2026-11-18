@@ -14,7 +14,7 @@
 local _, ns = ...
 
 ns:RegisterFeature("inventory", "crates", {
-    order = 8,
+    order = 9,
     presets = {
         minimal = { enabled = true },
         enhanced = { enabled = true },
