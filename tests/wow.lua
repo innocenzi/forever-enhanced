@@ -62,6 +62,7 @@ local world = {
     sellAllJunkCalls = 0,
     money = 0,
     repairCost = 0,
+    durability = {},
     merchantCanRepair = true,
     merchantItems = {},
     guildRepair = { allowed = false, withdrawLimit = 0 },
@@ -1572,6 +1573,20 @@ function RepairAllItems(guildBank)
         table.insert(world.repairs, "player " .. cost)
     end
     world.repairCost = 0
+    for _, durability in pairs(world.durability) do
+        durability[1] = durability[2]
+    end
+    C_Timer.NewTimer(SERVER_CONFIRM_SECONDS, function()
+        world:Fire("UPDATE_INVENTORY_DURABILITY")
+    end)
+end
+
+-- Equipped items' durability: world.durability[inventory slot] = { current, maximum }.
+function GetInventoryItemDurability(slot)
+    local durability = world.durability[slot]
+    if durability then
+        return durability[1], durability[2]
+    end
 end
 
 C_Texture = {
@@ -4193,6 +4208,8 @@ for slot = 1, MERCHANT_ITEMS_PER_PAGE do
 end
 MerchantPrevPageButton = CreateFrame("Button", nil, MerchantFrame)
 MerchantNextPageButton = CreateFrame("Button", nil, MerchantFrame)
+-- Shown on the items tab of a merchant who can repair, like MerchantFrame_UpdateRepairButtons.
+MerchantRepairAllButton = CreateFrame("Button", nil, MerchantFrame)
 MerchantFrame_CloseStackSplitFrame = NoOp
 
 local function UpdateMerchantInfo()
@@ -4214,6 +4231,7 @@ function MerchantFrame_Update()
     if MerchantFrame.selectedTab == 1 then
         UpdateMerchantInfo()
     end
+    MerchantRepairAllButton:SetShown(MerchantFrame.selectedTab == 1 and CanMerchantRepair())
     local hasJunkItems = C_MerchantFrame.GetNumJunkItems() > 0
     MerchantSellAllJunkButton.Icon:SetDesaturated(not hasJunkItems)
     MerchantSellAllJunkButton:SetEnabled(hasJunkItems)
@@ -4538,6 +4556,16 @@ function world:MerchantSlots()
         end
     end
     return table.concat(slots, " ")
+end
+
+-- Whether an addon glow shows on the merchant's Repair All button.
+function world:IsRepairAllGlowing()
+    for _, child in ipairs(world.frames) do
+        if child.parent == MerchantRepairAllButton and child:IsVisible() then
+            return true
+        end
+    end
+    return false
 end
 
 -- The page arrows lit by an addon: "", "prev", "next" or "prev next".

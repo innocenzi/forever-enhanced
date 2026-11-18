@@ -204,3 +204,74 @@ test("drops a waiting repair when Auto Repair is turned off", function(world)
     world:Elapse(1)
     equal(#world.repairs, 0, "repairs")
 end)
+
+-- Repair All glow: the default threshold is 50%.
+
+-- Equips a full item in slot 1 and one at `current` / 100 in slot 5, with gear to repair.
+local function WithWornGear(world, current)
+    world.durability[1] = { 100, 100 }
+    world.durability[5] = { current, 100 }
+    world.money, world.repairCost = 100, 30
+end
+
+test("glows on Repair All once an item's durability reaches the threshold", function(world)
+    WithWornGear(world, 51)
+    world:OpenMerchant()
+    expect(not world:IsRepairAllGlowing(), "no glow above the threshold")
+    world:CloseMerchant()
+
+    world.durability[5][1] = 50
+    world:OpenMerchant()
+    expect(world:IsRepairAllGlowing(), "glow at the threshold")
+end)
+
+test("follows durability and threshold changes at the merchant", function(world)
+    WithWornGear(world, 40)
+    world:OpenMerchant()
+    expect(world:IsRepairAllGlowing(), "glow")
+
+    world:Setting("inventory.merchant.repairGlowThreshold"):SetValue(30)
+    expect(not world:IsRepairAllGlowing(), "no glow under a lower threshold")
+
+    world.durability[5][1] = 20
+    world:Fire("UPDATE_INVENTORY_DURABILITY")
+    expect(world:IsRepairAllGlowing(), "glow once worn further")
+end)
+
+test("stops glowing once repaired", function(world)
+    Enable(world)
+    WithWornGear(world, 10)
+    world:OpenMerchant()
+    world:Elapse(1)
+    equal(#world.repairs, 1, "repairs")
+    expect(not world:IsRepairAllGlowing(), "no glow after the repair")
+end)
+
+test("doesn't glow without the Repair All button or without damage", function(world)
+    WithWornGear(world, 10)
+    world:OpenMerchant()
+    world:SelectMerchantTab(2)
+    expect(not world:IsRepairAllGlowing(), "no glow on the buyback tab")
+    world:CloseMerchant()
+
+    world.merchantCanRepair = false
+    world:OpenMerchant()
+    expect(not world:IsRepairAllGlowing(), "no glow at a merchant who can't repair")
+    world:CloseMerchant()
+
+    world.merchantCanRepair = true
+    world.durability = {}
+    world:OpenMerchant()
+    expect(not world:IsRepairAllGlowing(), "no glow without durability items")
+end)
+
+test("stops glowing when the glow or the feature is turned off", function(world)
+    WithWornGear(world, 10)
+    world:OpenMerchant()
+    world:Setting("inventory.merchant.repairGlow"):SetValue(false)
+    expect(not world:IsRepairAllGlowing(), "no glow with the setting off")
+    world:Setting("inventory.merchant.repairGlow"):SetValue(true)
+    expect(world:IsRepairAllGlowing(), "glow back")
+    world:Setting("inventory.merchant.enabled"):SetValue(false)
+    expect(not world:IsRepairAllGlowing(), "no glow with the feature off")
+end)

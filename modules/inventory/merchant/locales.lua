@@ -2,9 +2,14 @@ local _, ns = ...
 
 ns:RegisterLocale("enUS", {
     ["inventory.merchant.title"] = "Merchant",
-    ["inventory.merchant.description"] = "Adds a search box to merchants, and can sell your junk and repair your items for you.",
+    ["inventory.merchant.description"] = "Adds a search box to merchants, points out when your equipment needs repairs, and can sell your junk and repair your items for you.",
     ["inventory.merchant.search"] = "Search box",
     ["inventory.merchant.search.tooltip"] = "Searches a merchant's items across all pages.",
+    ["inventory.merchant.repairGlow"] = "Glow on Repair All Items",
+    ["inventory.merchant.repairGlow.tooltip"] = "Makes the merchant's Repair All Items button glow when your equipment is damaged.",
+    ["inventory.merchant.repairGlowThreshold"] = "Durability threshold",
+    ["inventory.merchant.repairGlowThreshold.tooltip"] = "Makes the button glow once an equipped item's durability drops to this percentage.",
+    ["inventory.merchant.repairGlowThreshold.format"] = "%d%%",
     ["inventory.merchant.autoSellJunk"] = "Auto sell junk",
     ["inventory.merchant.autoSellJunk.tooltip"] = "Sells your junk when you visit a merchant.",
     ["inventory.merchant.autoRepair"] = "Auto repair",
@@ -21,9 +26,14 @@ ns:RegisterLocale("enUS", {
 
 ns:RegisterLocale("frFR", {
     ["inventory.merchant.title"] = "Marchand",
-    ["inventory.merchant.description"] = "Ajoute un champ de recherche aux marchands, et peut vendre votre camelote et réparer vos objets à votre place.",
+    ["inventory.merchant.description"] = "Ajoute un champ de recherche aux marchands, signale quand votre équipement a besoin de réparations, et peut vendre votre camelote et réparer vos objets à votre place.",
     ["inventory.merchant.search"] = "Champ de recherche",
     ["inventory.merchant.search.tooltip"] = "Recherche parmi les objets d’un marchand, sur toutes ses pages.",
+    ["inventory.merchant.repairGlow"] = "Faire briller la réparation",
+    ["inventory.merchant.repairGlow.tooltip"] = "Fait briller le bouton Réparer tous les objets du marchand quand votre équipement est endommagé.",
+    ["inventory.merchant.repairGlowThreshold"] = "Seuil de durabilité",
+    ["inventory.merchant.repairGlowThreshold.tooltip"] = "Fait briller le bouton dès que la durabilité d’un objet équipé descend à ce pourcentage.",
+    ["inventory.merchant.repairGlowThreshold.format"] = "%d %%",
     ["inventory.merchant.autoSellJunk"] = "Vendre la camelote",
     ["inventory.merchant.autoSellJunk.tooltip"] = "Vend votre camelote quand vous parlez à un marchand.",
     ["inventory.merchant.autoRepair"] = "Réparer l’équipement",
