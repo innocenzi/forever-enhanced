@@ -11,9 +11,9 @@
 // A landmark is a disc (its middle, 0..1 on its map, and its radius in world units) or a
 // polygon (its corners, 0..1 on its map). Drawn whole, it's its zone's over any claim,
 // fading out over `fade` world units past it (LANDMARK_FADE by default), and toward its
-// map's edge over LANDMARK_EDGE_FADE world units from `edgeKeep` off it
-// (LANDMARK_EDGE_KEEP by default, less where the art runs nearer the edge than the torn
-// border): the torn border stays out. No smaller zone (drawn over it) fades over it.
+// map's edge over `edgeFade` world units from `edgeKeep` off it (LANDMARK_EDGE_FADE and
+// LANDMARK_EDGE_KEEP by default, less where the art runs cleanly nearer the edge than the
+// torn border): the torn border stays out. No smaller zone (drawn over it) fades over it.
 // With `hide`, its zone isn't drawn there at all, so what's under it shows (the open sea
 // past a coast); on a continent, its blank land paper isn't (where its coarse outline
 // takes sea for land).
@@ -23,7 +23,14 @@
 import { smooth } from "./images";
 import type { Rect } from "./world";
 
-export type Landmark = { mapID: number; name: string; fade?: number; edgeKeep?: number; hide?: boolean } & (
+export type Landmark = {
+    mapID: number;
+    name: string;
+    fade?: number;
+    edgeKeep?: number;
+    edgeFade?: number;
+    hide?: boolean;
+} & (
     | { x: number; y: number; radius: number }
     | { polygon: [x: number, y: number][] }
 );
@@ -367,6 +374,190 @@ export const LANDMARKS: Landmark[] = [
         ],
         fade: 1,
     },
+
+    // Darkshore and Ashenvale -------------------------------------------------------------
+
+    // The Zoram Strand's north coast and its isle sit at Ashenvale's top edge: Darkshore's
+    // faded bottom took them, then Ashenvale's blank parchment showed up to its mountains.
+    // Darkshore's mountains, road and river down to Ashenvale's mountains, then Ashenvale's
+    // (drawn over it) isle and coast.
+    {
+        mapID: 1439,
+        name: "Darkshore down to Ashenvale's mountains",
+        polygon: [
+            [0.2688, 0.8167],
+            [0.2688, 0.9129],
+            [0.2902, 0.9289],
+            [0.333, 0.9289],
+            [0.3971, 0.9321],
+            [0.4142, 0.9481],
+            [0.4613, 0.9481],
+            [0.4613, 0.8167],
+        ],
+        fade: 1.5,
+    },
+    { mapID: 1440, name: "The Zoram Strand's isle", x: 0.0658, y: 0.1321, radius: 1.9, fade: 0.6 },
+    {
+        mapID: 1440,
+        name: "The Zoram Strand's north coast",
+        polygon: [
+            [0.0852, 0.103],
+            [0.1022, 0.0921],
+            [0.1338, 0.1066],
+            [0.1338, 0.1794],
+            [0.0852, 0.1794],
+        ],
+        fade: 1,
+    },
+
+    // Ashenvale and Stonetalon Mountains -------------------------------------------------
+
+    // The coast is the mountains: Ashenvale's range south of the Zoram Strand, out to its
+    // west tip, then Stonetalon's north mountains (drawn over it) from its map's top edge,
+    // the two fading into each other. Ashenvale's share stopped halfway along the range, and
+    // Stonetalon's top faded into Kalimdor's land paper.
+    {
+        mapID: 1440,
+        name: "Ashenvale's range south of the Zoram Strand",
+        polygon: [
+            [0.025, 0.422],
+            [0.034, 0.396],
+            [0.041, 0.374],
+            [0.072, 0.37],
+            [0.095, 0.36],
+            [0.111, 0.348],
+            [0.143, 0.348],
+            [0.143, 0.459],
+            [0.085, 0.462],
+            [0.025, 0.454],
+        ],
+        fade: 1,
+    },
+    {
+        mapID: 1442,
+        name: "Stonetalon Mountains' north mountains",
+        polygon: [
+            [0.182, 0.16],
+            [0.205, 0.083],
+            [0.245, 0.019],
+            [0.262, 0],
+            [0.451, 0],
+            [0.451, 0.152],
+        ],
+        fade: 1.5,
+        edgeKeep: 0.3,
+        edgeFade: 0.7,
+    },
+    // West of Ashenvale's range, Stonetalon's mountains ended on its map's straight top edge:
+    // a coast from the range's west tip down its west side instead.
+    {
+        mapID: 1442,
+        name: "Stonetalon Mountains' top-left corner",
+        hide: true,
+        polygon: [
+            [0.1188, -0.0288],
+            [0.3344, -0.0288],
+            [0.3344, 0.0021],
+            [0.2564, 0.04],
+            [0.1934, 0.1053],
+            [0.1188, 0.1259],
+        ],
+        fade: 1.5,
+    },
+    // The sea west of them and of the Zoram Strand, which Kalimdor's land paper took for land.
+    {
+        mapID: 1414,
+        name: "Off Ashenvale's and Stonetalon Mountains' coast",
+        hide: true,
+        polygon: [
+            [0.3913, 0.3488],
+            [0.4327, 0.3488],
+            [0.4327, 0.3762],
+            [0.4317, 0.3853],
+            [0.4286, 0.3881],
+            [0.4236, 0.3892],
+            [0.4215, 0.3929],
+            [0.4206, 0.4082],
+            [0.405, 0.4104],
+            [0.4005, 0.4196],
+            [0.3982, 0.4355],
+            [0.3913, 0.4355],
+        ],
+        fade: 1.5,
+    },
+
+    // Stonetalon Mountains and Desolace --------------------------------------------------
+
+    // The seam is in the mountains: Stonetalon's south range, then Desolace's (drawn over it)
+    // coast range and Nijel's Point, near its map's top edge. Stonetalon's blank parchment,
+    // its label for Desolace on it, showed between them.
+    {
+        mapID: 1442,
+        name: "Stonetalon Mountains' south range",
+        polygon: [
+            [0.29, 0.6951],
+            [0.7139, 0.6951],
+            [0.7139, 0.8584],
+            [0.29, 0.8584],
+        ],
+        fade: 1.5,
+    },
+    {
+        mapID: 1442,
+        name: "Stonetalon Mountains' blank bottom-left, with its label for Desolace",
+        hide: true,
+        polygon: [
+            [-0.008, 0.6951],
+            [0.1616, 0.6951],
+            [0.1616, 0.8412],
+            [0.2842, 0.8498],
+            [0.29, 1.0216],
+            [-0.008, 1.0216],
+        ],
+        fade: 1,
+    },
+    {
+        mapID: 1443,
+        name: "Desolace's coast range",
+        polygon: [
+            [0.4288, 0.0542],
+            [0.547, 0.0542],
+            [0.547, 0.3062],
+            [0.3728, 0.3062],
+            [0.3728, 0.2689],
+            [0.4226, 0.1476],
+        ],
+        fade: 1,
+    },
+    { mapID: 1443, name: "Nijel's Point", x: 0.6466, y: 0.1009, radius: 3, fade: 1.5 },
+    // The sea off the seam, which Kalimdor's land paper took for land.
+    {
+        mapID: 1414,
+        name: "Off Stonetalon Mountains' and Desolace's coast",
+        hide: true,
+        polygon: [
+            [0.3791, 0.4951],
+            [0.3966, 0.4951],
+            [0.397, 0.5145],
+            [0.3997, 0.5168],
+            [0.3997, 0.5316],
+            [0.3791, 0.5316],
+        ],
+        fade: 1.5,
+    },
+    // Desolace's label for the Veiled Sea, out at sea, longer in some languages.
+    {
+        mapID: 1443,
+        name: "Desolace's label for the Veiled Sea",
+        hide: true,
+        polygon: [
+            [0.2234, 0.142],
+            [0.3541, 0.142],
+            [0.3541, 0.2035],
+            [0.2234, 0.2035],
+        ],
+        fade: 1,
+    },
 ];
 
 /** A landmark placed on the world, in world units: its box (left, right, top, bottom, its
@@ -384,6 +575,7 @@ export function placeLandmark(landmark: Landmark, rect: Rect, unitsWide: number,
     const at = (x: number, y: number): [number, number] => [left + x * (right - left), top + y * (bottom - top)];
     const fade = landmark.fade ?? LANDMARK_FADE;
     const edgeKeep = landmark.edgeKeep ?? LANDMARK_EDGE_KEEP;
+    const edgeFade = landmark.edgeFade ?? LANDMARK_EDGE_FADE;
     // world units outside it (0 inside), and its box
     let outside: (u: number, v: number) => number;
     let box: [number, number, number, number];
@@ -406,7 +598,7 @@ export function placeLandmark(landmark: Landmark, rect: Rect, unitsWide: number,
             const alpha = smooth(1 - outside(u, v) / fade);
             if (landmark.hide) return alpha;
             const toEdge = Math.min(u - left, right - u, v - top, bottom - v);
-            return alpha * smooth((toEdge - edgeKeep) / LANDMARK_EDGE_FADE);
+            return alpha * smooth((toEdge - edgeKeep) / edgeFade);
         },
     };
 }
