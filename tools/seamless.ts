@@ -3,7 +3,8 @@
 //                     DB2 tables (WorldMapOverlay + WorldMapOverlayTile, on Azeroth's
 //                     maps) as exported by wago.tools; which zones have their share and
 //                     their tints, which continents have their land, the papers' sizes
-//   media/zone/*.png  each zone's share of the world (tools/seamless/ownership.ts), made
+//   media/zone/*.png  each zone's share of the world (tools/seamless/ownership.ts, and the
+//                     landmarks listed in tools/seamless/landmarks.ts), made
 //                     from OpenMap's zone masks (MIT, github.com/openmap-world/openmap, at
 //                     OPENMAP_COMMIT: each zone's territory, frame and land, traced from the
 //                     zone maps) and where the game places the zones (DB2)

@@ -8,9 +8,11 @@
 // the smaller zone; where none does (border mountains and gaps OpenMap paints with
 // layers of its own), the zone whose land is nearest. A zone's mask is its share,
 // fading out over FADE world units past it, so neighbours blend; zones are drawn
-// biggest first, each fading over the ones under it.
+// biggest first, each fading over the ones under it. Landmarks (landmarks.ts) come
+// last: what these rules would cut, drawn whole by one zone's map, or given up.
 
-import { blank, type Image, sample } from "./images";
+import { blank, type Image, sample, smooth } from "./images";
+import { LANDMARKS, type PlacedLandmark, placeLandmark } from "./landmarks";
 import { type Rect, WORLD, type World } from "./world";
 
 /** OpenMap's masks of each zone: MapTerritory, MapEdge, MapZoneLand (its land, without its painted sea). */
@@ -74,11 +76,6 @@ export function distanceTransform(set: Uint8Array, width: number, height: number
         for (let x = 0; x < width; x++) out[y * width + x] = Math.sqrt(d[x]);
     }
     return out;
-}
-
-function smooth(t: number): number {
-    const c = Math.min(1, Math.max(0, t));
-    return c * c * (3 - 2 * c);
 }
 
 type Zone = {
@@ -219,6 +216,43 @@ export function ownershipMasks(
         if (owner[at] < 0) owner[at] = nearestOwner[at];
     }
 
+    // The zones' landmarks (a continent's are its land's: continentLand). landmarkAlpha: how
+    // far a raster pixel is in the landmarks of `which` zones: the zone's own drawn whole, the
+    // ones drawn whole of the zones drawn under it (bigger: its fade would cover them; a
+    // zone drawn over it covers them where they're whole, and shows them through its fade),
+    // or those it gives up.
+    const landmarks = LANDMARKS.flatMap((landmark) => {
+        const index = zones.findIndex((zone) => zone.mapID === landmark.mapID);
+        if (index >= 0) return [{ index, placed: placeLandmark(landmark, zones[index].rect, unitsWide, unitsHigh) }];
+        if (landmark.hide) return [];
+        throw new Error(`${landmark.name}: zone ${landmark.mapID} has no share`);
+    });
+    const landmarkAlpha = (index: number, rx: number, ry: number, which: "own" | "under" | "hidden") => {
+        const u = (rx + 0.5) / scale;
+        const v = (ry + 0.5) / scale;
+        let alpha = 0;
+        for (const { index: of, placed } of landmarks) {
+            const hidden = placed.landmark.hide === true;
+            const counts =
+                which === "hidden" ? hidden && of === index : !hidden && (which === "own" ? of === index : of < index);
+            if (counts) alpha = Math.max(alpha, placed.alpha(u, v));
+        }
+        return alpha;
+    };
+    // (drawn whole: the zone's, over any claim)
+    for (const { index, placed } of landmarks) {
+        if (placed.landmark.hide) continue;
+        const x0 = Math.max(0, Math.floor(placed.box[0] * scale));
+        const x1 = Math.min(rasterWidth, Math.ceil(placed.box[1] * scale));
+        const y0 = Math.max(0, Math.floor(placed.box[2] * scale));
+        const y1 = Math.min(rasterHeight, Math.ceil(placed.box[3] * scale));
+        for (let ry = y0; ry < y1; ry++) {
+            for (let rx = x0; rx < x1; rx++) {
+                if (placed.alpha((rx + 0.5) / scale, (ry + 0.5) / scale) >= 0.5) owner[ry * rasterWidth + rx] = index;
+            }
+        }
+    }
+
     // How far each place is from any zone's own land: out at sea, a zone's painted sea
     // fades out (SEA_KEEP, then over SEA_FADE world units) into the continent's, so a
     // coast never sits in its map's rectangle.
@@ -259,7 +293,15 @@ export function ownershipMasks(
                 const sea = fromLand[(zone.y0 + y) * rasterWidth + zone.x0 + x] / scale;
                 const offshore = smooth(1 - (sea - SEA_KEEP) / SEA_FADE);
                 const edge = smooth(toEdges[index][i] / edgeFade);
-                alpha[i] = smooth(1 - outside[i] / (fade * scale)) * zone.frame[i] * offshore * edge;
+                const rx = zone.x0 + x;
+                const ry = zone.y0 + y;
+                const shared = smooth(1 - outside[i] / (fade * scale)) * zone.frame[i] * offshore * edge;
+                alpha[i] =
+                    Math.max(
+                        shared * (1 - landmarkAlpha(index, rx, ry, "under")),
+                        landmarkAlpha(index, rx, ry, "own"),
+                    ) *
+                    (1 - landmarkAlpha(index, rx, ry, "hidden"));
             }
         }
         const mask = blank(size, size);
@@ -319,6 +361,10 @@ export function continentLand(world: World, mapID: number, backLand: Image, fiel
         }
     }
     const inland = distanceTransform(sea, width, height);
+    // (where it gives its land paper up: landmarks.ts)
+    const hidden: PlacedLandmark[] = LANDMARKS.filter((landmark) => landmark.hide && landmark.mapID === mapID).map(
+        (landmark) => placeLandmark(landmark, rect, worldArt.width, worldArt.height),
+    );
     const alpha = new Float32Array(width * height);
     for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
@@ -331,7 +377,11 @@ export function continentLand(world: World, mapID: number, backLand: Image, fiel
                 const toSea = field.fromSea[fy * field.width + fx] / field.scale;
                 if (Number.isFinite(toSea)) side = smooth(0.5 + (toSea - toLand) / (2 * LAND_SIDE));
             }
-            alpha[i] = back[i] * smooth((inland[i] - LAND_INSET) / LAND_FADE) * side;
+            const u = left * worldArt.width + x + 0.5;
+            const v = top * worldArt.height + y + 0.5;
+            let shown = 1;
+            for (const landmark of hidden) shown = Math.min(shown, 1 - landmark.alpha(u, v));
+            alpha[i] = back[i] * smooth((inland[i] - LAND_INSET) / LAND_FADE) * side * shown;
         }
     }
     const mask = blank(size, size);

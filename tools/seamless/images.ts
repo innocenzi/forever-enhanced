@@ -313,3 +313,9 @@ export function sample(image: Image, x: number, y: number, channel: number): num
         (at(x0, y0) * (1 - tx) + at(x1, y0) * tx) * (1 - ty) + (at(x0, y1) * (1 - tx) + at(x1, y1) * tx) * ty
     );
 }
+
+/** 0 to 1 as `t` goes from 0 to 1, eased (smoothstep), clamped outside: a mask's fade. */
+export function smooth(t: number): number {
+    const c = Math.min(1, Math.max(0, t));
+    return c * c * (3 - 2 * c);
+}
