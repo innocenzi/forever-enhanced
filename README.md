@@ -41,6 +41,7 @@ A lightweight utility addon for Forever. It keeps the default UI familiar while 
 - Easier macro management: icon search, duplicating, hiding macro names on your bars
 - Support for TomTom's `/way` coordinates from guides
 - Show your friends on the world map (supports OpenMap too)
+- See your layer above the minimap, and swap to another from your portrait's menu (works with LayerSwap users)
 
 All of those features can be enabled or disabled individually. The ones that change your game the most are disabled by default, and presets let you turn everything on at once if you want.
 
@@ -60,3 +61,4 @@ If you install a large addon for only one or two of its features, Forever Enhanc
 - **Questie**: nearby quest tracking, quest item sparkles, objectives in tooltips, objective announcements
 - **TomTom**: `/way` commands from guides
 - **Does It Die?**, **DoT Lethal**: the damage your DoTs will still deal, on health bars
+- **LayerSwap**: your current layer, layer swaps with LayerSwap's own hosts
