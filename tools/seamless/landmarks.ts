@@ -613,6 +613,50 @@ export const LANDMARKS: Landmark[] = [
         ],
         fade: 1,
     },
+
+    // Desolace and Feralas ---------------------------------------------------------------
+
+    // The seam is in the mountains, west of Shen'dralas: Desolace's (drawn over Feralas) south
+    // range and its path, down to its map's torn bottom edge, then Feralas' north range from
+    // its map's top edge, its road on from the path. The two maps' blank margins showed
+    // between them, over Kalimdor's land paper, which also took the sea off them for land.
+    {
+        mapID: 1444,
+        name: "Feralas' north range",
+        polygon: [
+            [0.3304, 0],
+            [0.4794, 0],
+            [0.4794, 0.084],
+            [0.3304, 0.084],
+        ],
+        fade: 1.5,
+        edgeKeep: 1,
+        edgeFade: 1,
+    },
+    {
+        mapID: 1443,
+        name: "Desolace's south range",
+        polygon: [
+            [0.2171, 0.8183],
+            [0.4917, 0.8183],
+            [0.4917, 1],
+            [0.2171, 1],
+        ],
+        fade: 1.5,
+        edgeFade: 1,
+    },
+    {
+        mapID: 1414,
+        name: "Off Desolace's and Feralas' coast",
+        hide: true,
+        polygon: [
+            [0.3517, 0.6056],
+            [0.3753, 0.6056],
+            [0.3753, 0.6398],
+            [0.3517, 0.6398],
+        ],
+        fade: 1.5,
+    },
 ];
 
 /** A landmark placed on the world, in world units: its box (left, right, top, bottom, its
