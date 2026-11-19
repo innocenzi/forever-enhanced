@@ -13,25 +13,8 @@ local Swaps = ns:GetFeature("combat", "swaps")
 local Quiet = {}
 Swaps.Quiet = Quiet
 
-local EVENT = "UI_ERROR_MESSAGE"
-
 -- Overlay -> whether the replacement could be cast when its key went down.
 local usableAtPress = setmetatable({}, { __mode = "k" })
-local muted = false
-
-local function Mute()
-    if UIErrorsFrame:IsEventRegistered(EVENT) then
-        UIErrorsFrame:UnregisterEvent(EVENT)
-        muted = true
-    end
-end
-
-local function Unmute()
-    if muted then
-        muted = false
-        UIErrorsFrame:RegisterEvent(EVENT)
-    end
-end
 
 local function PreClick(overlay, _, down)
     local swap = Swaps.Overlays:GetCurrentSwap(overlay)
@@ -41,20 +24,13 @@ local function PreClick(overlay, _, down)
     if down then
         usableAtPress[overlay] = Swaps:CanCastReplacement(swap)
         if not usableAtPress[overlay] then
-            Mute()
+            ns:MuteGameErrorsThisFrame()
         end
     elseif usableAtPress[overlay] then
-        Mute()
-    end
-end
-
-local function PostClick()
-    if muted then
-        C_Timer.After(0, Unmute)
+        ns:MuteGameErrorsThisFrame()
     end
 end
 
 function Quiet:Attach(overlay)
     overlay:HookScript("PreClick", PreClick)
-    overlay:HookScript("PostClick", PostClick)
 end

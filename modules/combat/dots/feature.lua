@@ -22,7 +22,7 @@
 local _, ns = ...
 
 local DoTs = ns:RegisterFeature("combat", "dots", {
-    order = 3,
+    order = 4,
     presets = {
         minimal = { enabled = false },
         enhanced = { enabled = true },

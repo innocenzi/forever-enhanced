@@ -30,7 +30,8 @@ local FeatureMixin = {
     OnEnable = NoOp,
     OnDisable = NoOp,
     OnSettingChanged = NoOp,
-    -- OnAction(key): the button of the feature's `action` was clicked in the settings panel.
+    -- OnAction(key): the button of the feature's `action` (or of a toggle setting's) was
+    -- clicked in the settings panel.
     OnAction = NoOp,
 }
 

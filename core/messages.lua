@@ -26,3 +26,51 @@ end
 function ns:Warning(message)
     UIErrorsFrame:AddExternalWarningMessage(message)
 end
+
+-- Muting the game's errors: while any owner mutes them, UIErrorsFrame stops
+-- showing UI_ERROR_MESSAGE (red text and voice: not enough mana, out of range,
+-- ...). Errors we show ourselves (ns:Error) still show. The event is only
+-- registered back if we unregistered it, so another addon's choice stays.
+local ERROR_EVENT = "UI_ERROR_MESSAGE"
+local errorMuters = {}
+local errorsUnregistered = false
+
+local function SyncGameErrors()
+    if next(errorMuters) then
+        if not errorsUnregistered and UIErrorsFrame:IsEventRegistered(ERROR_EVENT) then
+            UIErrorsFrame:UnregisterEvent(ERROR_EVENT)
+            errorsUnregistered = true
+        end
+    elseif errorsUnregistered then
+        errorsUnregistered = false
+        UIErrorsFrame:RegisterEvent(ERROR_EVENT)
+    end
+end
+
+function ns:MuteGameErrors(owner)
+    errorMuters[owner] = true
+    SyncGameErrors()
+end
+
+function ns:UnmuteGameErrors(owner)
+    errorMuters[owner] = nil
+    SyncGameErrors()
+end
+
+-- Mutes the game's errors until the next frame: those of a cast just made (or
+-- about to be), which the client reports later in the same frame.
+local frameMuter = {}
+local frameMuted = false
+
+local function UnmuteFrame()
+    frameMuted = false
+    ns:UnmuteGameErrors(frameMuter)
+end
+
+function ns:MuteGameErrorsThisFrame()
+    if not frameMuted then
+        frameMuted = true
+        self:MuteGameErrors(frameMuter)
+        C_Timer.After(0, UnmuteFrame)
+    end
+end

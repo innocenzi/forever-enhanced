@@ -5,7 +5,8 @@
 -- named after the feature; then per feature with settings, a section header,
 -- an "Enable" checkbox, and the feature's schema entries as its children. A
 -- feature's action is a button beside its checkbox, usable while checked,
--- that calls feature:OnAction(key).
+-- that calls feature:OnAction(key); a toggle entry's action is one beside
+-- the entry's checkbox.
 --
 -- Labels come from locale keys by convention:
 --   <module>.title, <module>.description
@@ -60,6 +61,20 @@ end
 
 local function AddCheckbox(category, setting, tooltip)
     return AddControl(category, "checkbox", setting, nil, tooltip)
+end
+
+-- A checkbox for `setting` with the button of the feature's action `action`
+-- beside it, usable while checked (and while the row is editable).
+local function AddCheckboxWithButton(category, setting, tooltip, feature, action)
+    local data = Settings.CreateSettingInitializerData(setting, nil, tooltip)
+    data.buttonText = L[feature:GetLocaleKey(action)]
+    data.OnButtonClick = function()
+        feature:OnAction(action)
+    end
+    data.clickRequiresSet = true
+    local initializer = Settings.CreateSettingInitializer(TEMPLATES.checkboxWithButton, data)
+    Settings.RegisterInitializer(category, initializer)
+    return initializer
 end
 
 local function AddSectionHeader(category, name, tooltip)
@@ -149,12 +164,17 @@ function TextControlMixin:EvaluateState()
 end
 
 -- Schema entry type -> setting type and control factory.
--- create(category, setting, tooltip, entry, labelKey) returns the initializer.
+-- create(category, setting, tooltip, entry, labelKey, feature) returns the initializer.
 local controls = {
-    -- { key, type = "toggle", default = boolean }
+    -- { key, type = "toggle", default = boolean, action = key (optional) }
+    -- With an action, a button beside the checkbox, usable while checked, calls
+    -- feature:OnAction(key).
     toggle = {
         varType = Settings.VarType.Boolean,
-        create = function(category, setting, tooltip)
+        create = function(category, setting, tooltip, entry, _, feature)
+            if entry.action then
+                return AddCheckboxWithButton(category, setting, tooltip, feature, entry.action)
+            end
             return AddCheckbox(category, setting, tooltip)
         end,
     },
@@ -285,7 +305,8 @@ local function AddSchemaEntry(category, feature, entry, parentInitializer)
     local setting =
         RegisterSetting(category, labelKey, entry.key, feature.db, control.varType, L[labelKey], entry.default)
 
-    local initializer = control.create(category, setting, OptionalText(labelKey .. ".tooltip"), entry, labelKey)
+    local initializer =
+        control.create(category, setting, OptionalText(labelKey .. ".tooltip"), entry, labelKey, feature)
     SetParent(initializer, parentInitializer)
     SetDepth(initializer, GetDepth(feature, entry))
     -- Predicates aren't inherited from grandparents: check the whole chain here.
@@ -322,15 +343,7 @@ local function AddFeatureToggle(category, feature, label)
     if not feature.action then
         return AddCheckbox(category, setting, tooltip)
     end
-    local data = Settings.CreateSettingInitializerData(setting, nil, tooltip)
-    data.buttonText = L[feature:GetLocaleKey(feature.action)]
-    data.OnButtonClick = function()
-        feature:OnAction(feature.action)
-    end
-    data.clickRequiresSet = true
-    local initializer = Settings.CreateSettingInitializer(TEMPLATES.checkboxWithButton, data)
-    Settings.RegisterInitializer(category, initializer)
-    return initializer
+    return AddCheckboxWithButton(category, setting, tooltip, feature, feature.action)
 end
 
 local function AddFeature(category, feature)

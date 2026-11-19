@@ -149,6 +149,10 @@ modules\combat\swaps\quiet.lua
 modules\combat\swaps\overlays.lua
 modules\combat\swaps\display.lua
 modules\combat\swaps\editor.lua
+modules\combat\errors\feature.lua
+modules\combat\errors\locales.lua
+modules\combat\errors\spells.lua
+modules\combat\errors\editor.lua
 
 # Interface
 modules\interface\module.lua

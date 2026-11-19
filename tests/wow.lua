@@ -4013,6 +4013,10 @@ function GameTooltip_AddErrorLine(tooltip, text)
     tooltip:AddLine(text)
 end
 
+function GameTooltip_AddInstructionLine(tooltip, text)
+    tooltip:AddLine(text)
+end
+
 function GameTooltip_AddHighlightLine(tooltip, text)
     tooltip:AddLine(text)
 end
@@ -6927,9 +6931,14 @@ local function ActionButton(name, bindingAction)
     return button
 end
 
+-- What SecureActionButton_OnClick runs for an action button (SECURE_ACTIONS.action).
+function UseAction(slot)
+    CastSpellByName(C_Spell.GetSpellName(world.actions[slot]))
+end
+
 -- Blizzard's TryUseActionButton: casts the button's spell and clears its new mark.
 local function UseActionButton(button)
-    CastSpellByName(C_Spell.GetSpellName(world.actions[button.action]))
+    UseAction(button.action)
     if GetNewActionHighlightMark(button.action) then
         ClearNewActionHighlight(button.action)
         button:UpdateHighlightMark()
