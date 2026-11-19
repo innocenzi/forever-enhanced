@@ -42,6 +42,7 @@ local TEST_FILES = {
     "tests/swaps_test.lua",
     "tests/ranks_test.lua",
     "tests/friends_test.lua",
+    "tests/layers_test.lua",
     "tests/seamless_test.lua",
     "tests/debug_test.lua",
 }
@@ -58,6 +59,8 @@ local function ReadAddonFiles(toc, folder)
 end
 
 local ADDON_FILES = ReadAddonFiles("ForeverEnhanced.toc", "")
+-- The key bindings the game loads from the addon's root (not listed in the TOC).
+local BINDINGS = assert(io.open("Bindings.xml")):read("a")
 -- The debug addon (debug/), loaded first like in the maintainer's game (OptionalDeps).
 local DEBUG_FILES = ReadAddonFiles("debug/ForeverEnhancedDebug.toc", "debug/")
 
@@ -85,6 +88,9 @@ local function Boot(locale, options)
     local ns = {}
     for _, path in ipairs(ADDON_FILES) do
         Run(path, env, "ForeverEnhanced", ns)
+    end
+    for name, body in BINDINGS:gmatch('<Binding name="([%w_]+)"[^>]*>(.-)</Binding>') do
+        world.bindingCommands[name] = assert(load(body, "Bindings.xml:" .. name, "t", env))
     end
     if options and options.savedVariables then
         env.ForeverEnhancedDB = options.savedVariables(locale)

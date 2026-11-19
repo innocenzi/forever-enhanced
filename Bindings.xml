@@ -1,0 +1,5 @@
+<Bindings>
+    <Binding name="FOREVERENHANCED_SWAPLAYER" header="FOREVERENHANCED" category="ADDONS">
+        ForeverEnhanced:GetFeature("map", "layers"):OnBinding()
+    </Binding>
+</Bindings>

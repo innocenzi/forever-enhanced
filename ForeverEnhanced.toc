@@ -199,3 +199,11 @@ modules\map\friends\sharing.lua
 modules\map\friends\map.lua
 modules\map\friends\openmap.lua
 modules\map\friends\pins.xml
+modules\map\layers\feature.lua
+modules\map\layers\locales.lua
+modules\map\layers\protocol.lua
+modules\map\layers\comm.lua
+modules\map\layers\reader.lua
+modules\map\layers\swap.lua
+modules\map\layers\host.lua
+modules\map\layers\interface.lua

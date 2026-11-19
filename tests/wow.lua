@@ -127,7 +127,11 @@ local world = {
     position = { x = 0, y = 0, continentID = 0 },
     onTaxi = false,
     party = false,
+    -- The others in the party: { name, surname, guid, leader }.
+    partyMembers = {},
     instanceGroup = false,
+    -- Clicks and key presses running (the moments the client allows some calls).
+    hardware = 0,
     sentChat = {},
     chatLinks = {},
     forbidden = {},
@@ -896,6 +900,31 @@ function world:IsContextMenuOpen()
     return self.contextMenu ~= nil
 end
 
+world.menuModifiers = {}
+
+-- Blizzard_Menu's menu modifiers: world:OpenUnitMenu(tag) runs them on a new
+-- menu and returns its entries; world:ClickMenuEntry clicks one.
+Menu = {
+    ModifyMenu = function(tag, callback)
+        world.menuModifiers[tag] = world.menuModifiers[tag] or {}
+        table.insert(world.menuModifiers[tag], callback)
+    end,
+}
+
+function world:OpenUnitMenu(tag)
+    local root = NewMenuDescription()
+    for _, callback in ipairs(self.menuModifiers[tag] or {}) do
+        callback(nil, root, {})
+    end
+    return root.children
+end
+
+function world:ClickMenuEntry(entry)
+    self.hardware = self.hardware + 1
+    entry.callback()
+    self.hardware = self.hardware - 1
+end
+
 NineSliceUtil = { ApplyLayoutByName = NoOp }
 
 -- The Blizzard templates the addon uses: the parts it touches.
@@ -1078,6 +1107,9 @@ world.cvars = {
     softtargeticongameobject = "0",
     softtargeticoninteract = "1",
     softtargetnameplateinteract = "0",
+    nameplateshowall = "0",
+    nameplateshowenemies = "1",
+    nameplateshowfriendlynpcs = "0",
 }
 world.combatCVarWrites = {}
 
@@ -1967,6 +1999,65 @@ ChatFrameUtil = {
     end,
 }
 
+-- The others in the party are world.partyMembers ({ name, surname, guid,
+-- leader }); world.groupLeader is "player" when the player leads. Invites the
+-- player sends go to world.invites. An invite received (world:ReceiveInvite) is
+-- world.pendingInvite until joined or declined; AcceptGroup joins after
+-- SERVER_CONFIRM_SECONDS (world.acceptedInvite), DeclineGroup drops it
+-- (world.declinedInvite). world.leftGroups counts the groups left;
+-- world.lfgListed: listed in the group finder.
+
+world.invites = {}
+world.leftGroups = 0
+world.lfgListed = false
+
+function IsInRaid()
+    return false
+end
+
+function UnitIsGroupLeader(unit)
+    if unit == "player" then
+        return world.party and world.groupLeader == "player"
+    end
+    local index = unit:match("^party(%d)$")
+    local member = index and world.partyMembers[tonumber(index)]
+    return member ~= nil and member.leader == true
+end
+
+function GetNumGroupMembers()
+    return world.party and #world.partyMembers + 1 or 0
+end
+
+local function MemberOf(fullName, leader)
+    local name, surname = fullName:match("^(%S+) (.+)$")
+    return { name = name or fullName, surname = surname, guid = "Player-1-" .. fullName, leader = leader }
+end
+
+local joinTimer
+
+function AcceptGroup()
+    local inviter = assert(world.pendingInvite, "no invite to accept")
+    world.acceptedInvite = inviter
+    joinTimer = C_Timer.NewTimer(SERVER_CONFIRM_SECONDS, function()
+        world:JoinGroup(inviter)
+    end)
+end
+
+function DeclineGroup()
+    world.declinedInvite = world.pendingInvite
+    world.pendingInvite = nil
+    if joinTimer then
+        joinTimer:Cancel()
+        joinTimer = nil
+    end
+end
+
+C_LFGList = {
+    HasActiveEntryInfo = function()
+        return world.lfgListed
+    end,
+}
+
 -- Bank -----------------------------------------------------------------------------------
 
 C_Bank = {
@@ -1994,6 +2085,13 @@ local function UnitGUIDOf(unit)
         return world.player.guid
     elseif unit == "target" then
         return world.target
+    elseif unit == "mouseover" then
+        return world.mouseover
+    end
+    local partyIndex = unit:match("^party(%d)$")
+    if partyIndex then
+        local member = world.partyMembers[tonumber(partyIndex)]
+        return member and member.guid
     end
     local namePlate = assert(unit:match("^nameplate%d+$"), "unknown unit " .. unit) and world.namePlates[unit]
     return namePlate and namePlate.guid
@@ -2007,8 +2105,17 @@ function UnitGUID(unit)
     return guid
 end
 
--- The player, or the trade partner ("NPC": name, and realm when not the player's).
+-- The player, a party member (name, then surname, like Forever's), or the
+-- trade partner ("NPC": name, and realm when not the player's).
 function UnitName(unit)
+    local partyIndex = unit:match("^party(%d)$")
+    if partyIndex then
+        local member = world.partyMembers[tonumber(partyIndex)]
+        if member then
+            return member.name, member.surname
+        end
+        return nil
+    end
     if unit == "NPC" then
         local partner = world.tradePartner
         if partner then
@@ -2119,6 +2226,24 @@ end
 -- Whole seconds, moving with the clock.
 function GetServerTime()
     return 1700000000 + math.floor(world.now)
+end
+
+-- world.playerControlled[guid]: a creature the player controls (a pet).
+world.playerControlled = {}
+
+-- Units the fake client doesn't model (focus, pet...) don't exist.
+function UnitExists(unit)
+    local modelled = unit == "player"
+        or unit == "target"
+        or unit == "mouseover"
+        or unit:match("^party%d$")
+        or unit:match("^nameplate%d+$")
+    return modelled and (unit == "player" or UnitGUIDOf(unit) ~= nil) or false
+end
+
+function UnitPlayerControlled(unit)
+    local guid = UnitGUIDOf(unit)
+    return guid ~= nil and (world.playerControlled[guid] == true or guid:find("^Player") ~= nil)
 end
 
 -- Target, combo points and nameplates ---------------------------------------------------
@@ -2842,6 +2967,12 @@ C_PartyInfo = {
     IsGUIDInGroup = function(guid)
         return world.groupGUIDs[guid] == true
     end,
+    InviteUnit = function(name)
+        table.insert(world.invites, name)
+    end,
+    LeaveParty = function()
+        world:LeaveGroup()
+    end,
 }
 
 function LocalizedClassList(isFemale)
@@ -2856,6 +2987,56 @@ function GetPlayerInfoByGUID(guid)
     if player then
         return player.class:lower(), player.class, "Human", "Human", 2, player.name, player.realm
     end
+end
+
+-- The player search: the client runs an addon's search (SendWho) only from a
+-- click or a key press (world.hardware). Searches go to world.whoQueries ({
+-- text, origin, filters }); world:AnswerWho(rows) fires WHO_LIST_UPDATE with
+-- rows { fullName, area, fullGuildName }. world.whoToUi follows SetWhoToUi.
+
+world.whoQueries = {}
+world.whoRows = {}
+world.whoToUi = false
+
+Enum.SocialWhoOrigin = { Unknown = 0, Social = 1, Chat = 2, Item = 3 }
+WHO_TAG_ZONE = "z-"
+ERR_CHAT_PLAYER_NOT_FOUND_S = ({
+    enUS = "No player named '%s' is currently playing.",
+    frFR = "Aucun joueur nommé '%s' n'est connecté.",
+})[TEST_LOCALE]
+
+C_FriendList.SendWho = function(text, origin, filters)
+    assert(world.hardware > 0, "SendWho only runs from a click or a key press")
+    table.insert(world.whoQueries, { text = text, origin = origin, filters = filters })
+end
+C_FriendList.SetWhoToUi = function(toUi)
+    world.whoToUi = toUi == true
+end
+C_FriendList.GetNumWhoResults = function()
+    return #world.whoRows, #world.whoRows
+end
+C_FriendList.GetWhoInfo = function(index)
+    local row = world.whoRows[index]
+    if row then
+        return { fullName = row.fullName, area = row.area, fullGuildName = row.fullGuildName or "" }
+    end
+end
+
+function world:AnswerWho(rows)
+    self.whoRows = rows
+    self:Fire("WHO_LIST_UPDATE")
+end
+
+-- Blizzard's who lists open their window on any search's answer: the group
+-- finder's (Blizzard_GroupFinder_VanillaStyle, loaded here) and the Friends
+-- frame's (while the social UI is off, as here).
+for _, name in ipairs({ "FriendsFrame", "LFGWhoListFrame" }) do
+    local list = CreateFrame("Frame", name)
+    list:Hide()
+    list:RegisterEvent("WHO_LIST_UPDATE")
+    list:SetScript("OnEvent", function(self)
+        self:Show()
+    end)
 end
 
 -- World map ----------------------------------------------------------------------------------
@@ -3795,8 +3976,9 @@ GameTooltip = {
     end,
     Show = NoOp,
     Hide = NoOp,
-    IsOwned = function()
-        return false
+    -- world.tooltipOwner: the frame a test hovers (world:HoverZoneText).
+    IsOwned = function(_, owner)
+        return world.tooltipOwner ~= nil and world.tooltipOwner == owner
     end,
     -- name, unit token: the unit under the mouse while a unit tooltip shows,
     -- both secret at times (world.secretTooltipUnit).
@@ -3968,7 +4150,9 @@ AUTOCOMPLETE_LIST = { MAIL = { include = 1, exclude = 0 } }
 
 -- Named dialogs (StaticPopupDialogs): the last one shown is world.dialog. Its
 -- edit box, when it has one, is a child EditBox; OnShow runs once shown, like the client.
-StaticPopupDialogs = {}
+StaticPopupDialogs = {
+    PARTY_INVITE = { text = "%s" },
+}
 
 function StaticPopup_Show(which, textArg1, textArg2, data)
     local info = assert(StaticPopupDialogs[which], "Dialog " .. which .. " does not exist.")
@@ -3993,6 +4177,10 @@ end
 
 function StaticPopup_Hide(which)
     table.insert(world.hiddenPopups, which)
+    -- The invite dialog declines an invite still pending when hidden (its OnHide).
+    if which == "PARTY_INVITE" and world.pendingInvite then
+        DeclineGroup()
+    end
     if world.dialog and world.dialog.which == which then
         world.dialog:Hide()
     end
@@ -4235,6 +4423,25 @@ function MerchantFrame_Update()
     local hasJunkItems = C_MerchantFrame.GetNumJunkItems() > 0
     MerchantSellAllJunkButton.Icon:SetDesaturated(not hasJunkItems)
     MerchantSellAllJunkButton:SetEnabled(hasJunkItems)
+end
+
+-- The zone name above the minimap; hovering it fills GameTooltip through
+-- Minimap_SetTooltip, like Blizzard_Minimap.
+MinimapCluster = { ZoneTextButton = CreateFrame("Button") }
+
+function Minimap_SetTooltip()
+    if GameTooltip:IsOwned(MinimapCluster.ZoneTextButton) then
+        GameTooltip:SetText(GetRealZoneText())
+        GameTooltip:Show()
+    end
+end
+
+-- The lines of the zone name's tooltip.
+function world:HoverZoneText()
+    self.tooltipOwner = MinimapCluster.ZoneTextButton
+    Minimap_SetTooltip()
+    self.tooltipOwner = nil
+    return self.tooltipLines
 end
 
 -- World API for tests ------------------------------------------------------------------------
@@ -5562,6 +5769,85 @@ function world:Anchor(frame)
     return table.concat(parts, "; ")
 end
 
+-- A layer is the <server> of creature GUIDs; world:Transfer(announced) is the
+-- game moving the player to another layer (SHARD_TRANSFER, after
+-- SHARD_TRANSFER_IMMINENT for a world refresh it announced).
+local creatureCount = 0
+
+-- Creature-0-<server>-<map>-<zoneUID>-<npc>-<spawn>
+function world:Creature(server, zoneUID)
+    creatureCount = creatureCount + 1
+    return ("Creature-0-%d-0-%d-299-%010X"):format(server, zoneUID, creatureCount)
+end
+
+function world:Mouseover(guid)
+    self.mouseover = guid
+    self:Fire("UPDATE_MOUSEOVER_UNIT")
+end
+
+function world:Transfer(announced)
+    if announced then
+        self:Fire("SHARD_TRANSFER_IMMINENT")
+    end
+    self:Fire("SHARD_TRANSFER")
+end
+
+-- An invite from `name` ("First Surname" or "Name").
+function world:ReceiveInvite(name)
+    self.pendingInvite = name
+    StaticPopup_Show("PARTY_INVITE", name)
+    self:Fire("PARTY_INVITE_REQUEST", name, false, false, false, false, false, nil, false)
+end
+
+-- Joins the group `name` leads (the invite of `name` accepted).
+function world:JoinGroup(name)
+    self.pendingInvite = nil
+    joinTimer = nil
+    self.party = true
+    self.groupLeader = "party1"
+    self.partyMembers = { MemberOf(name, true) }
+    self:Fire("GROUP_JOINED", LE_PARTY_CATEGORY_HOME)
+    self:Fire("GROUP_ROSTER_UPDATE")
+end
+
+function world:LeaveGroup()
+    if not self.party then
+        return
+    end
+    self.party = false
+    self.groupLeader = nil
+    self.partyMembers = {}
+    self.leftGroups = self.leftGroups + 1
+    self:Fire("GROUP_LEFT", LE_PARTY_CATEGORY_HOME)
+    self:Fire("GROUP_ROSTER_UPDATE")
+end
+
+-- `name` accepts the player's invite: the player leads.
+function world:GuestJoins(name)
+    local forming = not self.party
+    self.party = true
+    self.groupLeader = "player"
+    table.insert(self.partyMembers, MemberOf(name, false))
+    if forming then
+        self:Fire("GROUP_JOINED", LE_PARTY_CATEGORY_HOME)
+    end
+    self:Fire("GROUP_ROSTER_UPDATE")
+end
+
+function world:GuestLeaves(name)
+    for index, member in ipairs(self.partyMembers) do
+        if member.guid == "Player-1-" .. name then
+            table.remove(self.partyMembers, index)
+            break
+        end
+    end
+    if #self.partyMembers == 0 then
+        self:LeaveGroup()
+    else
+        self:Fire("GROUP_ROSTER_UPDATE")
+    end
+end
+
 function world:Target(guid)
     self.target = guid
     UpdateHealthBars(guid)
@@ -6311,6 +6597,10 @@ function UnregisterStateDriver(frame, state)
 end
 
 -- Bindings ---------------------------------------------------------------------------
+-- world.bindingCommands[name]: the body of the addon's Bindings.xml binding
+-- `name` (loaded by tests/run.lua), run when a key bound to it goes down.
+
+world.bindingCommands = {}
 
 function GetBindingKey(command)
     local keys = {}
@@ -6725,9 +7015,11 @@ end
 -- One click of a frame (the mouse, or a click binding), with its pre and post
 -- clicks, then the errors of the casts it made.
 local function ClickFrame(frame, button, down)
+    world.hardware = world.hardware + 1
     frame:RunScript("PreClick", button, down)
     frame:RunScript("OnClick", button, down)
     frame:RunScript("PostClick", button, down)
+    world.hardware = world.hardware - 1
     DeliverErrors()
 end
 
@@ -6762,6 +7054,13 @@ local function RunKey(key, down)
         ClickFrame(assert(_G[override.name], "no frame " .. override.name), override.button, down)
         return
     end
+    local command = target and world.bindingCommands[target]
+    if command then
+        if down then
+            command()
+        end
+        return
+    end
     for _, frame in ipairs(world.frames) do
         if target and frame.bindingAction == target then
             if down then
@@ -6780,7 +7079,9 @@ end
 
 -- The key, then the errors of the casts it made.
 local function SendKey(key, down)
+    world.hardware = world.hardware + 1
     RunKey(key, down)
+    world.hardware = world.hardware - 1
     DeliverErrors()
 end
 

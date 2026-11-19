@@ -11,6 +11,9 @@ _G.ForeverEnhanced = ns
 
 ns.title = C_AddOns.GetAddOnMetadata(addonName, "Title")
 
+-- The header of the addon's key bindings (Bindings.xml), a global the game reads.
+_G.BINDING_HEADER_FOREVERENHANCED = ns.title
+
 local modules = {}
 local sortedModules = {}
 
