@@ -331,8 +331,10 @@ end)
 test("doesn't ask in a group or an instance", function(world)
     Setup(world)
     world.party = true
-    ClickSwap(world)
-    equal(LastError(world), world.L["map.layers.inGroup"], "in a group")
+    equal(MenuEntry(world, "map.layers.swap"), nil, "no entry in a group")
+    world:Bind("F5", "FOREVERENHANCED_SWAPLAYER")
+    world:PressKey("F5")
+    equal(LastError(world), world.L["map.layers.inGroup"], "the key in a group")
     equal(#world.whoQueries, 0, "no search")
     world.party = false
     world:StandAt(0, 0, 0, 90)
@@ -355,6 +357,7 @@ test("accepts the invite of a player asked, then leaves once moved", function(wo
     equal(#world.hiddenPopups, 0, "the dialog stays until the group is joined")
     world:Elapse(world.SERVER_CONFIRM_SECONDS)
     expect(world.party, "in the group")
+    equal(MenuEntry(world, "map.layers.swap"), nil, "no Swap layer in the host's group")
     expect(tContains(world.hiddenPopups, "PARTY_INVITE"), "dialog hidden")
     equal(world.declinedInvite, nil, "not declined")
 
