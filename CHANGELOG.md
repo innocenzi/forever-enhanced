@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.5.0 - 2026-11-19
+
+
+### Features
+- **inventory:** dim the rest of the bags and bank while Shift is held over an item, leaving its stacks lit
+- **inventory:** make the merchant's Repair All Items button glow when equipped items fall under a durability threshold
+- **map:** swap layers through LayerSwap's players from the player frame's menu
+
+
+### Fixes
+- **map:** merge the seamless map's west Kalimdor seams at their mountains and coasts
+- **core:** show bag marks for a window opened after its event, like the mailbox's glow
+- **map:** show the open sea north of Stormwind on the seamless map
+
 ## 1.4.0 - 2026-11-18
 
 
