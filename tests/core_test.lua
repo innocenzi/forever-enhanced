@@ -520,3 +520,38 @@ test("prints like a system message in the tabs that show them", function(world)
     world.ns:Print("Nowhere")
     equal(ChatFrame1.lines[#ChatFrame1.lines].text, "Nowhere", "main tab when no tab shows them")
 end)
+
+-- Each swap costs the client a few milliseconds, so a round's swaps go out a few per frame.
+test("sends a round's moves a few per frame", function(world)
+    world.bagSizes[0] = 10
+    world.bags[0] = { "A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "A10" }
+    local planned = false
+    local mover = world.ns:CreateMover({
+        maxMovesPerKey = 1,
+        Plan = function()
+            if planned then
+                return {}
+            end
+            planned = true
+            local moves = {}
+            for pair = 1, 5 do
+                local from, to = 2 * pair - 1, 2 * pair
+                table.insert(moves, { from = { bagID = 0, slot = from }, to = { bagID = 0, slot = to }, key = pair })
+            end
+            return moves
+        end,
+    })
+    local pickupsPerFrame = {}
+    local NextFrame = world.NextFrame
+    function world:NextFrame(...)
+        table.insert(pickupsPerFrame, self.pickups)
+        return NextFrame(self, ...)
+    end
+    world.pickups = 0
+    mover:Start()
+    world:Elapse(5)
+    equal(table.concat(world.bags[0], " "), "A2 A1 A4 A3 A6 A5 A8 A7 A10 A9", "bag")
+    equal(pickupsPerFrame[1], 8, "pickups after the first frame (four swaps)")
+    equal(pickupsPerFrame[2], 10, "pickups after the second frame")
+    expect(not mover:IsRunning(), "run ended")
+end)

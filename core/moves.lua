@@ -13,8 +13,9 @@
 --
 -- Each round sends every move that shares no slot with another and touches no
 -- busy slot, as two pickups: onto the same item, the client merges the stacks;
--- otherwise it swaps them. Other moves wait for a later round. The next round
--- runs on the bag update that follows, once the sent slots are free. Rounds
+-- otherwise it swaps them. Other moves wait for a later round. A round's moves
+-- go out MOVES_PER_FRAME a frame. The next round runs on the bag update that
+-- follows the last of them, once the sent slots are free. Rounds
 -- re-plan from live positions, so a late server batch just costs one more round.
 -- A key moved maxMovesPerKey times is dropped (the server refuses the move).
 --
@@ -28,6 +29,9 @@ local _, ns = ...
 
 local MOVE_TIMEOUT_SECONDS = 1 -- fallback when a round's moves never report back
 local GIVE_UP_SECONDS = 20 -- abandon a run that never finishes
+-- Measured on Forever: a swap costs the client ~6 ms (its two pickups), so a
+-- round's swaps are spread over frames.
+local MOVES_PER_FRAME = 4
 
 local function SlotKey(location)
     return location.bagID .. ":" .. location.slot
@@ -49,17 +53,20 @@ function MoverMixin:IsWaitingForServer()
     return self.running and self.waitingForServer
 end
 
--- Runs the next round after `seconds` (0: next frame), replacing any scheduled one.
-function MoverMixin:Schedule(seconds)
+-- Runs `method` (default: the next round) after `seconds` (0: next frame),
+-- replacing whatever was scheduled.
+function MoverMixin:Schedule(seconds, method)
     if self.timer then
         self.timer:Cancel()
     end
     self.timer = C_Timer.NewTimer(seconds, function()
-        self:RunRound()
+        self[method or "RunRound"](self)
     end)
 end
 
+-- Starts a run if needed. A round still being sent is dropped: the next one plans again.
 function MoverMixin:Begin()
+    self.queue = {}
     if self.running then
         return
     end
@@ -102,6 +109,7 @@ function MoverMixin:Stop()
         return
     end
     self.running = false
+    self.queue = {}
     if self.timer then
         self.timer:Cancel()
         self.timer = nil
@@ -116,23 +124,30 @@ local function Pickup(location)
     C_Container.PickupContainerItem(location.bagID, location.slot)
 end
 
-function MoverMixin:RunRound()
-    self.timer = nil
-    self.waitingForServer = false
-
-    -- Paused until combat ends (OnCombatEnded), without counting toward giving up.
+-- Whether moves can be sent now: in combat the run pauses until it ends
+-- (OnCombatEnded), without counting toward giving up; while the cursor holds
+-- an item, the next round waits.
+function MoverMixin:CanSend()
     if InCombatLockdown() then
         self.pausedForCombat = true
         self.giveUpTimer:Cancel()
-        return
+        return false
     end
-
     if CursorHasItem() then
         self:Schedule(MOVE_TIMEOUT_SECONDS)
+        return false
+    end
+    return true
+end
+
+function MoverMixin:RunRound()
+    self.timer = nil
+    self.waitingForServer = false
+    if not self:CanSend() then
         return
     end
 
-    local used, pending = {}, {}
+    local used, queue = {}, {}
     local remaining = false
     for _, move in ipairs(self.definition.Plan()) do
         local count = self.moveCounts[move.key] or 0
@@ -141,18 +156,7 @@ function MoverMixin:RunRound()
             local fromKey, toKey = SlotKey(move.from), SlotKey(move.to)
             if not used[fromKey] and not used[toKey] and not IsSlotBusy(move.from) and not IsSlotBusy(move.to) then
                 used[fromKey], used[toKey] = true, true
-                self.moveCounts[move.key] = count + 1
-                self.movedCount = self.movedCount + 1
-                Pickup(move.from)
-                Pickup(move.to)
-                -- A completed drop empties the cursor at once; anything left was refused.
-                if CursorHasItem() then
-                    ClearCursor()
-                    self:Stop()
-                    return
-                end
-                table.insert(pending, move.from)
-                table.insert(pending, move.to)
+                table.insert(queue, move)
             end
         end
     end
@@ -164,8 +168,40 @@ function MoverMixin:RunRound()
         end
         return
     end
-    self.pending = pending
-    self:Schedule(MOVE_TIMEOUT_SECONDS)
+    self.queue, self.pending = queue, {}
+    self:SendQueued()
+end
+
+-- Sends the round's queued moves, MOVES_PER_FRAME a frame, then waits for the server.
+function MoverMixin:SendQueued()
+    self.timer = nil
+    if not self:CanSend() then
+        self.queue = {} -- the next round plans again
+        return
+    end
+    for _ = 1, math.min(MOVES_PER_FRAME, #self.queue) do
+        local move = table.remove(self.queue, 1)
+        -- Other changes may have reached these slots since the round was planned.
+        if not IsSlotBusy(move.from) and not IsSlotBusy(move.to) then
+            self.moveCounts[move.key] = (self.moveCounts[move.key] or 0) + 1
+            self.movedCount = self.movedCount + 1
+            Pickup(move.from)
+            Pickup(move.to)
+            -- A completed drop empties the cursor at once; anything left was refused.
+            if CursorHasItem() then
+                ClearCursor()
+                self:Stop()
+                return
+            end
+            table.insert(self.pending, move.from)
+            table.insert(self.pending, move.to)
+        end
+    end
+    if self.queue[1] then
+        self:Schedule(0, "SendQueued")
+    else
+        self:Schedule(MOVE_TIMEOUT_SECONDS)
+    end
 end
 
 function MoverMixin:ArePendingSlotsFree()
@@ -186,7 +222,8 @@ function MoverMixin:OnCombatEnded()
 end
 
 function MoverMixin:OnBagsUpdated()
-    if self.pausedForCombat then
+    -- While a round is being sent, its last moves start the next one.
+    if self.pausedForCombat or self.queue[1] then
         return
     end
     if self.waitingForServer or self:ArePendingSlotsFree() then
