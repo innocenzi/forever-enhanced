@@ -41,6 +41,30 @@ test("chains rounds on the server confirmation", function(world)
     equal(world.swapTimes[2] - world.swapTimes[1], world.SERVER_CONFIRM_SECONDS, "gap between rounds")
 end)
 
+test("puts a chain of locked items back in two rounds", function(world)
+    world.bags[0] = { "G1", "G2", "G3", "X4" }
+    world:AltClick(1)
+    world:AltClick(2)
+    world:AltClick(3)
+    -- X4 G1 G2 G3: each locked item's home holds the one before it, so one
+    -- swap home per item needs a round per item.
+    Sort(world, { 4, 1, 2, 3 })
+    equal(world:Bag(), "G1 G2 G3 X4", "bag")
+    equal(#world.swapTimes, 3, "swaps")
+    equal(world.swapTimes[3] - world.swapTimes[1], world.SERVER_CONFIRM_SECONDS, "rounds (two)")
+end)
+
+test("puts locked items that took each other's slots back", function(world)
+    world.bags[0] = { "G1", "G2", "G3", "X4" }
+    world:AltClick(1)
+    world:AltClick(2)
+    world:AltClick(3)
+    Sort(world, { 3, 1, 2, 4 }) -- G3 G1 G2 X4
+    equal(world:Bag(), "G1 G2 G3 X4", "bag")
+    equal(#world.swapTimes, 2, "swaps")
+    equal(world.swapTimes[2] - world.swapTimes[1], world.SERVER_CONFIRM_SECONDS, "rounds (two)")
+end)
+
 test("waits for the bag update, not lock changes", function(world)
     world:AltClick(1)
     world.pickups = 0

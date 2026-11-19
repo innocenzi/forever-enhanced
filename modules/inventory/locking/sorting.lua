@@ -9,9 +9,12 @@
 --      for ~100ms, then delivers all moves in one BAG_UPDATE_DELAYED. The restore
 --      starts on the sort's bag update; a sort that moved nothing sends none, and
 --      ends once lock changes settle.
---   3. Each round swaps every misplaced locked item home at once.
--- Each swap sends the displaced item to the slot the sort gave the locked item,
--- so one item per locked item may end up out of order.
+--   3. Two rounds of swaps put every misplaced locked item home (Plan). Each
+--      round waits for the server, and Blizzard redraws the bags after it: one
+--      swap home per item would take a round per item when each one's home
+--      holds another locked item (seen with nearly full bags).
+-- The item a chain of locked items displaces ends in the slot the sort gave the
+-- chain's first one, so one item per chain may end up out of order.
 
 local _, ns = ...
 
@@ -47,18 +50,71 @@ local function IsSameSlot(a, b)
     return a.bagID == b.bagID and a.slot == b.slot
 end
 
--- One swap home per misplaced locked item. Items gone (merged into another
--- stack) or home are done.
+local function SlotKey(location)
+    return location.bagID .. ":" .. location.slot
+end
+
+-- The moves putting home `items`, a chain (each one's home holds the next one,
+-- the last one's holds no misplaced item) or a cycle (the last one's holds the first).
+-- Their slots form a cycle: what slots[i] holds goes to slots[i + 1], what the
+-- last one holds to slots[1]. Two slots just swap. Otherwise this round swaps
+-- slots[j + 1] and slots[n + 1 - j], leaving swaps of two slots for the next
+-- round: any order of locked items is put back in two rounds.
+local function AddMoves(moves, items)
+    local slots = {}
+    for _, item in ipairs(items) do
+        table.insert(slots, item.location)
+    end
+    local lastHome = items[#items].home
+    if not IsSameSlot(lastHome, slots[1]) then
+        table.insert(slots, lastHome)
+    end
+    local n = #slots
+    if n == 2 then
+        table.insert(moves, { from = slots[1], to = slots[2], key = items[1].guid })
+        return
+    end
+    for j = 1, math.floor((n - 1) / 2) do
+        table.insert(moves, { from = slots[j + 1], to = slots[n + 1 - j], key = items[j + 1].guid })
+    end
+end
+
+-- This round's swaps putting misplaced locked items home. Items gone (merged
+-- into another stack) or home are done.
 local function Plan()
     local current = FindLockedItems()
-    local moves = {}
+    -- Misplaced locked items by the slot they're in, and the slots they go to.
+    local misplaced, isHome = {}, {}
     for guid, home in pairs(homes) do
         local location = current[guid]
         if not location or IsSameSlot(location, home) then
             homes[guid] = nil
         else
-            table.insert(moves, { from = location, to = home, key = guid })
+            misplaced[SlotKey(location)] = { guid = guid, location = location, home = home }
+            isHome[SlotKey(home)] = true
         end
+    end
+
+    local moves, seen = {}, {}
+    local function Follow(item)
+        local items = {}
+        while item and not seen[item] do
+            seen[item] = true
+            table.insert(items, item)
+            item = misplaced[SlotKey(item.home)]
+        end
+        if #items > 0 then
+            AddMoves(moves, items)
+        end
+    end
+    -- Chains start from a slot no other item goes to; the items left form cycles.
+    for key, item in pairs(misplaced) do
+        if not isHome[key] then
+            Follow(item)
+        end
+    end
+    for _, item in pairs(misplaced) do
+        Follow(item)
     end
     return moves
 end
