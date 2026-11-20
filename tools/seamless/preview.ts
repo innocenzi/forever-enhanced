@@ -5,9 +5,10 @@
 // further), from what the addon ships (modules/map/seamless: data.lua's build, tints and
 // papers, media/), to check the masks without the game. Dev only.
 //
-//   bun tools/seamless/preview.ts <left> <top> <right> <bottom> [px per world unit] [out.png]
+//   bun tools/seamless/preview.ts [--unexplored] <left> <top> <right> <bottom> [px per world unit] [out.png]
 //     the box on Azeroth's map, normalized (e.g. 0.70 0.60 0.84 0.74: Duskwood and around);
-//     4 px a world unit, and tools/.cache/seamless/preview.png, unless given
+//     4 px a world unit, and tools/.cache/seamless/preview.png, unless given; with
+//     --unexplored, without the pieces (as for a character who explored none of them)
 //
 // Run `bun run seamless` first.
 
@@ -46,6 +47,7 @@ export async function renderPreview(
     box: Box,
     pxPerUnit: number,
     layers: PreviewLayers,
+    explored = true,
 ): Promise<Image> {
     const worldArt = world.art(WORLD)!;
     const [u0, v0, u1, v1] = box;
@@ -135,7 +137,7 @@ export async function renderPreview(
                 (mx, my) => share(mx, my) * blankAlpha(mx, my),
             );
         }
-        paint(mapID, artColor(pieces, tint), artAlpha(pieces, mask));
+        if (explored) paint(mapID, artColor(pieces, tint), artAlpha(pieces, mask));
     }
     for (const mapID of world.mapsOfType("zone")) {
         if (zones.includes(mapID) || !overlaps(mapID)) continue;
@@ -152,11 +154,12 @@ export async function renderPreview(
 }
 
 function usage(): never {
-    throw new Error("usage: bun tools/seamless/preview.ts <left> <top> <right> <bottom> [px per world unit] [out.png]");
+    throw new Error("usage: bun tools/seamless/preview.ts [--unexplored] <left> <top> <right> <bottom> [px per world unit] [out.png]");
 }
 
 if (import.meta.main) {
-    const args = Bun.argv.slice(2);
+    const unexplored = Bun.argv.includes("--unexplored");
+    const args = Bun.argv.slice(2).filter((arg) => arg !== "--unexplored");
     const box = args.slice(0, 4).map(Number) as Box;
     if (box.length < 4 || box.some((value) => !Number.isFinite(value)) || box[2] <= box[0] || box[3] <= box[1]) usage();
     const pxPerUnit = Number(args[4] ?? 4);
@@ -185,14 +188,15 @@ if (import.meta.main) {
     for (const mapID of world.mapsOfType("continent")) {
         if (existsSync(path.join(media, "land", `${mapID}.png`))) lands.set(mapID, await read(`land/${mapID}.png`));
     }
-    const image = await renderPreview(world, downloads, build, box, pxPerUnit, {
+    const layers: PreviewLayers = {
         zoneMasks,
         blanks,
         lands,
         cityMask: await read("feather-round.png"),
         papers: { land: await read("land.png"), sea: await read("sea.png"), landSize: Number(sizes[1]), seaSize: Number(sizes[2]) },
         tints: parseTints(data.slice(tintsAt)),
-    });
+    };
+    const image = await renderPreview(world, downloads, build, box, pxPerUnit, layers, !unexplored);
     await mkdir(path.dirname(output), { recursive: true });
     await writeFile(output, encodePng(image));
     console.log(`${output}: ${image.width}x${image.height}`);
