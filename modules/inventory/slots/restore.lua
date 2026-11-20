@@ -80,8 +80,10 @@ local function MarkPending(area, itemIDs)
     end)
 end
 
--- The largest stack of itemID in the area that can move to the slot.
-local function FindSource(area, itemID)
+-- Public API: the stack of itemID a slot reserved for it takes from the area
+-- ("bags" or "bank"): the largest one that isn't locked or in a slot reserved
+-- for it, skipping the slots in `skip` ({ ["bagID:slot"] = true }, optional).
+function Slots:FindStackToMove(area, itemID, skip)
     local best, bestCount
     ns.Containers:ForEachSlot(GetContainerIDs(area), function(bagID, slot)
         local info = C_Container.GetContainerItemInfo(bagID, slot)
@@ -91,11 +93,16 @@ local function FindSource(area, itemID)
             and (not bestCount or info.stackCount > bestCount)
             and Slots:GetReservedItem(bagID, slot) ~= itemID
             and not IsLocked(bagID, slot)
+            and not (skip and skip[bagID .. ":" .. slot])
         then
             best, bestCount = { bagID = bagID, slot = slot }, info.stackCount
         end
     end)
     return best
+end
+
+local function FindSource(area, itemID)
+    return Slots:FindStackToMove(area, itemID)
 end
 
 -- One move per pending slot still missing its item. Slots holding it, freed,

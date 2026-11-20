@@ -56,6 +56,8 @@ local world = {
     popups = {},
     sold = {},
     excludedFromJunkSell = {},
+    -- The bag menu's other options: { [bagID] = { [flag] = true } }, [0] the backpack's.
+    bagFlags = {},
     sellPrices = {},
     unloadedItems = {},
     sellAllJunkEnabled = true,
@@ -1350,7 +1352,7 @@ Enum = {
         CharacterBankTab_3 = 8,
     },
     BankType = { Character = 0, Account = 2 },
-    BagSlotFlags = { ExcludeJunkSell = 64 },
+    BagSlotFlags = { DisableAutoSort = 1, ClassEquipment = 2, ClassConsumables = 4, ExcludeJunkSell = 64 },
     ItemQuality = { Poor = 0 },
     TooltipDataType = { Item = 0, Unit = 2, Object = 4 },
     TooltipDataLineType = { None = 0, SellPrice = 11 },
@@ -1767,8 +1769,14 @@ C_Container = {
         return world.excludedFromJunkSell[0] == true
     end,
     GetBagSlotFlag = function(bagID, flag)
-        assert(flag == Enum.BagSlotFlags.ExcludeJunkSell, "unexpected bag flag")
-        return world.excludedFromJunkSell[bagID] == true
+        if flag == Enum.BagSlotFlags.ExcludeJunkSell then
+            return world.excludedFromJunkSell[bagID] == true
+        end
+        return world.bagFlags[bagID] ~= nil and world.bagFlags[bagID][flag] == true
+    end,
+    -- The backpack menu's "Ignore this bag" (cleanups).
+    GetBackpackAutosortDisabled = function()
+        return world.bagFlags[0] ~= nil and world.bagFlags[0][Enum.BagSlotFlags.DisableAutoSort] == true
     end,
     SortBags = function()
         world.sortRequested = true
