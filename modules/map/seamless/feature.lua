@@ -44,8 +44,9 @@
 -- The tracker reads the open quest (QuestMapFrame_GetFocusedQuestID) and
 -- handles SUPER_TRACKING_CHANGED in every update, so its own state turns tainted
 -- for the session, and in combat its update throws on the player's secret
--- auras (ShouldShowMawBuffs, in its scenario module) and stops halfway: the
--- tracker may stop updating in combat. The quest log then updates from tainted
+-- auras (ShouldShowMawBuffs, in its scenario module) and stops halfway, and
+-- Blizzard never schedules another update: tracker.lua runs it once combat ends
+-- (the tracker stays as the error left it until then). The quest log then updates from tainted
 -- code too (QuestMapFrame_UpdateAll reads the open quest): in combat (opening
 -- the map, the open log refreshing) Blizzard refuses its gamepad navigation
 -- marks (SmartNavigation_MarkFrameIgnored on each quest's checkbox and button)
@@ -55,7 +56,8 @@
 -- What we replaced and wrote can't be put back: turning the feature off hands
 -- every replaced method over to Blizzard's and restores Blizzard's zoom levels,
 -- view, art and mouse wheel, but the map stays tainted until a /reload, and so
--- combat.lua's waiting and waypoint.lua's sharing stay on for the session (all OnDisable leaves).
+-- combat.lua's waiting, tracker.lua's updates after combat and waypoint.lua's sharing stay on
+-- for the session (all OnDisable leaves).
 -- The map never changes map underneath in combat.
 --
 -- Files of this slice:
@@ -67,6 +69,7 @@
 --   art.lua            the stitched art: layers, zoom fades, what's near the view, file loading
 --   arrow.lua          the player's arrow while the map underneath can't show it
 --   combat.lua         map pins' mouse input deferred to the end of combat
+--   tracker.lua        Blizzard's objective tracker updated again after an update stopped by combat
 --   waypoint.lua       Shift Click on the map pin: shared in chat without Blizzard's blocked copy
 --   view.lua           hosting the art in Blizzard's map: zoom, pan, clicks, the map underneath
 --   quests.lua         every quest of the log on a continent, where Blizzard's shows only the super-tracked one
@@ -98,6 +101,7 @@ Seamless.MEDIA = "Interface\\AddOns\\ForeverEnhanced\\modules\\map\\seamless\\me
 function Seamless:OnEnable()
     self.Art:SetUnexploredShown(self.db.unexplored)
     self.Combat:Enable()
+    self.Tracker:Enable()
     self.Waypoint:Enable()
     self.View:Enable()
     self.Quests:Enable()
@@ -107,6 +111,7 @@ function Seamless:OnDisable()
     self.Quests:Disable()
     self.View:Disable()
     self.Waypoint:Disable()
+    self.Tracker:Disable()
     self.Combat:Disable()
 end
 

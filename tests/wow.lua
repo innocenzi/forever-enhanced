@@ -122,6 +122,9 @@ local world = {
     questSorts = 0,
     -- Events Blizzard's quest tracker module handled, in order.
     trackerEvents = {},
+    -- Updates Blizzard's objective tracker ran, and the errors its updates threw.
+    trackerUpdates = 0,
+    trackerErrors = {},
     -- Events the quest log beside the map handled, in order.
     questLogEvents = {},
     position = { x = 0, y = 0, continentID = 0 },
@@ -3845,8 +3848,32 @@ end)
 -- Blizzard's objective tracker: its quest module, added to the tracker (its
 -- events registered) before any addon loads; world.trackerEvents lists what it handled.
 -- MarkDirty (the tracker's and its modules') flags them for the next frame's update.
+-- Like Blizzard's (DirtiableMixin), the tracker's MarkDirty schedules its update
+-- (dirtyCallback, RunNextFrame) only while dirty is clear, and dirtyCallback clears it
+-- once the update returns. world.trackerUpdates counts the updates done. In combat an
+-- update run with the taint of a tainted MarkDirty (dirty tainted, world:Taint)
+-- throws (in game: the player's secret auras, ShouldShowMawBuffs); the game's error
+-- handler gets it (world.trackerErrors), and dirty stays set.
 ObjectiveTrackerFrame = CreateFrame("Frame", "ObjectiveTrackerFrame")
+function ObjectiveTrackerFrame:Update()
+    if world.inCombat and not issecurevariable(self, "dirty") then
+        error("GetAuraDataByIndex(): Auras cannot be accessed when secret while tainted by 'ForeverEnhanced'")
+    end
+    world.trackerUpdates = world.trackerUpdates + 1
+end
+ObjectiveTrackerFrame.dirtyCallback = function()
+    ObjectiveTrackerFrame:Update()
+    ObjectiveTrackerFrame.dirty = nil
+end
 function ObjectiveTrackerFrame:MarkDirty()
+    if not self.dirty then
+        C_Timer.After(0, function()
+            local ok, err = pcall(self.dirtyCallback)
+            if not ok then
+                table.insert(world.trackerErrors, err)
+            end
+        end)
+    end
     self.dirty = true
 end
 QuestObjectiveTracker = CreateFrame("Frame", "QuestObjectiveTracker")
