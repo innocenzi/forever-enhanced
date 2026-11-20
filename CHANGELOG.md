@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.5.1 - 2026-11-20
+
+
+### Features
+- **combat:** hide the game's red error messages, for every spell or only chosen ones
+
+
+### Fixes
+- **map:** hide Swap layer from the player frame's menu while in a group
+- **map:** merge Desolace's and Feralas' mountains on the seamless map
+- **inventory:** put locked items back after a sort in two rounds at most
+- **map:** make the Shimmering Flats' cliffs the seam between Thousand Needles and Tanaris on the seamless map
+- **map:** update Blizzard's objective tracker again after combat once the seamless map's taint stopped it
+
+
+### Performance
+- **core:** send the item mover's swaps a few per frame
+
 ## 1.5.0 - 2026-11-19
 
 
