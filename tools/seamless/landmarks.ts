@@ -657,6 +657,106 @@ export const LANDMARKS: Landmark[] = [
         ],
         fade: 1.5,
     },
+
+    // Thousand Needles and Tanaris -------------------------------------------------------
+
+    // The seam is the Shimmering Flats' cliffs: Tanaris' west range fades out into Thousand
+    // Needles' land from Un'Goro Crater's rim, its east range is cut along its peaks up to the
+    // coast, and Thousand Needles' (drawn over it) flats inside their cliffs and land east of
+    // them reach the coast. Thousand Needles' blank parchment, south of its canyon, covered
+    // Tanaris' ranges.
+    // Tanaris' map draws its west range up to its top edge, and differently whether Zul'Farrak's
+    // piece is explored or not: any line through it shows, so it fades out slowly.
+    {
+        mapID: 1446,
+        name: "Tanaris' west range and Zul'Farrak",
+        polygon: [
+            [0.322, 0.075],
+            [0.34, 0.066],
+            [0.36, 0.07],
+            [0.38, 0.06],
+            [0.4, 0.055],
+            [0.42, 0.062],
+            [0.44, 0.056],
+            [0.46, 0.062],
+            [0.48, 0.07],
+            [0.575, 0.07],
+            [0.59, 0.1],
+            [0.59, 0.239],
+            [0.4108, 0.239],
+            [0.4, 0.17],
+            [0.3676, 0.1335],
+            [0.3297, 0.0848],
+        ],
+        fade: 4,
+        edgeKeep: 0.5,
+    },
+    {
+        mapID: 1446,
+        name: "Tanaris' east range",
+        polygon: [
+            [0.575, 0.06],
+            [0.582, 0.043],
+            [0.592, 0.038],
+            [0.61, 0.038],
+            [0.62, 0.032],
+            [0.632, 0.028],
+            [0.644, 0.019],
+            [0.652, 0.019],
+            [0.664, 0.028],
+            [0.668, 0.024],
+            [0.676, 0.024],
+            [0.682, 0.045],
+            [0.689, 0.08],
+            [0.686, 0.11],
+            [0.6811, 0.13],
+            [0.6811, 0.239],
+            [0.575, 0.239],
+        ],
+        fade: 4,
+        edgeKeep: 0.8,
+        edgeFade: 0.8,
+    },
+    {
+        mapID: 1441,
+        name: "The Shimmering Flats",
+        polygon: [
+            [0.6785, 0.6054],
+            [0.895, 0.6054],
+            [0.9102, 0.7581],
+            [0.8975, 0.863],
+            [0.8631, 0.9012],
+            [0.8122, 0.9165],
+            [0.7804, 0.9299],
+            [0.7676, 0.9585],
+            [0.7231, 0.9585],
+            [0.6785, 0.9203],
+            [0.6403, 0.8726],
+            [0.634, 0.7962],
+            [0.6467, 0.7199],
+            [0.6722, 0.6435],
+        ],
+        fade: 1,
+    },
+    {
+        mapID: 1441,
+        name: "East of the Shimmering Flats, from Dustwallow Marsh to Tanaris' east range",
+        polygon: [
+            [0.88, 0.43],
+            [1, 0.43],
+            [1, 0.6788],
+            [0.9925, 0.6851],
+            [0.9737, 0.671],
+            [0.9611, 0.671],
+            [0.9423, 0.6851],
+            [0.9235, 0.6914],
+            [0.9078, 0.7008],
+            [0.88, 0.7008],
+        ],
+        fade: 0.6,
+        edgeKeep: 0.3,
+        edgeFade: 0.3,
+    },
 ];
 
 /** A landmark placed on the world, in world units: its box (left, right, top, bottom, its
