@@ -2437,8 +2437,15 @@ function StatusBar:GetStatusBarTexture()
     return self.statusBarTexture
 end
 
+-- A file or an atlas (a name without path separators, like Blizzard's mana
+-- bars give it): kept as given (statusBarAsset).
 function StatusBar:SetStatusBarTexture(texture)
-    self:GetStatusBarTexture():SetTexture(texture)
+    self.statusBarAsset = texture
+    if type(texture) == "string" and not texture:find("[\\/]") then
+        self:GetStatusBarTexture():SetAtlas(texture)
+    else
+        self:GetStatusBarTexture():SetTexture(texture)
+    end
 end
 
 function StatusBar:SetStatusBarColor(r, g, b, a)
@@ -2552,11 +2559,10 @@ end
 -- corners), underText (on the bar's frame level, its fill drawn above the
 -- bar's but below the OVERLAY layer of the health text), marker (the size of
 -- the texture with `atlas` on it, if any: { width, height }), line (the width
--- of a texture of one color on it, if any), color ({ r, g, b, a }), fill (its
--- fill texture), inner (a status bar shown inside it, if any: { value, color,
--- fill }), segment (a texture shown on it through a mask of its own, if any:
--- { atlas, from, fromPoint, to, toPoint }, the regions and points the mask's
--- top left and bottom right corners are anchored to) }, secrets revealed.
+-- of a texture of one color on it, if any; both only when shown), color
+-- ({ r, g, b, a }), fill (its fill texture), inner (a status bar shown inside
+-- it, if any: { value, fromLeft, texture (the file or atlas given), aboveFill
+-- (its fill drawn above the outer bar's) }) }, secrets revealed.
 function world:HealthBarOverlay(healthBar, atlas)
     for _, frame in ipairs(self.frames) do
         if frame.parent == healthBar and frame.frameType == "StatusBar" and frame:IsVisible() then
@@ -2567,38 +2573,24 @@ function world:HealthBarOverlay(healthBar, atlas)
             local layer, subLevel = frame:GetStatusBarTexture():GetDrawLayer()
             local marker, line
             for _, texture in ipairs(self.textures) do
-                if texture.owner == frame and atlas and texture.atlas == atlas then
-                    marker = { width = texture.width, height = texture.height }
-                elseif texture.owner == frame and texture.color then
-                    line = texture.width
+                if texture.owner == frame and texture:IsShown() then
+                    if atlas and texture.atlas == atlas then
+                        marker = { width = texture.width, height = texture.height }
+                    elseif texture.color then
+                        line = texture.width
+                    end
                 end
             end
             local inner
             for _, child in ipairs(self.frames) do
                 if child.parent == frame and child.frameType == "StatusBar" and child:IsVisible() then
+                    local innerLayer, innerSubLevel = child:GetStatusBarTexture():GetDrawLayer()
                     inner = {
                         value = self:Reveal(child:GetValue()),
-                        color = child.statusBarColor,
-                        fill = child:GetStatusBarTexture(),
+                        fromLeft = not child.reverseFill,
+                        texture = child.statusBarAsset,
+                        aboveFill = innerLayer == layer and innerSubLevel > subLevel,
                     }
-                end
-            end
-            local segment
-            for _, texture in ipairs(self.textures) do
-                if texture.owner == frame and texture:IsShown() then
-                    for _, mask in ipairs(texture.masks or {}) do
-                        if mask.owner == frame then
-                            local _, from, fromPoint = mask:GetPoint(1)
-                            local _, to, toPoint = mask:GetPoint(2)
-                            segment = {
-                                atlas = texture.atlas,
-                                from = from,
-                                fromPoint = fromPoint,
-                                to = to,
-                                toPoint = toPoint,
-                            }
-                        end
-                    end
                 end
             end
             return {
@@ -2606,7 +2598,6 @@ function world:HealthBarOverlay(healthBar, atlas)
                 color = frame.statusBarColor,
                 fill = frame:GetStatusBarTexture(),
                 inner = inner,
-                segment = segment,
                 range = self:Reveal(select(2, frame:GetMinMaxValues())),
                 fromLeft = not frame.reverseFill,
                 overFill = topLeft == "TOPLEFT"

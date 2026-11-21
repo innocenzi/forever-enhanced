@@ -16,10 +16,14 @@ local RUPTURE = 8639 -- 44 / 63 / 87 / 114 / 144 over 8 to 16 sec, a tick every 
 local RUPTURE_HIGH_RANK = 11275 -- 1032 over 16 sec with 5 points
 local HEMORRHAGE = 16511 -- +15% for 15 sec
 
--- The damage the overlay over the health bar shows, or 0 without one.
+-- The damage the overlay over the health bar shows (the ticks' and what marks
+-- will deal), or 0 without one.
 local function Shown(world, healthBar)
     local overlay = world:HealthBarOverlay(healthBar)
-    return overlay and overlay.value or 0
+    if not overlay then
+        return 0
+    end
+    return overlay.value + (overlay.inner and overlay.inner.value or 0)
 end
 
 local function Near(actual, expected, label)
@@ -162,35 +166,37 @@ end)
 
 local LOST_HEALTH_ATLAS = "UI-HUD-UnitFrame-Target-PortraitOn-Bar-TempHPLoss"
 
-test("what Death Mark will deal shows past the ticks, as the target frame's lost health", function(world)
+test("what Death Mark will deal shows from the health's end, as the target frame's lost health", function(world)
     Rogue(world)
     world:Cast(GARROTE)
-    equal(world:HealthBarOverlay(world:TargetHealthBar()).segment, nil, "the ticks alone: no segment")
+    local overlay = world:HealthBarOverlay(world:TargetHealthBar())
+    equal(overlay.inner, nil, "the ticks alone: no mark bar")
 
     world:SetComboPoints(5)
     world:Cast(DEATH_MARK_RANK_4)
-    local overlay = world:HealthBarOverlay(world:TargetHealthBar())
-    Near(overlay.value, GARROTE_DAMAGE + 2 * 47 * 0.6 * 2, "the whole damage")
-    equal(overlay.inner.value, GARROTE_DAMAGE, "the ticks' part")
-    local segment = overlay.segment
-    expect(segment, "a segment")
-    equal(segment.atlas, LOST_HEALTH_ATLAS, "of lost health")
-    expect(segment.from == overlay.inner.fill and segment.fromPoint == "TOPRIGHT", "from the ticks' end")
-    expect(segment.to == overlay.fill and segment.toPoint == "BOTTOMRIGHT", "to the whole damage's")
+    overlay = world:HealthBarOverlay(world:TargetHealthBar())
+    expect(overlay.fromLeft, "the ticks from the left end")
+    equal(overlay.value, GARROTE_DAMAGE, "the ticks' part")
+    equal(overlay.line, 1, "ending at the marker")
+    expect(not overlay.inner.fromLeft, "what it will deal from the health's end")
+    Near(overlay.inner.value, 2 * 47 * 0.6 * 2, "what it stores")
+    equal(overlay.inner.texture, LOST_HEALTH_ATLAS, "as lost health")
+    expect(overlay.inner.aboveFill, "above the ticks' shade")
 
     world:RunFrames(6.1)
-    equal(world:HealthBarOverlay(world:TargetHealthBar()).segment, nil, "none once dealt")
+    equal(world:HealthBarOverlay(world:TargetHealthBar()).inner, nil, "none once dealt")
 end)
 
-test("without ticks, what Death Mark will deal starts at the bar's left end", function(world)
+test("without ticks, Death Mark shows no marker", function(world)
     Rogue(world)
     world:SetWeapon("main", 40, 60, 1.5)
     world:Fire("PLAYER_ENTER_COMBAT")
     world:SetComboPoints(5)
     world:Cast(DEATH_MARK_RANK_4)
     local overlay = world:HealthBarOverlay(world:TargetHealthBar())
-    expect(overlay.segment, "a segment")
-    expect(overlay.segment.fromPoint == "TOPLEFT", "from the left end")
+    expect(overlay.inner, "what it will deal")
+    equal(overlay.value, 0, "no ticks")
+    equal(overlay.line, nil, "no marker")
 end)
 
 test("Death Mark stores a Rupture cast after it, and a replaced one up to then", function(world)

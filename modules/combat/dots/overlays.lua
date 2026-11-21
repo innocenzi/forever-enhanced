@@ -5,20 +5,23 @@
 -- hand it to a status bar. So an overlay is our own status bar laid exactly
 -- over the health bar's fill (anchored to its texture, which spans the health
 -- left), with the health bar's own value as its range and the damage to come
--- as its value: from the bar's left end, it covers as much health as the
--- damage will take, the whole fill when the damage would kill: that health
--- shows darkened (its own color and gloss underneath), and a marker shows
--- where it ends: on nameplates the experience bar's rested pip, at its size
--- (their bars are about as tall), centered on the end; on the target frame,
--- whose bar is taller and holds the health text, a thin line. Like Blizzard's
--- heal prediction, the overlay shares the health bar's frame level and draws
--- just above its fill, under the health text.
+-- as its value.
 --
--- What marks will deal (Death Mark) follows the ticks' part, drawn with the
--- target frame's lost health art (its temporary max health loss), like
--- Blizzard's heal prediction segments: the art spans the whole bar, masked to
--- the segment between the ticks' end (a second, invisible bar of the ticks
--- alone) and the whole damage's.
+-- The ticks' damage grows from the bar's left end: it covers as much health
+-- as the ticks will take, the whole fill when they would kill, so the player
+-- sees when the health left reaches it. That health shows darkened (its own
+-- color and gloss underneath), and a marker shows where it ends: on
+-- nameplates the experience bar's rested pip, at its size (their bars are
+-- about as tall), centered on the end; on the target frame, whose bar is
+-- taller and holds the health text, a thin line.
+--
+-- What marks will deal (Death Mark) grows from the health's end leftward: the
+-- health its hit will remove. It is a second bar over the overlay, filling in
+-- reverse with the target frame's lost health art, like that frame's
+-- temporary max health loss, and draws above the ticks' shade where they meet.
+--
+-- Like Blizzard's heal prediction, the overlay shares the health bar's frame
+-- level and draws just above its fill, under the health text.
 --
 -- Nameplates can't be measured in combat: nothing in the overlay depends on
 -- the bar's size (the pip has a fixed size).
@@ -40,8 +43,8 @@ DoTs.Overlays = Overlays
 
 local WHITE_TEXTURE = "Interface\\Buttons\\WHITE8X8"
 local SHADE_COLOR = { r = 0, g = 0, b = 0, a = 0.5 }
--- What marks will deal (Death Mark), past the ticks: the target frame's lost
--- health (TargetFrame.xml's TempMaxHealthLoss).
+-- What marks will deal (Death Mark): the target frame's lost health
+-- (TargetFrame.xml's TempMaxHealthLoss).
 local MARK_ATLAS = "UI-HUD-UnitFrame-Target-PortraitOn-Bar-TempHPLoss"
 -- The experience bar's rested pip (ExpBar.xml's ExhaustionTick).
 local PIP_ATLAS = "UI-HUD-ExperienceBar-Frame-Pip"
@@ -57,12 +60,8 @@ local overlaysByHealthBar = setmetatable({}, { __mode = "k" })
 local anchoredTo = setmetatable({}, { __mode = "k" })
 -- The end marker of each overlay.
 local markers = setmetatable({}, { __mode = "k" })
--- The invisible bar of each overlay holding the ticks' damage alone: its fill
--- ends where the ticks' part does.
-local ticksBars = setmetatable({}, { __mode = "k" })
--- The art of each overlay showing what marks will deal, and its mask.
-local markArts = setmetatable({}, { __mode = "k" })
-local markMasks = setmetatable({}, { __mode = "k" })
+-- The bar of each overlay showing what marks will deal, from the health's end.
+local markBars = setmetatable({}, { __mode = "k" })
 -- Nameplate token -> the health bar of its unit frame.
 local plateHealthBars = {}
 
@@ -107,26 +106,18 @@ local function CreateMarker(parent, fill, mask, marker)
     return CreateLine(parent, fill, mask)
 end
 
--- What marks will deal on the overlay: an invisible bar of the ticks alone,
--- over the whole overlay with the same range (its fill ends where the ticks'
--- part does), and the art over the whole overlay too, masked to show from the
--- ticks' end to the whole damage's (ShowMarks).
-local function CreateMarkSegment(overlay, mask)
-    local ticksBar = CreateFrame("StatusBar", nil, overlay)
-    ticksBar:SetUsingParentLevel(true)
-    ticksBar:SetAllPoints(overlay)
-    ticksBar:SetStatusBarTexture(WHITE_TEXTURE)
-    ticksBar:SetStatusBarColor(0, 0, 0, 0)
-    local art = overlay:CreateTexture()
-    art:SetAtlas(MARK_ATLAS)
-    art:SetAllPoints(overlay)
-    local markMask = overlay:CreateMaskTexture()
-    markMask:SetTexture(WHITE_TEXTURE, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-    art:AddMaskTexture(markMask)
+-- What marks will deal on the overlay: a bar over the whole overlay, filling
+-- from its right end (the health's).
+local function CreateMarkBar(overlay, mask)
+    local markBar = CreateFrame("StatusBar", nil, overlay)
+    markBar:SetUsingParentLevel(true)
+    markBar:SetAllPoints(overlay)
+    markBar:SetReverseFill(true)
+    markBar:SetStatusBarTexture(MARK_ATLAS)
     if mask then
-        art:AddMaskTexture(mask)
+        markBar:GetStatusBarTexture():AddMaskTexture(mask)
     end
-    ticksBars[overlay], markArts[overlay], markMasks[overlay] = ticksBar, art, markMask
+    markBars[overlay] = markBar
 end
 
 -- `mask`: the health bar's shape, if it has one. `marker`: "pip" or "line".
@@ -142,7 +133,7 @@ local function GetOverlay(healthBar, mask, marker)
             fill:AddMaskTexture(mask)
         end
         markers[overlay] = CreateMarker(overlay, fill, mask, marker)
-        CreateMarkSegment(overlay, mask)
+        CreateMarkBar(overlay, mask)
         overlay:Hide()
         overlaysByHealthBar[healthBar] = overlay
     end
@@ -150,29 +141,15 @@ local function GetOverlay(healthBar, mask, marker)
 end
 
 -- Over the health bar's fill, and just above it in its draw layers: the
--- whole damage's shade, what marks will deal over it, the marker on top.
+-- ticks' shade, what marks will deal over it, the marker on top.
 local function AnchorToFill(overlay, fill)
     overlay:ClearAllPoints()
     overlay:SetPoint("TOPLEFT", fill, "TOPLEFT")
     overlay:SetPoint("BOTTOMRIGHT", fill, "BOTTOMRIGHT")
     local layer, subLevel = fill:GetDrawLayer()
     overlay:GetStatusBarTexture():SetDrawLayer(layer, math.min(subLevel + 1, MAX_SUBLEVEL))
-    markArts[overlay]:SetDrawLayer(layer, math.min(subLevel + 2, MAX_SUBLEVEL))
+    markBars[overlay]:GetStatusBarTexture():SetDrawLayer(layer, math.min(subLevel + 2, MAX_SUBLEVEL))
     markers[overlay]:SetDrawLayer(layer, math.min(subLevel + 3, MAX_SUBLEVEL))
-end
-
--- Shows the marks' art between the ticks' end and the whole damage's.
-local function ShowMarks(overlay, ticks, stored)
-    local art, markMask = markArts[overlay], markMasks[overlay]
-    art:SetShown(stored > 0)
-    if stored <= 0 then
-        return
-    end
-    -- An empty bar's fill may not sit at its left end: the overlay's is.
-    local from = ticks > 0 and ticksBars[overlay]:GetStatusBarTexture() or overlay
-    markMask:ClearAllPoints()
-    markMask:SetPoint("TOPLEFT", from, ticks > 0 and "TOPRIGHT" or "TOPLEFT")
-    markMask:SetPoint("BOTTOMRIGHT", overlay:GetStatusBarTexture(), "BOTTOMRIGHT")
 end
 
 local function HideOverlay(healthBar)
@@ -198,11 +175,11 @@ local function GetDamage(unit)
 end
 
 -- Shows the damage to come on the unit over its health bar, or hides the
--- overlay when there's none. What marks will deal comes after the ticks.
+-- overlay when there's none: the ticks' from the left end, what marks will
+-- deal from the health's end.
 local function Update(healthBar, mask, unit, marker)
     local ticks, stored = GetDamage(unit)
-    local damage = ticks + stored
-    if damage <= 0 then
+    if ticks <= 0 and stored <= 0 then
         HideOverlay(healthBar)
         return
     end
@@ -216,11 +193,13 @@ local function Update(healthBar, mask, unit, marker)
     -- The bar's value rather than UnitHealth: it is what its fill shows.
     local health = healthBar:GetValue()
     overlay:SetMinMaxValues(0, health)
-    overlay:SetValue(damage)
-    local ticksBar = ticksBars[overlay]
-    ticksBar:SetMinMaxValues(0, health)
-    ticksBar:SetValue(ticks)
-    ShowMarks(overlay, ticks, stored)
+    overlay:SetValue(ticks)
+    -- An empty bar's fill may not sit at its left end.
+    markers[overlay]:SetShown(ticks > 0)
+    local markBar = markBars[overlay]
+    markBar:SetMinMaxValues(0, health)
+    markBar:SetValue(stored)
+    markBar:SetShown(stored > 0)
     overlay:Show()
 end
 
