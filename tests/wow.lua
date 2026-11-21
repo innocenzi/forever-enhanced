@@ -86,6 +86,7 @@ local world = {
     itemFamilies = {},
     bagFamilies = {},
     itemTypes = {},
+    weaponSubclasses = {},
     questItems = {},
     startsQuest = {},
     completedQuests = {},
@@ -111,6 +112,9 @@ local world = {
         attackPower = 0,
         spellPower = {},
         talents = {},
+        -- Hand ("main", "off") -> { low, high, speed }: weapon damage, attack power included.
+        weapons = {},
+        critChance = 0, -- percent
     },
     itemSearch = "",
     modifiedClicks = {},
@@ -1361,7 +1365,8 @@ Enum = {
     TradeskillRelativeDifficulty = { Optimal = 0, Medium = 1, Easy = 2, Trivial = 3 },
     QuestTag = { Group = 1, PvP = 41, Raid = 62, Dungeon = 81, Heroic = 85, Raid10 = 88, Raid25 = 89 },
     UIMapType = { Cosmic = 0, World = 1, Continent = 2, Zone = 3, Dungeon = 4, Micro = 5, Orphan = 6 },
-    ItemClass = { Questitem = 12, Miscellaneous = 15 },
+    ItemClass = { Weapon = 2, Questitem = 12, Miscellaneous = 15 },
+    ItemWeaponSubclass = { Sword1H = 7, Dagger = 15 },
 }
 NUM_TOTAL_EQUIPPED_BAG_SLOTS = 5
 
@@ -1458,12 +1463,17 @@ C_Item = {
         return count
     end,
     -- world.itemTypes[guid] = { itemType, itemSubType, equipLoc }; items are their own IDs.
-    -- Items in world.questItems are of the quest class. Takes numeric item IDs too.
+    -- Items in world.questItems are of the quest class, those in
+    -- world.weaponSubclasses weapons of that subclass. Takes numeric item IDs too.
     GetItemInfoInstant = function(itemIDOrLink)
         local guid = type(itemIDOrLink) == "string" and itemIDOrLink:match("%[(.-)%]") or itemIDOrLink
         local itemType = world.itemTypes[guid] or { "Miscellaneous", "Other", "" }
         local classID = world.questItems[guid] and Enum.ItemClass.Questitem or Enum.ItemClass.Miscellaneous
-        return guid, itemType[1], itemType[2], itemType[3], ItemIcon(guid), classID
+        local subclassID = world.weaponSubclasses[guid]
+        if subclassID then
+            classID = Enum.ItemClass.Weapon
+        end
+        return guid, itemType[1], itemType[2], itemType[3], ItemIcon(guid), classID, subclassID or 0
     end,
     GetItemID = function(location)
         return ItemID(ItemAt(location))
@@ -2146,6 +2156,54 @@ function UnitAttackPower(unit)
     return world.player.attackPower, 0, 0
 end
 
+-- Weapon damage (attack power included), speed and critical strike chance:
+-- secret in combat, like Forever's (measured).
+local function SecretInCombat(...)
+    if not world.inCombat then
+        return ...
+    end
+    local values = { ... }
+    for index = 1, select("#", ...) do
+        if values[index] ~= nil then
+            values[index] = world:Secret(values[index])
+        end
+    end
+    return unpack(values, 1, select("#", ...))
+end
+
+function UnitDamage(unit)
+    assert(unit == "player", "only the player's damage is modelled")
+    local main, off = world.player.weapons.main or {}, world.player.weapons.off or {}
+    return SecretInCombat(main.low or 0, main.high or 0, off.low or 0, off.high or 0, 0, 0, 1)
+end
+
+-- No off hand speed without an off hand weapon.
+function UnitAttackSpeed(unit)
+    assert(unit == "player", "only the player's speed is modelled")
+    local main, off = world.player.weapons.main or {}, world.player.weapons.off or {}
+    return SecretInCombat(main.speed or 2, off.speed)
+end
+
+function GetCritChance()
+    return SecretInCombat(world.player.critChance)
+end
+
+-- Equips a weapon in `hand` ("main", "off"), out of combat: its damage
+-- (attack power included) and speed as the client reports them, a dagger
+-- unless `subclass` (Enum.ItemWeaponSubclass) says otherwise.
+function world:SetWeapon(hand, low, high, speed, subclass)
+    assert(not self.inCombat, "modelled out of combat only")
+    self.player.weapons[hand] = { low = low, high = high, speed = speed }
+    local guid = "WEAPON_" .. hand
+    self.weaponSubclasses[guid] = subclass or Enum.ItemWeaponSubclass.Dagger
+    self.equipped[hand == "main" and INVSLOT_MAINHAND or INVSLOT_OFFHAND] = guid
+end
+
+function world:SetCritChance(percent)
+    assert(not self.inCombat, "modelled out of combat only")
+    self.player.critChance = percent
+end
+
 -- Spell power by school (2 holy to 7 arcane): secret in combat, like attack power.
 function GetSpellBonusDamage(school)
     assert(school >= 2 and school <= 7, "no spell power for school " .. tostring(school))
@@ -2212,17 +2270,59 @@ function world:SetAttackPower(attackPower)
     self:Fire("UNIT_ATTACK_POWER", "player")
 end
 
-function UnitClass()
-    return world.player.class:lower(), world.player.class
+local CLASS_IDS =
+    { WARRIOR = 1, PALADIN = 2, HUNTER = 3, ROGUE = 4, PRIEST = 5, SHAMAN = 7, MAGE = 8, WARLOCK = 9, DRUID = 11 }
+
+-- NPCs (by GUID) have a class like players (most are warriors), a level (the
+-- player's unless set) and a classification.
+world.npcClasses = {}
+world.npcLevels = {}
+world.npcClassifications = {}
+
+-- An NPC's class, by its class file ("MAGE").
+function world:SetNPCClass(guid, class)
+    self.npcClasses[guid] = class
+end
+
+-- An NPC's level: -1 for a hidden one ("??").
+function world:SetNPCLevel(guid, level)
+    self.npcLevels[guid] = level
+end
+
+function world:SetNPCClassification(guid, classification)
+    self.npcClassifications[guid] = classification
+end
+
+-- The player's class, or an NPC's: name (lowercase here), file and ID.
+function UnitClass(unit)
+    local class = world.player.class
+    if unit and unit ~= "player" then
+        local guid = UnitGUIDOf(unit)
+        if not guid then
+            return nil
+        end
+        class = world.npcClasses[guid] or "WARRIOR"
+    end
+    return class:lower(), class, CLASS_IDS[class]
 end
 
 function UnitLevel(unit)
     assert(not issecretvalue(unit), "secret values are only allowed during untainted execution")
     if unit == "mouseover" then
         return assert(world.mouseoverLevel, "no unit under the mouse")
+    elseif unit == "player" then
+        return world.player.level
     end
-    assert(unit == "player", "only the player and the mouseover unit are modelled")
-    return world.player.level
+    local guid = UnitGUIDOf(unit)
+    if not guid then
+        return 0
+    end
+    return world.npcLevels[guid] or world.player.level
+end
+
+function UnitClassification(unit)
+    local guid = UnitGUIDOf(unit)
+    return guid and (world.npcClassifications[guid] or "normal") or ""
 end
 
 function GetNormalizedRealmName()
@@ -2250,6 +2350,12 @@ function UnitExists(unit)
         or unit:match("^party%d$")
         or unit:match("^nameplate%d+$")
     return modelled and (unit == "player" or UnitGUIDOf(unit) ~= nil) or false
+end
+
+-- The player, party members and units with a player GUID.
+function UnitIsPlayer(unit)
+    local guid = UnitGUIDOf(unit)
+    return unit == "player" or unit:match("^party%d$") ~= nil or (guid ~= nil and guid:find("^Player") ~= nil)
 end
 
 function UnitPlayerControlled(unit)
@@ -2446,7 +2552,11 @@ end
 -- corners), underText (on the bar's frame level, its fill drawn above the
 -- bar's but below the OVERLAY layer of the health text), marker (the size of
 -- the texture with `atlas` on it, if any: { width, height }), line (the width
--- of a texture of one color on it, if any) }, secrets revealed.
+-- of a texture of one color on it, if any), color ({ r, g, b, a }), fill (its
+-- fill texture), inner (a status bar shown inside it, if any: { value, color,
+-- fill }), segment (a texture shown on it through a mask of its own, if any:
+-- { atlas, from, fromPoint, to, toPoint }, the regions and points the mask's
+-- top left and bottom right corners are anchored to) }, secrets revealed.
 function world:HealthBarOverlay(healthBar, atlas)
     for _, frame in ipairs(self.frames) do
         if frame.parent == healthBar and frame.frameType == "StatusBar" and frame:IsVisible() then
@@ -2463,8 +2573,40 @@ function world:HealthBarOverlay(healthBar, atlas)
                     line = texture.width
                 end
             end
+            local inner
+            for _, child in ipairs(self.frames) do
+                if child.parent == frame and child.frameType == "StatusBar" and child:IsVisible() then
+                    inner = {
+                        value = self:Reveal(child:GetValue()),
+                        color = child.statusBarColor,
+                        fill = child:GetStatusBarTexture(),
+                    }
+                end
+            end
+            local segment
+            for _, texture in ipairs(self.textures) do
+                if texture.owner == frame and texture:IsShown() then
+                    for _, mask in ipairs(texture.masks or {}) do
+                        if mask.owner == frame then
+                            local _, from, fromPoint = mask:GetPoint(1)
+                            local _, to, toPoint = mask:GetPoint(2)
+                            segment = {
+                                atlas = texture.atlas,
+                                from = from,
+                                fromPoint = fromPoint,
+                                to = to,
+                                toPoint = toPoint,
+                            }
+                        end
+                    end
+                end
+            end
             return {
                 value = self:Reveal(frame:GetValue()),
+                color = frame.statusBarColor,
+                fill = frame:GetStatusBarTexture(),
+                inner = inner,
+                segment = segment,
                 range = self:Reveal(select(2, frame:GetMinMaxValues())),
                 fromLeft = not frame.reverseFill,
                 overFill = topLeft == "TOPLEFT"
@@ -6299,6 +6441,9 @@ local SPELL_NAMES = {
         [1943] = "Rupture",
         [16511] = "Hemorrhage",
         [1316709] = "Death Mark",
+        [14278] = "Ghostly Strike",
+        [1329283] = "Shank",
+        [2098] = "Eviscerate",
         [772] = "Rend",
         [589] = "Shadow Word: Pain",
         [172] = "Corruption",
@@ -6314,6 +6459,9 @@ local SPELL_NAMES = {
         [1943] = "Rupture",
         [16511] = "Hémorragie",
         [1316709] = "Marque de mort",
+        [14278] = "Frappe fantomatique",
+        [1329283] = "Surin",
+        [2098] = "Éviscération",
         [772] = "Pourfendre",
         [589] = "Mot de l’ombre : Douleur",
         [172] = "Corruption",
@@ -6335,6 +6483,9 @@ world.spells = {
     [16511] = { icon = 136168 },
     [1316709] = { icon = 132094 },
     [1325758] = { base = 1316709 },
+    [14278] = { icon = 136136 },
+    [1329283] = { icon = 135428 },
+    [2098] = { icon = 132292 },
     [772] = { icon = 132155 },
     [6546] = { base = 772 },
     [589] = { icon = 136207 },
@@ -6343,20 +6494,22 @@ world.spells = {
 
 -- Finishing moves' descriptions (the only ones read), as Forever writes them
 -- (measured in game; where French no-break spaces go is a guess), by spell rank.
--- Death Mark's are its data's with no attack power nor critical strike chance
--- (unmeasured in game).
+-- Death Mark's are its data's with no attack power nor critical strike chance,
+-- Eviscerate's made up (unmeasured in game).
 local SPELL_DESCRIPTIONS = {
     enUS = {
         [8639] = "Finishing move that causes damage over time, increased by your Attack Power.  Lasts longer per combo point:\n   1 point  : 44 damage over 8 secs\n   2 points: 63 damage over 10 secs\n   3 points: 87 damage over 12 secs\n   4 points: 114 damage over 14 secs\n   5 points: 144 damage over 16 secs",
         [11275] = "Finishing move that causes damage over time, increased by your Attack Power.  Lasts longer per combo point:\n   1 point  : 512 damage over 8 secs\n   2 points: 640 damage over 10 secs\n   3 points: 768 damage over 12 secs\n   4 points: 896 damage over 14 secs\n   5 points: 1,032 damage over 16 secs",
         [1316709] = "Finishing move that marks the target, storing a portion of the damage dealt by your attacks per Combo Point. Garrote and Rupture damage is stored at twice the rate. After 6 sec, the stored damage is dealt, up to a maximum increased by Attack Power and Critical Strike chance:\n   1 point  : 12% stored, 165 damage cap\n   2 points: 24% stored, 267 damage cap\n   3 points: 36% stored, 369 damage cap\n   4 points: 48% stored, 471 damage cap\n   5 points: 60% stored, 573 damage cap",
         [1325758] = "Finishing move that marks the target, storing a portion of the damage dealt by your attacks per Combo Point. Garrote and Rupture damage is stored at twice the rate. After 6 sec, the stored damage is dealt, up to a maximum increased by Attack Power and Critical Strike chance:\n   1 point  : 12% stored, 401 damage cap\n   2 points: 24% stored, 646 damage cap\n   3 points: 36% stored, 891 damage cap\n   4 points: 48% stored, 1,136 damage cap\n   5 points: 60% stored, 1,381 damage cap",
+        [2098] = "Finishing move that causes damage per combo point, increased by Attack Power:\n   1 point  : 6-10 damage\n   2 points: 11-15 damage\n   3 points: 16-20 damage\n   4 points: 21-25 damage\n   5 points: 26-30 damage",
     },
     frFR = {
         [8639] = "Coup de grâce qui inflige des dégâts sur la durée. Les dégâts augmentent avec votre puissance d’attaque et l’effet dure plus longtemps selon le nombre de points de combo :\r\n 1 point\194\160: 44\194\160points de dégâts en 8\194\160s\r\n 2 points\194\160: 63\194\160points de dégâts en 10\194\160s\r\n 3 points\194\160: 87\194\160points de dégâts en 12\194\160s\r\n 4 points\194\160: 114\194\160points de dégâts en 14\194\160s\r\n 5 points\194\160: 144\194\160points de dégâts en 16\194\160s",
         [11275] = "Coup de grâce qui inflige des dégâts sur la durée. Les dégâts augmentent avec votre puissance d’attaque et l’effet dure plus longtemps selon le nombre de points de combo :\r\n 1 point : 512 points de dégâts en 8 s\r\n 2 points : 640 points de dégâts en 10 s\r\n 3 points : 768 points de dégâts en 12 s\r\n 4 points : 896 points de dégâts en 14 s\r\n 5 points : 1\194\160032 points de dégâts en 16 s",
         [1316709] = "Un coup de grâce qui marque la cible et accumule une partie des dégâts infligés par vos attaques par point de combo. Les dégâts de Garrot et de Rupture sont accumulés deux fois plus vite. Au bout de 6\194\160s, ces dégâts accumulés sont infligés, jusqu’à une valeur maximale augmentée par la puissance d’attaque et les chances de coup critique\194\160:\n   1\194\160point\194\160: 12\194\160% des dégâts accumulés, limite de dégâts de 165.\n   2\194\160points\194\160: 24\194\160% des dégâts accumulés, limite de dégâts de 267\n   3\194\160points\194\160: 36\194\160% des dégâts accumulés, limite de dégâts de 369.\n   4\194\160points\194\160: 48\194\160% des dégâts accumulés, limite de dégâts de 471.\n   5\194\160points\194\160: 60\194\160% des dégâts accumulés, limite de dégâts de 573 .",
         [1325758] = "Un coup de grâce qui marque la cible et accumule une partie des dégâts infligés par vos attaques par point de combo. Les dégâts de Garrot et de Rupture sont accumulés deux fois plus vite. Au bout de 6\194\160s, ces dégâts accumulés sont infligés, jusqu’à une valeur maximale augmentée par la puissance d’attaque et les chances de coup critique\194\160:\n   1\194\160point\194\160: 12\194\160% des dégâts accumulés, limite de dégâts de 401.\n   2\194\160points\194\160: 24\194\160% des dégâts accumulés, limite de dégâts de 646\n   3\194\160points\194\160: 36\194\160% des dégâts accumulés, limite de dégâts de 891.\n   4\194\160points\194\160: 48\194\160% des dégâts accumulés, limite de dégâts de 1\194\160136.\n   5\194\160points\194\160: 60\194\160% des dégâts accumulés, limite de dégâts de 1\194\160381 .",
+        [2098] = "Coup de grâce qui inflige des dégâts en fonction du nombre de points de combo. Les dégâts sont augmentés par la puissance d’attaque\194\160:\n 1\194\160point\194\160: 6-10\194\160points de dégâts\n 2\194\160points\194\160: 11-15\194\160points de dégâts\n 3\194\160points\194\160: 16-20\194\160points de dégâts\n 4\194\160points\194\160: 21-25\194\160points de dégâts\n 5\194\160points\194\160: 26-30\194\160points de dégâts",
     },
 }
 
@@ -7286,6 +7439,8 @@ end
 
 -- Equipped items: world.equipped[inventory slot] = item GUID.
 INVSLOT_FIRST_EQUIPPED = 1
+INVSLOT_MAINHAND = 16
+INVSLOT_OFFHAND = 17
 INVSLOT_LAST_EQUIPPED = 19
 world.equipped = {}
 

@@ -10,9 +10,17 @@
 //     without one), found by the class mask of their spell modifiers;
 //   - the debuffs a spell puts on its target raising the damage it takes from
 //     the caster's spells (Hemorrhage), with their bonus and duration;
-//   - the marks followed (Death Mark), with their duration.
+//   - the marks followed (Death Mark), with their duration;
+//   - the direct damage spells of the marks' classes (the strikes the marks
+//     store): the weapon they strike with, normalized or not, and each rank's
+//     flat damage and weapon damage percentage (and its percentage with a
+//     dagger, an effect only the description names), with the passive talents
+//     raising their damage.
 // What the server adds in its own code (attack power) isn't in the data: it is
-// measured in game, in modules/combat/dots/measured.lua.
+// measured in game, in modules/combat/dots/measured.lua. Creatures' armor
+// isn't either: it comes from CMaNGOS's Classic database (tools/cmangos.ts),
+// a creature's base armor by NPC class and level, and each creature's
+// multiplier where it isn't 1.
 //
 //   bun run dots                    latest Forever (wowf) build
 //   bun run dots --build 1.60.1.70888
@@ -20,6 +28,7 @@
 
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
+import { CMANGOS_COMMIT, dump, sqlTable } from "./cmangos";
 import { float, integer, latestBuild, parseCsv, type Row, table } from "./wago";
 
 const OUTPUT = "modules/combat/dots/data.lua";
@@ -57,14 +66,24 @@ const AURA_PERIODIC_DAMAGE = 3;
 const AURA_ADD_FLAT_MODIFIER = 107;
 const AURA_ADD_PCT_MODIFIER = 108;
 const AURA_MOD_DAMAGE_FROM_CASTER = 271;
+const EFFECT_SCHOOL_DAMAGE = 2;
 const EFFECT_APPLY_AURA = 6;
+const EFFECT_WEAPON_DAMAGE_NOSCHOOL = 17;
 const EFFECT_ENERGIZE = 30;
+const EFFECT_WEAPON_PERCENT_DAMAGE = 31;
+const EFFECT_WEAPON_DAMAGE = 58;
+const EFFECT_NORMALIZED_WEAPON_DAMAGE = 121;
 const POWER_COMBO_POINTS = 4;
+const SPELLMOD_DAMAGE = 0;
 const SPELLMOD_DURATION = 1;
 const SPELLMOD_DOT = 22;
 const TARGET_UNIT_TARGET_ENEMY = 6;
 const ATTRIBUTE_PASSIVE = 0x40;
+const ATTRIBUTE_RANGED = 0x2;
+const ATTRIBUTE3_OFF_HAND = 0x1000000;
 const CLASS_MASK_WORDS = 4;
+// A weapon damage percentage only the description names: "$m4% if a Dagger".
+const DAGGER_PERCENT = /\$m(\d)% if a Dagger/;
 
 export type ComboPoints = "spend" | "award" | undefined;
 
@@ -97,6 +116,17 @@ export type Mark = {
     comboPoints: ComboPoints;
 };
 
+/** Rank spell ID → [flat damage, weapon damage percentage, its percentage with a dagger]. */
+export type StrikeRanks = Map<number, [number, number, number | undefined]>;
+export type Strike = {
+    spellID: number;
+    key: string;
+    hand: "main" | "off" | undefined;
+    normalized: boolean;
+    comboPoints: ComboPoints;
+    ranks?: StrikeRanks;
+};
+
 export type Tables = {
     SpellEffect: Row[];
     SpellClassOptions: Row[];
@@ -109,6 +139,7 @@ export type Tables = {
     CurvePoint: Row[];
     SkillLineAbility: Row[];
     SpellPower: Row[];
+    Spell: Row[];
 };
 
 export const TABLE_NAMES: (keyof Tables)[] = [
@@ -123,6 +154,7 @@ export const TABLE_NAMES: (keyof Tables)[] = [
     "CurvePoint",
     "SkillLineAbility",
     "SpellPower",
+    "Spell",
 ];
 
 type ClassOptions = { classSet: number; mask: number[] };
@@ -262,17 +294,124 @@ export function collect(tables: Tables, followed: number[], marked: number[]) {
         };
     });
     // Spell keys named by a class set and mask.
-    const named = (classSet: number, mask: number[]) =>
-        spells
+    const namedIn = (list: { spellID: number; key: string }[], classSet: number, mask: number[]) =>
+        list
             .filter((spell) => {
                 const options = classOptions.get(spell.spellID)!;
                 return options.classSet === classSet && overlaps(options.mask, mask);
             })
             .map((spell) => spell.key);
+    const named = (classSet: number, mask: number[]) => namedIn(spells, classSet, mask);
+
+    const marks: Mark[] = marked.map((spellID) => {
+        const duration = durationOf(spellID);
+        if (!duration || integer(duration, "Duration") <= 0) {
+            throw new Error(`Mark ${spellID} (${nameOf(spellID)}) has no duration`);
+        }
+        const comboPoints = comboPointsOf(effectsBySpell.get(spellID) ?? [], duration, costsOf(spellID));
+        if (comboPoints !== "spend") {
+            throw new Error(`Mark ${spellID} (${nameOf(spellID)}) isn't a finishing move: its description can't be read`);
+        }
+        if (!classOptions.get(spellID)) {
+            throw new Error(`Mark ${spellID} has no SpellClassOptions: its class's strikes can't be found`);
+        }
+        return {
+            spellID,
+            key: keyOf(nameOf(spellID)),
+            duration: integer(duration, "Duration") / 1000,
+            comboPoints,
+        };
+    });
+
+    // The direct damage spells the player of a mark's class learns (strikes):
+    // weapon strikes and spells dealing damage on the spot, cast on the target
+    // (no projectiles: they land, and miss, after the cast).
+    const descriptions = new Map(tables.Spell.map((row) => [integer(row, "ID"), row.Description_lang ?? ""]));
+    const directOf = (spellID: number) => {
+        const effects = effectsBySpell.get(spellID) ?? [];
+        const of = (...types: number[]) => effects.filter((effect) => types.includes(integer(effect, "Effect")));
+        const flatEffects = of(
+            EFFECT_NORMALIZED_WEAPON_DAMAGE,
+            EFFECT_WEAPON_DAMAGE,
+            EFFECT_WEAPON_DAMAGE_NOSCHOOL,
+            EFFECT_SCHOOL_DAMAGE,
+        );
+        const percentEffect = of(EFFECT_WEAPON_PERCENT_DAMAGE)[0];
+        const weapon =
+            percentEffect !== undefined ||
+            of(EFFECT_NORMALIZED_WEAPON_DAMAGE, EFFECT_WEAPON_DAMAGE, EFFECT_WEAPON_DAMAGE_NOSCHOOL).length > 0;
+        if (!weapon && flatEffects.length === 0) {
+            return undefined;
+        }
+        const misc = miscBySpell.get(spellID)!;
+        if (weapon && (integer(misc, "Attributes_0") & ATTRIBUTE_RANGED) !== 0) {
+            return undefined;
+        }
+        const dagger = descriptions.get(spellID)?.match(DAGGER_PERCENT);
+        const daggerEffect = dagger && effects.find((effect) => integer(effect, "EffectIndex") === Number(dagger[1]) - 1);
+        if (dagger && !daggerEffect) {
+            throw new Error(`Spell ${spellID} (${nameOf(spellID)}) names a dagger effect it doesn't have`);
+        }
+        const hand: Strike["hand"] = !weapon
+            ? undefined
+            : (integer(misc, "Attributes_3") & ATTRIBUTE3_OFF_HAND) !== 0
+              ? "off"
+              : "main";
+        return {
+            hand,
+            normalized: of(EFFECT_NORMALIZED_WEAPON_DAMAGE).length > 0,
+            rank: [
+                flatEffects.reduce((sum, effect) => sum + float(effect, "EffectBasePointsF"), 0),
+                percentEffect ? float(percentEffect, "EffectBasePointsF") / 100 : 1,
+                daggerEffect ? float(daggerEffect, "EffectBasePointsF") / 100 : undefined,
+            ] as [number, number, number | undefined],
+        };
+    };
+    const markClassSets = new Set(marks.map((mark) => classOptions.get(mark.spellID)!.classSet));
+    const followedNames = new Set([...followed, ...marked].map(nameOf));
+    const strikesByName = new Map<string, Strike>();
+    for (const rankID of [...learnable].sort((a, b) => a - b)) {
+        const options = classOptions.get(rankID);
+        const misc = miscBySpell.get(rankID);
+        const name = names.get(rankID);
+        if (
+            !options ||
+            !markClassSets.has(options.classSet) ||
+            !misc ||
+            !name ||
+            followedNames.has(name) ||
+            (integer(misc, "Attributes_0") & ATTRIBUTE_PASSIVE) !== 0 ||
+            float(misc, "Speed") > 0
+        ) {
+            continue;
+        }
+        const direct = directOf(rankID);
+        if (!direct) {
+            continue;
+        }
+        let strike = strikesByName.get(name);
+        if (!strike) {
+            const comboPoints = comboPointsOf(effectsBySpell.get(rankID) ?? [], durationOf(rankID), costsOf(rankID));
+            strike = {
+                spellID: rankID,
+                key: keyOf(name),
+                hand: direct.hand,
+                normalized: direct.normalized,
+                comboPoints,
+                // A finishing move's damage depends on the points spent: it is read
+                // from its description instead.
+                ranks: comboPoints === "spend" ? undefined : new Map(),
+            };
+            strikesByName.set(name, strike);
+        }
+        strike.ranks?.set(rankID, direct.rank);
+    }
+    const strikes = [...strikesByName.values()];
 
     // Passive talents' modifiers of the followed spells: percent of periodic
-    // damage, and flat duration (milliseconds, turned to seconds). Active
-    // talents (Arcane Power) only count while their buff lasts: left out.
+    // damage, and flat duration (milliseconds, turned to seconds), and of the
+    // strikes: percent of damage. Active talents (Arcane Power) only count while
+    // their buff lasts: left out.
     const curves = groupBy(tables.CurvePoint, "CurveID");
     const curveByEffect = new Map(
         tables.TraitDefinitionEffectPoints.map((row) => [
@@ -285,6 +424,7 @@ export function collect(tables: Tables, followed: number[], marked: number[]) {
     );
     const talents: Talents = new Map();
     const durationTalents: Talents = new Map();
+    const strikeTalents: Talents = new Map();
     for (const definition of tables.TraitDefinition) {
         const spellID = integer(definition, "SpellID");
         const ranks = maxRanks.get(integer(definition, "ID"));
@@ -298,16 +438,21 @@ export function collect(tables: Tables, followed: number[], marked: number[]) {
             const modifier = integer(effect, "EffectMiscValue_0");
             let target: Talents;
             let scale: number;
+            let list: { spellID: number; key: string }[] = spells;
             if (aura === AURA_ADD_PCT_MODIFIER && modifier === SPELLMOD_DOT) {
                 target = talents;
                 scale = 1 / 100;
             } else if (aura === AURA_ADD_FLAT_MODIFIER && modifier === SPELLMOD_DURATION) {
                 target = durationTalents;
                 scale = 1 / 1000;
+            } else if (aura === AURA_ADD_PCT_MODIFIER && modifier === SPELLMOD_DAMAGE) {
+                target = strikeTalents;
+                scale = 1 / 100;
+                list = strikes;
             } else {
                 continue;
             }
-            const keys = named(options.classSet, maskOf(effect, "EffectSpellClassMask"));
+            const keys = namedIn(list, options.classSet, maskOf(effect, "EffectSpellClassMask"));
             if (keys.length === 0) {
                 continue;
             }
@@ -366,24 +511,44 @@ export function collect(tables: Tables, followed: number[], marked: number[]) {
         });
     }
     amplifiers.sort((a, b) => a.spellID - b.spellID);
+    return { spells, talents, durationTalents, amplifiers, marks, strikes, strikeTalents };
+}
 
-    const marks: Mark[] = marked.map((spellID) => {
-        const duration = durationOf(spellID);
-        if (!duration || integer(duration, "Duration") <= 0) {
-            throw new Error(`Mark ${spellID} (${nameOf(spellID)}) has no duration`);
+export type Armor = {
+    // NPC class ID -> base armor at each level from 1.
+    byClass: Map<number, number[]>;
+    // NPC ID -> armor multiplier, where it isn't 1.
+    multipliers: Map<number, number>;
+};
+
+// Creatures' armor in CMaNGOS: its class and level's base armor times its own
+// multiplier (Creature::SelectLevel).
+export function collectArmor(stats: Row[], creatures: Row[]): Armor {
+    const byClass = new Map<number, number[]>();
+    const sorted = [...stats].sort((a, b) => integer(a, "Level") - integer(b, "Level"));
+    for (const row of sorted) {
+        const classID = integer(row, "Class");
+        const levels = byClass.get(classID) ?? [];
+        if (integer(row, "Level") !== levels.length + 1) {
+            throw new Error(`class ${classID}: no base armor at level ${levels.length + 1}`);
         }
-        const comboPoints = comboPointsOf(effectsBySpell.get(spellID) ?? [], duration, costsOf(spellID));
-        if (comboPoints !== "spend") {
-            throw new Error(`Mark ${spellID} (${nameOf(spellID)}) isn't a finishing move: its description can't be read`);
+        levels.push(integer(row, "BaseArmor"));
+        byClass.set(classID, levels);
+    }
+    if (!byClass.has(1)) {
+        throw new Error("no warrior base armor, the fallback");
+    }
+    const multipliers = new Map<number, number>();
+    for (const creature of creatures) {
+        const multiplier = float(creature, "ArmorMultiplier");
+        if (multiplier < 0) {
+            throw new Error(`creature ${creature.Entry}: fixed armor, not handled`);
         }
-        return {
-            spellID,
-            key: keyOf(nameOf(spellID)),
-            duration: integer(duration, "Duration") / 1000,
-            comboPoints,
-        };
-    });
-    return { spells, talents, durationTalents, amplifiers, marks };
+        if (multiplier !== 1) {
+            multipliers.set(integer(creature, "Entry"), multiplier);
+        }
+    }
+    return { byClass, multipliers };
 }
 
 // DB2 floats are single precision (0.2 reads 0.20000000298): 6 significant digits.
@@ -413,9 +578,20 @@ function talentsLua(talents: Talents): string[] {
         });
 }
 
-export function renderLua(collected: ReturnType<typeof collect>, build: string): string {
-    const { spells, talents, durationTalents, amplifiers, marks } = collected;
+export function renderLua(collected: ReturnType<typeof collect>, armor: Armor, build: string): string {
+    const { spells, talents, durationTalents, amplifiers, marks, strikes, strikeTalents } = collected;
     const set = (keys: string[]) => `{ ${keys.map((key) => `${key} = true`).join(", ")} }`;
+    const strikeRanksLua = (ranks: StrikeRanks | undefined) => {
+        if (!ranks) {
+            return undefined;
+        }
+        const entries = [...ranks.keys()].sort((a, b) => a - b).map((rankID) => {
+            const [flat, percent, dagger] = ranks.get(rankID)!;
+            const values = dagger === undefined ? [flat, percent] : [flat, percent, dagger];
+            return `[${rankID}] = { ${values.map(number).join(", ")} }`;
+        });
+        return `{ ${entries.join(", ")} }`;
+    };
     const ranksLua = (ranks: Ranks | undefined) => {
         if (!ranks) {
             return undefined;
@@ -426,10 +602,11 @@ export function renderLua(collected: ReturnType<typeof collect>, build: string):
         return `{ ${entries.join(", ")} }`;
     };
     const lines = [
-        `-- Generated by tools/dots.ts from Forever's DB2 tables (build ${build}). Do not edit.`,
+        `-- Generated by tools/dots.ts from Forever's DB2 tables (build ${build}) and`,
+        `-- CMaNGOS's Classic database (${CMANGOS_COMMIT.slice(0, 7)}). Do not edit.`,
         "-- The damage over time spells followed and what changes their damage, as the",
         "-- client's data gives them (measured.lua holds what the server adds, and what",
-        "-- was measured to differ).",
+        "-- was measured to differ), and creatures' armor.",
         "",
         "local _, ns = ...",
         "",
@@ -491,6 +668,41 @@ export function renderLua(collected: ReturnType<typeof collect>, build: string):
                 ])},`,
         ),
         "    },",
+        "    -- Spell ID of one rank -> a direct damage spell of a mark's class, which the",
+        '    -- marks store: { key, hand ("main" or "off": a weapon strike, nil: a spell),',
+        "    -- normalized (its weapon damage takes attack power at the weapon type's",
+        '    -- normalized speed), comboPoints, ranks (rank spell ID -> { flat damage,',
+        "    -- weapon damage percentage, its percentage with a dagger in the main hand };",
+        "    -- nil for a finishing move, read from its description) }.",
+        "    strikes = {",
+        ...strikes.map(
+            (strike) =>
+                `        [${strike.spellID}] = ${record([
+                    ["key", lua(strike.key)],
+                    ["hand", strike.hand && lua(strike.hand)],
+                    ["normalized", String(strike.normalized)],
+                    ["comboPoints", strike.comboPoints && lua(strike.comboPoints)],
+                    ["ranks", strikeRanksLua(strike.ranks)],
+                ])},`,
+        ),
+        "    },",
+        "    -- Passive talent spell ID -> strike key -> its damage bonus at each rank.",
+        "    strikeTalents = {",
+        ...talentsLua(strikeTalents),
+        "    },",
+        "    -- NPC class ID (UnitClass's third value) -> a creature's base armor at each",
+        "    -- level from 1 (CMaNGOS).",
+        "    armor = {",
+        ...[...armor.byClass.keys()]
+            .sort((a, b) => a - b)
+            .map((classID) => `        [${classID}] = { ${armor.byClass.get(classID)!.join(", ")} },`),
+        "    },",
+        "    -- NPC ID -> its armor multiplier, where it isn't 1 (CMaNGOS).",
+        "    armorMultipliers = {",
+        ...[...armor.multipliers.keys()]
+            .sort((a, b) => a - b)
+            .map((npcID) => `        [${npcID}] = ${number(armor.multipliers.get(npcID)!)},`),
+        "    },",
         "}",
         "",
     ];
@@ -518,8 +730,13 @@ if (import.meta.main) {
         tables[name] = parseCsv(await table(path.join(repoRoot, CACHE), name, build, refresh));
     }
     const collected = collect(tables, FOLLOWED, MARKS);
-    await writeLua(path.join(repoRoot, OUTPUT), renderLua(collected, build));
+    const sql = await dump(path.join(repoRoot, CACHE), refresh);
+    const armor = collectArmor(
+        sqlTable(sql, "creature_template_classlevelstats"),
+        sqlTable(sql, "creature_template"),
+    );
+    await writeLua(path.join(repoRoot, OUTPUT), renderLua(collected, armor, build));
     console.log(
-        `${OUTPUT}: ${collected.spells.length} spells, ${collected.talents.size} talents, ${collected.durationTalents.size} duration talents, ${collected.amplifiers.length} amplifiers, ${collected.marks.length} marks (build ${build})`,
+        `${OUTPUT}: ${collected.spells.length} spells, ${collected.talents.size} talents, ${collected.durationTalents.size} duration talents, ${collected.amplifiers.length} amplifiers, ${collected.marks.length} marks, ${collected.strikes.length} strikes, ${collected.strikeTalents.size} strike talents, ${armor.byClass.size} NPC classes' armor, ${armor.multipliers.size} armor multipliers (build ${build}, CMaNGOS ${CMANGOS_COMMIT.slice(0, 7)})`,
     );
 }

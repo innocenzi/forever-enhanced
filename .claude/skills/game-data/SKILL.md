@@ -19,6 +19,7 @@ Never edit generated files by hand: change the generator and rerun it.
 
 - Each generator's header comment is the reference for what it reads and writes.
 - Data generators reach wago.tools through `tools/wago.ts` (latest `wowf` build), cached in `tools/.cache/` (gitignored). `--build 1.60.1.70888` pins a build; `--refresh` downloads again.
+- `dots` also reads creatures' armor from CMaNGOS's Classic database (`tools/cmangos.ts`, pinned at `CMANGOS_COMMIT`, cached the same way): bump the commit only on purpose, then check the armor in game (`modules/combat/dots/armor.lua`'s header says how it was checked).
 - Each generated `data.lua` names its build on line 1.
 - After changing a generator: `bun run typecheck`, rerun it, review its output (step 3 below).
 

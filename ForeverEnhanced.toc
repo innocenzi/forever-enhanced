@@ -138,6 +138,7 @@ modules\combat\dots\feature.lua
 modules\combat\dots\locales.lua
 modules\combat\dots\data.lua
 modules\combat\dots\measured.lua
+modules\combat\dots\armor.lua
 modules\combat\dots\spells.lua
 modules\combat\dots\stats.lua
 modules\combat\dots\tracker.lua

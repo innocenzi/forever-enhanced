@@ -160,6 +160,39 @@ test("Death Mark adds what it stores of Garrote's ticks, twice its share, until 
     Near(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE * 4 / 6, "then dealt")
 end)
 
+local LOST_HEALTH_ATLAS = "UI-HUD-UnitFrame-Target-PortraitOn-Bar-TempHPLoss"
+
+test("what Death Mark will deal shows past the ticks, as the target frame's lost health", function(world)
+    Rogue(world)
+    world:Cast(GARROTE)
+    equal(world:HealthBarOverlay(world:TargetHealthBar()).segment, nil, "the ticks alone: no segment")
+
+    world:SetComboPoints(5)
+    world:Cast(DEATH_MARK_RANK_4)
+    local overlay = world:HealthBarOverlay(world:TargetHealthBar())
+    Near(overlay.value, GARROTE_DAMAGE + 2 * 47 * 0.6 * 2, "the whole damage")
+    equal(overlay.inner.value, GARROTE_DAMAGE, "the ticks' part")
+    local segment = overlay.segment
+    expect(segment, "a segment")
+    equal(segment.atlas, LOST_HEALTH_ATLAS, "of lost health")
+    expect(segment.from == overlay.inner.fill and segment.fromPoint == "TOPRIGHT", "from the ticks' end")
+    expect(segment.to == overlay.fill and segment.toPoint == "BOTTOMRIGHT", "to the whole damage's")
+
+    world:RunFrames(6.1)
+    equal(world:HealthBarOverlay(world:TargetHealthBar()).segment, nil, "none once dealt")
+end)
+
+test("without ticks, what Death Mark will deal starts at the bar's left end", function(world)
+    Rogue(world)
+    world:SetWeapon("main", 40, 60, 1.5)
+    world:Fire("PLAYER_ENTER_COMBAT")
+    world:SetComboPoints(5)
+    world:Cast(DEATH_MARK_RANK_4)
+    local overlay = world:HealthBarOverlay(world:TargetHealthBar())
+    expect(overlay.segment, "a segment")
+    expect(overlay.segment.fromPoint == "TOPLEFT", "from the left end")
+end)
+
 test("Death Mark stores a Rupture cast after it, and a replaced one up to then", function(world)
     Rogue(world)
     world:SetComboPoints(5)
@@ -208,6 +241,212 @@ test("a missed Death Mark stores nothing", function(world)
     world:Cast(DEATH_MARK_RANK_4, "DODGE")
     world:Elapse(1.1)
     equal(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE, "the Garrote only")
+end)
+
+local SINISTER_STRIKE = 1752 -- normalized weapon damage + 3
+local GHOSTLY_STRIKE = 14278 -- 125% normalized weapon damage, 180% with a dagger in the main hand
+local SHANK = 1329283 -- 50% off hand weapon damage
+local EVISCERATE = 2098 -- 6-10 / 11-15 / 16-20 / 21-25 / 26-30
+local AGGRESSION = 18427 -- Sinister Strike and Eviscerate +5% per rank
+
+-- A level 40 player with daggers, 40-60 in the main hand every 1.5 sec, 20-30
+-- in the off hand every 2 sec, and 10% crit, against MOB and OTHER at level 37.
+local function Armed(world)
+    world.player.level = 40
+    world:SetNPCLevel("MOB", 37)
+    world:SetNPCLevel("OTHER", 37)
+    world:SetWeapon("main", 40, 60, 1.5)
+    world:SetWeapon("off", 20, 30, 2)
+    world:SetCritChance(10)
+end
+
+-- The share of a level 40 player's physical damage armor lets through.
+local function Passed(armor)
+    return 1 - armor / (armor + 400 + 85 * 40)
+end
+
+-- A level 37 warrior NPC's armor (data.lua), and what it lets through.
+local WARRIOR_37_ARMOR = 1593
+local PASSED = Passed(WARRIOR_37_ARMOR)
+
+-- What Death Mark stores per second of white swings with Armed's weapons:
+-- 80% landing, crits, through a level 37 warrior's armor.
+local SWINGS_PER_SECOND = (50 / 1.5 + 25 / 2) * 0.8 * 1.1 * PASSED
+
+-- What Death Mark stores of a strike's average damage at 5 points: crits at
+-- Armed's 10%, through a level 37 warrior's armor, 60% of it.
+local STRIKE_STORED = 1.1 * PASSED * 0.6
+
+-- Casts a 5 points Death Mark (60% stored) on the target.
+local function Mark(world)
+    world:SetComboPoints(5)
+    world:Cast(DEATH_MARK_RANK_4)
+end
+
+test("Death Mark stores the strikes landing while it lasts, crits and armor counted", function(world)
+    Rogue(world)
+    Armed(world)
+    world:Cast(SINISTER_STRIKE)
+    Mark(world)
+    equal(world:HealthBarOverlay(world:TargetHealthBar()), nil, "not a strike before it")
+    world:Cast(SINISTER_STRIKE)
+    Near(Shown(world, world:TargetHealthBar()), (50 + 3) * STRIKE_STORED, "a strike after it")
+    world:RunFrames(6.1)
+    world:Cast(SINISTER_STRIKE)
+    equal(world:HealthBarOverlay(world:TargetHealthBar()), nil, "nor after it dealt the damage")
+end)
+
+test("a strike's weapon damage: dagger percentage, normalized speed, off hand", function(world)
+    Rogue(world)
+    Armed(world)
+    Mark(world)
+    world:Cast(GHOSTLY_STRIKE)
+    Near(Shown(world, world:TargetHealthBar()), 50 * 1.8 * STRIKE_STORED, "180% with a dagger")
+    world:Cast(SHANK)
+    Near(Shown(world, world:TargetHealthBar()), (50 * 1.8 + 25 * 0.5) * STRIKE_STORED, "and Shank's off hand")
+
+    world:Target("OTHER")
+    world:SetHealth("OTHER", 1000, 1000)
+    world:SetAttackPower(140)
+    world:SetWeapon("main", 40, 60, 2, Enum.ItemWeaponSubclass.Sword1H)
+    Mark(world)
+    world:Cast(GHOSTLY_STRIKE)
+    -- Attack power added at 2.4 sec rather than the sword's 2: 140 * 0.4 / 14 = 4 more.
+    Near(Shown(world, world:TargetHealthBar()), (50 + 4) * 1.25 * STRIKE_STORED, "125% of a sword's, normalized")
+end)
+
+test("Eviscerate's damage comes from its description, raised by talents", function(world)
+    Rogue(world)
+    Armed(world)
+    world:LearnTalent(AGGRESSION, 3)
+    Mark(world)
+    world:SetComboPoints(3)
+    world:Cast(EVISCERATE)
+    Near(Shown(world, world:TargetHealthBar()), 18 * 1.15 * STRIKE_STORED, "the 3 points line's average")
+    world:Cast(SINISTER_STRIKE)
+    Near(Shown(world, world:TargetHealthBar()), (18 + 53) * 1.15 * STRIKE_STORED, "Aggression on Sinister Strike too")
+end)
+
+test("a missed strike stores nothing", function(world)
+    Rogue(world)
+    Armed(world)
+    Mark(world)
+    world:Cast(SINISTER_STRIKE, "DODGE")
+    world:Elapse(1.1)
+    equal(world:HealthBarOverlay(world:TargetHealthBar()), nil, "its combo point never came")
+end)
+
+test("Death Mark stores white swings while the player attacks its target", function(world)
+    Rogue(world)
+    Armed(world)
+    world:Fire("PLAYER_ENTER_COMBAT")
+    Mark(world)
+    Near(Shown(world, world:TargetHealthBar()), SWINGS_PER_SECOND * 6 * 0.6, "until it ends")
+    world:RunFrames(2)
+    world:Fire("PLAYER_LEAVE_COMBAT")
+    Near(Shown(world, world:TargetHealthBar()), SWINGS_PER_SECOND * 2 * 0.6, "until the attack stopped")
+    world:RunFrames(1)
+    world:Fire("PLAYER_ENTER_COMBAT")
+    Near(Shown(world, world:TargetHealthBar()), SWINGS_PER_SECOND * 5 * 0.6, "and again once it started again")
+end)
+
+test("white swings at another target aren't stored", function(world)
+    local plate = Rogue(world)
+    Armed(world)
+    Mark(world)
+    world:Fire("PLAYER_ENTER_COMBAT")
+    world:RunFrames(1)
+    world:ShowNamePlate("OTHER")
+    world:SetHealth("OTHER", 1000, 1000)
+    world:Target("OTHER")
+    world:RunFrames(4)
+    world:Target("MOB")
+    Near(Shown(world, world:NamePlateHealthBar(plate)), SWINGS_PER_SECOND * 2 * 0.6, "the first and last second")
+end)
+
+test("Death Mark stores strikes and swings up to its cap", function(world)
+    Rogue(world)
+    world:SetWeapon("main", 4000, 6000, 1.5)
+    world:Fire("PLAYER_ENTER_COMBAT")
+    world:SetComboPoints(1)
+    world:Cast(DEATH_MARK_RANK_4)
+    -- 5000 / 1.5 * 0.8 * 6 sec * 12% = 1920, before armor.
+    equal(Shown(world, world:TargetHealthBar()), 401, "the 1 point cap")
+end)
+
+-- A creature GUID of the NPC `npcID`.
+local function CreatureGUID(npcID)
+    return ("Creature-0-1-0-1-%d-0000000001"):format(npcID)
+end
+
+-- Targets `guid` (1000 health, its nameplate shown).
+local function TargetNew(world, guid)
+    world:ShowNamePlate(guid)
+    world:SetHealth(guid, 1000, 1000)
+    world:Target(guid)
+end
+
+test("strikes and swings lose what the target's armor stops: by its NPC class and level", function(world)
+    Rogue(world)
+    Armed(world)
+    world:SetNPCClass("MOB", "MAGE")
+    Mark(world)
+    world:Cast(SINISTER_STRIKE)
+    -- A level 37 mage NPC: 858 armor.
+    Near(Shown(world, world:TargetHealthBar()), (50 + 3) * 1.1 * Passed(858) * 0.6, "a level 37 mage's")
+
+    world:SetNPCLevel("OTHER", 30)
+    TargetNew(world, "OTHER")
+    Mark(world)
+    world:Fire("PLAYER_ENTER_COMBAT")
+    local swings = (50 / 1.5 + 25 / 2) * 0.8 * 1.1 * Passed(1200)
+    Near(Shown(world, world:TargetHealthBar()), swings * 6 * 0.6, "a level 30 warrior's: 1200")
+end)
+
+test("a player counts as a warrior NPC of their level, whatever their class", function(world)
+    Rogue(world)
+    Armed(world)
+    local mage = "Player-1-00000001"
+    world:SetNPCClass(mage, "MAGE")
+    world:SetNPCLevel(mage, 37)
+    TargetNew(world, mage)
+    Mark(world)
+    world:Cast(SINISTER_STRIKE)
+    Near(Shown(world, world:TargetHealthBar()), (50 + 3) * STRIKE_STORED, "a level 37 warrior's armor")
+end)
+
+test("a creature's own armor multiplier", function(world)
+    Rogue(world)
+    Armed(world)
+    local elemental = CreatureGUID(92) -- Rock Elemental: 1.5 times its class and level's
+    world:SetNPCLevel(elemental, 37)
+    TargetNew(world, elemental)
+    Mark(world)
+    world:Cast(SINISTER_STRIKE)
+    Near(
+        Shown(world, world:TargetHealthBar()),
+        (50 + 3) * 1.1 * Passed(WARRIOR_37_ARMOR * 1.5) * 0.6,
+        "half again a warrior's"
+    )
+end)
+
+test("a hidden level counts as 10 above the player's, a boss's as 63, armor stopping 75% at most", function(world)
+    Rogue(world)
+    Armed(world)
+    world:SetNPCLevel("MOB", -1)
+    Mark(world)
+    world:Cast(SINISTER_STRIKE)
+    -- A level 50 warrior NPC: 2999 armor.
+    Near(Shown(world, world:TargetHealthBar()), (50 + 3) * 1.1 * Passed(2999) * 0.6, "10 above")
+
+    world.player.level = 12
+    world:SetNPCLevel("OTHER", -1)
+    world:SetNPCClassification("OTHER", "worldboss")
+    TargetNew(world, "OTHER")
+    Mark(world)
+    world:Cast(SINISTER_STRIKE)
+    -- A level 63 warrior NPC: 4691 armor, 77% against a level 12 player.
+    Near(Shown(world, world:TargetHealthBar()), (50 + 3) * 1.1 * 0.25 * 0.6, "a boss's, capped")
 end)
 
 test("stays on the nameplate of a unit no longer targeted", function(world)

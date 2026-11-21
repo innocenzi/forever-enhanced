@@ -24,8 +24,13 @@
 -- and deals it at once when it ends, up to a cap. Its description lists, per
 -- combo point, the share stored and the cap ("5 points: 60% stored, 1,976
 -- damage cap"), the cap including the player's attack power and critical
--- strike chance. Only the share of the followed effects' ticks can be told
--- (measured.lua says which, and how many times the share).
+-- strike chance. What the player deals the target can't be seen in combat, so
+-- what the mark stores is predicted: the followed effects' ticks (measured.lua
+-- says which it stores more of), the strikes cast (a strike's average damage
+-- from its data and the weapons read before combat, or a finishing move's from
+-- its description, crits counted at the player's chance), and the average
+-- damage of white swings while the player attacks the target. The tracker
+-- takes off what the target's armor stops of strikes and swings (armor.lua).
 
 local _, ns = ...
 
@@ -48,6 +53,20 @@ local MARK_PATTERNS = {
     frFR = "(%d+) %% des dégâts accumulés, limite de dégâts de (%d[%d ]*)",
 }
 
+-- A finishing strike's lowest and highest damage on each line, in order, once
+-- no-break spaces are plain spaces.
+local STRIKE_PATTERNS = {
+    enUS = "(%d[%d,]*)%-(%d[%d,]*) damage",
+    frFR = "(%d[%d ]*)%-(%d[%d ]*)points? de dégâts",
+}
+
+-- The speed a normalized strike adds attack power at, by weapon (one-handed
+-- weapons the marks' class wields).
+local NORMALIZED_SPEED = { dagger = 1.7, other = 2.4 }
+
+-- Attack power adds 1 damage per 14 per second of weapon speed.
+local ATTACK_POWER_PER_DAMAGE = 14
+
 -- No-break space and narrow no-break space, in UTF-8.
 local NO_BREAK_SPACES = { "\194\160", "\226\128\175" }
 
@@ -59,6 +78,8 @@ local spellsByName
 local amplifiersByName
 -- Spell name -> mark definition: { key, duration, comboPoints, stores }.
 local marksByName
+-- Spell name -> strike definition: { key, hand, normalized, comboPoints, ranks, talents }.
+local strikesByName
 -- Spell key -> its name.
 local names
 
@@ -78,7 +99,7 @@ local function ByKey(sources)
 end
 
 local function Build()
-    spellsByName, amplifiersByName, marksByName, names = {}, {}, {}, {}
+    spellsByName, amplifiersByName, marksByName, strikesByName, names = {}, {}, {}, {}, {}
     local talents = ByKey({ DoTs.Data.talents, DoTs.Measured.talents })
     local durations = ByKey({ DoTs.Data.durations })
     for spellID, spell in pairs(DoTs.Data.spells) do
@@ -119,6 +140,20 @@ local function Build()
             }
         end
     end
+    local strikeTalents = ByKey({ DoTs.Data.strikeTalents })
+    for spellID, strike in pairs(DoTs.Data.strikes) do
+        local name = C_Spell.GetSpellName(spellID)
+        if name then
+            strikesByName[name] = {
+                key = strike.key,
+                hand = strike.hand,
+                normalized = strike.normalized,
+                comboPoints = strike.comboPoints,
+                ranks = strike.ranks,
+                talents = strikeTalents[strike.key] or {},
+            }
+        end
+    end
 end
 
 -- The definition of a damage over time spell, or nil.
@@ -143,6 +178,14 @@ function Spells:GetMark(spellID)
         Build()
     end
     return marksByName[C_Spell.GetSpellName(spellID)]
+end
+
+-- The definition of a direct damage spell a mark stores, or nil.
+function Spells:GetStrike(spellID)
+    if not strikesByName then
+        Build()
+    end
+    return strikesByName[C_Spell.GetSpellName(spellID)]
 end
 
 -- The name of the damage over time spell or mark `key` (every rank shares it).
@@ -231,4 +274,69 @@ function Spells:Read(definition, spellID, points)
         return (perTick + bonus) * multiplier, duration
     end
     return perTick * multiplier + bonus, duration
+end
+
+-- The average damage of the player's weapon in `hand`, attack power added at
+-- the normalized speed if `normalized`; nil without a weapon.
+local function WeaponDamage(hand, normalized)
+    local weapon = DoTs.Stats:GetWeapon(hand)
+    if not weapon then
+        return nil
+    end
+    local damage = (weapon.low + weapon.high) / 2
+    if normalized then
+        local speed = weapon.dagger and NORMALIZED_SPEED.dagger or NORMALIZED_SPEED.other
+        damage = damage + DoTs.Stats:GetAttackPower() * (speed - weapon.speed) / ATTACK_POWER_PER_DAMAGE
+    end
+    return damage
+end
+
+-- The average damage a landed cast of the rank `spellID` of the strike
+-- `definition` deals with `points` combo points, crits included; nil when it
+-- can't be told (a rank the data doesn't list, no weapon in the hand it strikes
+-- with, a description that doesn't say).
+function Spells:ReadStrike(definition, spellID, points)
+    DoTs.Stats:Refresh()
+    local damage
+    if definition.ranks then
+        local rank = definition.ranks[spellID]
+        if not rank then
+            return nil
+        end
+        local flat, percent, daggerPercent = rank[1], rank[2], rank[3]
+        local main = DoTs.Stats:GetWeapon("main")
+        if daggerPercent and main and main.dagger then
+            percent = daggerPercent
+        end
+        if definition.hand then
+            local weapon = WeaponDamage(definition.hand, definition.normalized)
+            if not weapon then
+                return nil
+            end
+            damage = (weapon + flat) * percent
+        else
+            damage = flat * percent
+        end
+    else
+        local low, high = ReadDescription(spellID, points, STRIKE_PATTERNS)
+        if not low then
+            return nil
+        end
+        damage = (low + high) / 2
+    end
+    return damage * (1 + SumTalents(definition.talents)) * (1 + DoTs.Stats:GetCritChance())
+end
+
+-- The average damage the player's white swings deal per second, the share
+-- that lands and crits included.
+function Spells:GetSwingDamagePerSecond()
+    DoTs.Stats:Refresh()
+    local perSecond = 0
+    for _, hand in ipairs({ "main", "off" }) do
+        local weapon = DoTs.Stats:GetWeapon(hand)
+        if weapon then
+            perSecond = perSecond + WeaponDamage(hand, false) / weapon.speed
+        end
+    end
+    return perSecond * DoTs.Measured.swingsLanded * (1 + DoTs.Stats:GetCritChance())
 end

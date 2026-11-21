@@ -12,10 +12,12 @@
 -- spent once it lands). Casting the spell again on the unit replaces its
 -- effect, like the game does.
 --
--- A mark (Death Mark) deals, when it ends, a share of what the followed
--- effects' ticks dealt the unit while it lasted (spells.lua): it keeps the
--- effects that ran on the unit then, replaced ones included (up to when they
--- were), and counts their ticks in its window.
+-- A mark (Death Mark) deals, when it ends, a share of what the player dealt
+-- the unit while it lasted (spells.lua): the followed effects' ticks (it keeps
+-- the effects that ran on the unit then, replaced ones included up to when they
+-- were, and counts their ticks in its window), the strikes that landed on it
+-- then, and white swings while the player auto attacks it (counted until the
+-- mark ends unless they stop or the target changes before).
 --
 -- Effects are kept by unit: by its GUID, or by its nameplate while its GUID
 -- is secret (Tracker:GetUnitKey).
@@ -52,14 +54,21 @@ local EMPTY = {}
 local effects = {}
 -- Unit key -> amplifier key -> { from, to, bonus, amplifies }.
 local amplifiers = {}
--- Unit key -> mark key -> { from, to, share, cap, stores, sources } (sources:
--- the effects that ran on the unit while it lasts, `ended` set on one replaced).
+-- Unit key -> mark key -> { from, to, share, cap, stores, sources, strikes,
+-- swingRate, swingSeconds, swingingSince } (sources: the effects that ran on the
+-- unit while it lasts, `ended` set on one replaced; strikes: the damage of the
+-- strikes that landed, through its armor; swingRate: white swing damage per
+-- second through its armor; swingSeconds: the time spent swinging at the unit,
+-- swingingSince when it is going on).
 local marks = {}
--- The last cast sent: { castGUID, unitKey, points } (its target, and the combo
--- points on it then).
+-- Whether the player auto attacks their target (PLAYER_ENTER_COMBAT).
+local swinging = false
+-- The last cast sent: { castGUID, unitKey, points, armorPassed } (its target,
+-- the combo points on it then, and the share of physical damage its armor
+-- lets through).
 local lastSent
 -- Casts that landed this frame: { unitKey, spellID, definition, amplifier, mark,
--- points, time, missed }.
+-- points, armorPassed, time, missed }.
 local pending = {}
 -- Casts that may have missed, waiting for their combo points: { cast, timer }.
 local unconfirmed = {}
@@ -98,18 +107,42 @@ local function TickDamage(unitKey, effect, time)
     return effect.perTick * multiplier
 end
 
--- The damage the mark stores from its sources' ticks, up to its cap.
+-- The damage the mark stores (its sources' ticks, the strikes, the white
+-- swings until it ends), up to its cap.
 local function StoredDamage(unitKey, mark)
     local stored = 0
     for _, effect in ipairs(mark.sources) do
         for index = 1, TickCount(effect) do
             local time = effect.start + index * effect.tick
             if time > mark.from and time <= mark.to and time <= (effect.ended or math.huge) then
-                stored = stored + TickDamage(unitKey, effect, time) * mark.share * mark.stores[effect.key]
+                stored = stored + TickDamage(unitKey, effect, time) * mark.stores[effect.key]
             end
         end
     end
-    return math.min(stored, mark.cap)
+    local swingSeconds = mark.swingSeconds
+    if mark.swingingSince then
+        swingSeconds = swingSeconds + mark.to - mark.swingingSince
+    end
+    stored = stored + mark.strikes + mark.swingRate * swingSeconds
+    return math.min(stored * mark.share, mark.cap)
+end
+
+-- Starts or stops counting each running mark's white swings: they go to the
+-- target while the player auto attacks.
+local function SyncSwings()
+    local now = GetTime()
+    local swungAt = swinging and Tracker:GetUnitKey("target")
+    for unitKey, unitMarks in pairs(marks) do
+        for _, mark in pairs(unitMarks) do
+            local swung = unitKey == swungAt and now < mark.to
+            if mark.swingingSince and not swung then
+                mark.swingSeconds = mark.swingSeconds + math.min(now, mark.to) - mark.swingingSince
+                mark.swingingSince = nil
+            elseif swung and not mark.swingingSince then
+                mark.swingingSince = now
+            end
+        end
+    end
 end
 
 -- Whether a mark on the unit has yet to deal its damage.
@@ -142,25 +175,37 @@ local function ApplyMark(cast)
         cap = cap,
         stores = definition.stores,
         sources = sources,
+        strikes = 0,
+        swingRate = DoTs.Spells:GetSwingDamagePerSecond() * cast.armorPassed,
+        swingSeconds = 0,
+    }
+    SyncSwings()
+end
+
+local function ApplyAmplifier(cast)
+    local amplifier = cast.amplifier
+    amplifiers[cast.unitKey] = amplifiers[cast.unitKey] or {}
+    amplifiers[cast.unitKey][amplifier.key] = {
+        from = cast.time,
+        to = cast.time + amplifier.duration,
+        bonus = amplifier.bonus,
+        amplifies = amplifier.amplifies,
     }
 end
 
-local function Apply(cast)
-    if cast.mark then
-        ApplyMark(cast)
-        return
+-- Adds the strike's damage, through the unit's armor, to the marks running on
+-- the unit.
+local function ApplyStrike(cast)
+    local damage
+    for _, mark in pairs(marks[cast.unitKey] or EMPTY) do
+        if cast.time >= mark.from and cast.time < mark.to then
+            damage = damage or (DoTs.Spells:ReadStrike(cast.strike, cast.spellID, cast.points) or 0) * cast.armorPassed
+            mark.strikes = mark.strikes + damage
+        end
     end
-    if cast.amplifier then
-        local amplifier = cast.amplifier
-        amplifiers[cast.unitKey] = amplifiers[cast.unitKey] or {}
-        amplifiers[cast.unitKey][amplifier.key] = {
-            from = cast.time,
-            to = cast.time + amplifier.duration,
-            bonus = amplifier.bonus,
-            amplifies = amplifier.amplifies,
-        }
-        return
-    end
+end
+
+local function ApplyEffect(cast)
     local definition = cast.definition
     local perTick, duration = DoTs.Spells:Read(definition, cast.spellID, cast.points)
     if not perTick or duration < definition.tick then
@@ -186,6 +231,28 @@ local function Apply(cast)
     end
 end
 
+-- A cast that landed: a spell can be several of these (Hemorrhage amplifies
+-- and strikes).
+local function Apply(cast)
+    if cast.mark then
+        ApplyMark(cast)
+    end
+    if cast.amplifier then
+        ApplyAmplifier(cast)
+    end
+    if cast.strike then
+        ApplyStrike(cast)
+    end
+    if cast.definition then
+        ApplyEffect(cast)
+    end
+end
+
+-- The definition (or amplifier, mark or strike) of a cast.
+local function Definition(cast)
+    return cast.definition or cast.amplifier or cast.mark or cast.strike
+end
+
 local function Unconfirm(cast)
     local entry = { cast = cast }
     -- Its points never changed: it missed.
@@ -206,7 +273,7 @@ local function Commit()
     for _, cast in ipairs(casts) do
         if not cast.missed then
             Apply(cast)
-        elseif (cast.definition or cast.amplifier or cast.mark).comboPoints then
+        elseif Definition(cast).comboPoints then
             Unconfirm(cast)
         end
     end
@@ -239,7 +306,8 @@ local function OnCast(castGUID, spellID)
     local definition = DoTs.Spells:Get(spellID)
     local amplifier = DoTs.Spells:GetAmplifier(spellID)
     local mark = DoTs.Spells:GetMark(spellID)
-    if not (definition or amplifier or mark) then
+    local strike = DoTs.Spells:GetStrike(spellID)
+    if not (definition or amplifier or mark or strike) then
         return
     end
     -- A spell with a cast time lands on the unit targeted as it was sent.
@@ -263,7 +331,9 @@ local function OnCast(castGUID, spellID)
         definition = definition,
         amplifier = amplifier,
         mark = mark,
+        strike = strike,
         points = points or GetComboPoints("player", "target"),
+        armorPassed = sent and sent.armorPassed or DoTs.Armor:GetPassedShare("target"),
         time = GetTime(),
     })
 end
@@ -327,12 +397,18 @@ local listener = ns:CreateEventListener({
     UNIT_SPELLCAST_SENT = function(_, unit, _, castGUID, spellID)
         if
             unit == "player"
-            and (DoTs.Spells:Get(spellID) or DoTs.Spells:GetAmplifier(spellID) or DoTs.Spells:GetMark(spellID))
+            and (
+                DoTs.Spells:Get(spellID)
+                or DoTs.Spells:GetAmplifier(spellID)
+                or DoTs.Spells:GetMark(spellID)
+                or DoTs.Spells:GetStrike(spellID)
+            )
         then
             lastSent = {
                 castGUID = castGUID,
                 unitKey = Tracker:GetUnitKey("target"),
                 points = GetComboPoints("player", "target"),
+                armorPassed = DoTs.Armor:GetPassedShare("target"),
             }
         end
     end,
@@ -357,27 +433,44 @@ local listener = ns:CreateEventListener({
         end
     end,
     PLAYER_REGEN_ENABLED = ReconcileAll,
+    -- Auto attack starts and stops; it swings at the target.
+    PLAYER_ENTER_COMBAT = function()
+        swinging = true
+        SyncSwings()
+        DoTs.Overlays:Refresh()
+    end,
+    PLAYER_LEAVE_COMBAT = function()
+        swinging = false
+        SyncSwings()
+        DoTs.Overlays:Refresh()
+    end,
+    PLAYER_TARGET_CHANGED = function()
+        SyncSwings()
+        DoTs.Overlays:Refresh()
+    end,
     -- Effects kept under the plate's token: its next unit is another.
     NAME_PLATE_UNIT_REMOVED = function(_, unit)
         Tracker:Forget(unit)
     end,
 })
 
--- The damage the player's effects and marks on the unit have yet to deal.
+-- The damage the player's effects and marks on the unit have yet to deal: the
+-- effects' ticks, and what the marks will deal.
 function Tracker:GetRemainingDamage(unitKey)
     local now = GetTime()
-    local remaining = 0
+    local ticks = 0
     for _, effect in pairs(effects[unitKey] or EMPTY) do
         for index = LandedTicks(effect, now) + 1, TickCount(effect) do
-            remaining = remaining + TickDamage(unitKey, effect, effect.start + index * effect.tick)
+            ticks = ticks + TickDamage(unitKey, effect, effect.start + index * effect.tick)
         end
     end
+    local stored = 0
     for _, mark in pairs(marks[unitKey] or EMPTY) do
         if now < mark.to then
-            remaining = remaining + StoredDamage(unitKey, mark)
+            stored = stored + StoredDamage(unitKey, mark)
         end
     end
-    return remaining
+    return ticks, stored
 end
 
 -- Forgets the player's effects on the unit (it died).
@@ -442,6 +535,7 @@ function Tracker:Disable()
     effects = {}
     amplifiers = {}
     marks = {}
+    swinging = false
     lastSent = nil
     pending = {}
     unconfirmed = {}

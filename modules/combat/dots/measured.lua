@@ -42,14 +42,24 @@ DoTs.Measured = {
     -- data's where it was measured to differ. None so far.
     talents = {},
     -- Mark key -> `stores`: spell key -> how many times the share its description
-    -- gives ("60% stored" with 5 points) the mark stores of that effect's ticks.
-    -- What the player's other attacks deal can't be told in combat: their share
-    -- is left out, so the damage shown is only part of what the mark deals.
+    -- gives ("60% stored" with 5 points) the mark stores of that effect's ticks
+    -- (once that share of the strikes and white swings).
     marks = {
-        -- Unmeasured: its description's "Garrote and Rupture damage is stored at
-        -- twice the rate". Also unmeasured: that the stored damage is dealt
-        -- whole (bleeds ignore armor), and that casting it again replaces the
-        -- mark.
+        -- Build 70959, 5 points (60% stored), the damage it stores being what the
+        -- combat log shows of each hit while it lasts, dealt whole: 234 with two
+        -- Garrote ticks of 96 alone (0.6 * 2 * 192 = 230), 247 with white
+        -- swings alone of 407 to 414 (244 to 248), 455 with a Garrote tick of 96
+        -- and strikes and swings of 560 (451; 522 without a swing that landed
+        -- with the cast, 428). Rupture's twice the rate unmeasured (the
+        -- description's "Garrote and Rupture damage is stored at twice the
+        -- rate"), and that casting it again replaces the mark.
         death_mark = { stores = { garrote = 2, rupture = 2 } },
     },
+    -- The share of the player's white swings that land, for the swings a mark
+    -- stores (their damage in combat can't be told: an average is counted).
+    -- Build 70959: 16 of 20 swings landed in Death Mark's windows (misses,
+    -- dodges and parries) against level 35-38 beasts, by a level 40 rogue dual
+    -- wielding.
+    swingsLanded = 0.8,
+    -- Not counted: poisons and procs. Armor: armor.lua.
 }
