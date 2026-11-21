@@ -12,6 +12,7 @@
 --   watches.lua    taint of the Blizzard state our features touch
 --   errors.lua     our errors (through BugGrabber) and blocked actions
 --   window.lua     /fedebug
+--   probe.lua      temporary probes (debugging skill), empty when committed
 
 local _, ns = ...
 

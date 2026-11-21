@@ -192,6 +192,44 @@ test("logs one blocked message per burst, whatever its callers", function(world)
     equal(#Entries(world, "blocked.message"), 2, "a later burst logged again")
 end)
 
+test("exports the log as text at logout, for bun run debug-log", function(world)
+    equal(ForeverEnhancedDebugDB.export, nil, "last export dropped at load")
+    world.debug:Log("debug.test", "a")
+    world:Fire("PLAYER_LOGOUT")
+
+    local export = ForeverEnhancedDebugDB.export
+    equal(export.session, world.debug:FormatLog(true), "this session")
+    equal(export.all, world.debug:FormatLog(false), "every session")
+    expect(Contains(export.all, "old") and not Contains(export.session, "old"), "sessions told apart")
+end, {
+    debugSavedVariables = function()
+        return {
+            session = 3,
+            dropped = 0,
+            export = { session = "stale", all = "stale" },
+            entries = {
+                { session = 3, date = 1700000000, time = 12, combat = false, tag = "old", text = "x", count = 1 },
+            },
+        }
+    end,
+})
+
+test("runs probes after login, logging their errors", function(world)
+    local ran = false
+    world.debug:AtLogin("probe.test", function()
+        ran = true
+    end)
+    world.debug:AtLogin("probe.test", function()
+        error("broken probe")
+    end)
+    equal(ran, false, "not before the next frame")
+    world:NextFrame()
+    equal(ran, true, "ran")
+    local logged = Entries(world, "probe.test")
+    equal(#logged, 1, "error logged")
+    expect(Contains(logged[1].text, "<probe failed:") and Contains(logged[1].text, "broken probe"), "error text")
+end)
+
 test("clears the log with /fedebug clear", function(world)
     world.debug:Log("debug.test", "a")
     expect(world:Chat("/fedebug clear"), "command known")

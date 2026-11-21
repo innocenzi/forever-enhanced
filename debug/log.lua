@@ -1,9 +1,14 @@
 -- The log, kept across reloads and sessions in ForeverEnhancedDebugDB:
--- { session = n, entries = { ... }, dropped = n, announce = true or nil }. A
+-- { session = n, entries = { ... }, dropped = n, announce = true or nil,
+-- export = { session = text, all = text } }. A
 -- session is one load of the UI (login or /reload). Each entry: { session, date, time, combat, tag,
 -- text, count, lastTime }; consecutive identical entries are counted on the
 -- first one. The debug addon loads before ForeverEnhanced (its OptionalDeps), so
 -- entries logged before our saved variables load wait in `pending`.
+--
+-- `export` is the log as text, written at logout (a /reload too, when the game
+-- saves the file) for `bun run debug-log` (tools/debuglog.ts) to read:
+-- `session` the session that just ended, `all` every session.
 
 local addonName, ns = ...
 
@@ -119,13 +124,21 @@ end
 
 local loader = CreateFrame("Frame")
 loader:RegisterEvent("ADDON_LOADED")
-loader:SetScript("OnEvent", function(_, _, name)
+loader:RegisterEvent("PLAYER_LOGOUT")
+loader:SetScript("OnEvent", function(_, event, name)
+    if event == "PLAYER_LOGOUT" then
+        if store then
+            store.export = { session = ns:FormatLog(true), all = ns:FormatLog(false) }
+        end
+        return
+    end
     if name ~= addonName then
         return
     end
     loader:UnregisterEvent("ADDON_LOADED")
     local db = type(ForeverEnhancedDebugDB) == "table" and ForeverEnhancedDebugDB or {}
     ForeverEnhancedDebugDB = db
+    db.export = nil -- written again at logout
     db.session = (tonumber(db.session) or 0) + 1
     db.entries = type(db.entries) == "table" and db.entries or {}
     db.dropped = tonumber(db.dropped) or 0

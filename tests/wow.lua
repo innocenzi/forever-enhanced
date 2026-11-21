@@ -2960,6 +2960,11 @@ function InCombatLockdown()
     return world.inCombat
 end
 
+-- True from PLAYER_LOGIN on (world:Fire sets it).
+function IsLoggedIn()
+    return world.loggedIn == true
+end
+
 -- Friends and addon messages -------------------------------------------------------------
 -- world.friends: character friends { guid, name, className, connected } (name
 -- without the realm for the player's realm, like the client; className
@@ -4619,6 +4624,9 @@ end
 -- World API for tests ------------------------------------------------------------------------
 
 function world:Fire(event, ...)
+    if event == "PLAYER_LOGIN" then
+        self.loggedIn = true
+    end
     for _, frame in ipairs(self.frames) do
         if (frame.events[event] or frame.allEvents) and frame.scripts.OnEvent then
             frame.scripts.OnEvent(frame, event, ...)
