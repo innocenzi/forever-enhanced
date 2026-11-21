@@ -3,7 +3,8 @@
 -- bar's fill on the target frame and on nameplates, the damage their ticks
 -- have yet to deal: each rank's from the data, a finishing move's from its
 -- description, raised by attack and spell power read before combat, by
--- talents, and by Hemorrhage on the ticks landing while it lasts. Casts that
+-- talents, and by Hemorrhage on the ticks landing while it lasts; Death Mark
+-- adds what it stores of them until it deals it. Casts that
 -- miss show nothing (or wait for their combo points), casting again replaces
 -- the effect, a spell with a cast time lands on the unit it was cast on, dead
 -- units and recycled plates are left, out of combat auras correct the
@@ -141,6 +142,72 @@ test("a missed Hemorrhage raises nothing", function(world)
     world:Cast(HEMORRHAGE, "PARRY")
     world:Cast(GARROTE)
     equal(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE, "not raised")
+end)
+
+local DEATH_MARK = 1316709 -- 12% stored per point, caps 165 / 267 / 369 / 471 / 573
+local DEATH_MARK_RANK_4 = 1325758 -- caps 401 / 646 / 891 / 1,136 / 1,381
+
+test("Death Mark adds what it stores of Garrote's ticks, twice its share, until it deals it", function(world)
+    Rogue(world)
+    world:Cast(GARROTE)
+    world:SetComboPoints(5)
+    world:Cast(DEATH_MARK_RANK_4)
+    -- The ticks at 3 and 6 sec, 60% stored, twice for Garrote.
+    Near(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE + 2 * 47 * 0.6 * 2, "with the stored damage")
+    world:RunFrames(5.9)
+    Near(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE * 5 / 6 + 2 * 47 * 0.6 * 2, "kept until it ends")
+    world:RunFrames(0.2)
+    Near(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE * 4 / 6, "then dealt")
+end)
+
+test("Death Mark stores a Rupture cast after it, and a replaced one up to then", function(world)
+    Rogue(world)
+    world:SetComboPoints(5)
+    world:Cast(DEATH_MARK_RANK_4)
+    equal(world:HealthBarOverlay(world:TargetHealthBar()), nil, "nothing stored yet")
+    world:SetComboPoints(5)
+    world:Cast(RUPTURE)
+    -- 18 per tick, at 2, 4 and 6 sec.
+    Near(Shown(world, world:TargetHealthBar()), 144 + 3 * 18 * 0.6 * 2, "its ticks in the mark's time")
+    world:RunFrames(2.1)
+    world:SetComboPoints(1)
+    world:Cast(RUPTURE)
+    -- The first Rupture's tick at 2 sec, the new one's (11 per tick) at 4.1 sec.
+    Near(Shown(world, world:TargetHealthBar()), 44 + (18 + 11) * 0.6 * 2, "the replaced one's landed tick kept")
+end)
+
+test("Death Mark stores up to its cap", function(world)
+    Rogue(world)
+    world:SetHealth("MOB", 5000, 5000)
+    world:Cast(GARROTE)
+    world:SetComboPoints(5)
+    world:Cast(RUPTURE_HIGH_RANK)
+    world:SetComboPoints(5)
+    world:Cast(DEATH_MARK)
+    -- (2 * 47 + 3 * 129) * 1.2 = 577.2, over the 5 points cap.
+    Near(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE + 1032 + 573, "capped")
+end)
+
+test("Death Mark counts the ticks Hemorrhage raised, even once it ended", function(world)
+    Rogue(world)
+    world:Cast(HEMORRHAGE)
+    world:RunFrames(10)
+    world:Cast(GARROTE)
+    world:SetComboPoints(1)
+    world:Cast(DEATH_MARK_RANK_4)
+    local stored = 47 * 1.15 * 0.12 * 2 + 47 * 0.12 * 2 -- at 3 sec raised, at 6 sec after it ended
+    Near(Shown(world, world:TargetHealthBar()), 47 * 1.15 + 47 * 5 + stored, "while it lasts")
+    world:RunFrames(5.9)
+    Near(Shown(world, world:TargetHealthBar()), 47 * 5 + stored, "after it ended")
+end)
+
+test("a missed Death Mark stores nothing", function(world)
+    Rogue(world)
+    world:Cast(GARROTE)
+    world:SetComboPoints(5)
+    world:Cast(DEATH_MARK_RANK_4, "DODGE")
+    world:Elapse(1.1)
+    equal(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE, "the Garrote only")
 end)
 
 test("stays on the nameplate of a unit no longer targeted", function(world)
@@ -364,6 +431,18 @@ test("every followed spell has its attack power measured", function()
     end
     for key in pairs(DoTs.Measured.spells) do
         expect(keys[key], key .. ": a followed spell")
+    end
+    local marks = {}
+    for _, mark in pairs(DoTs.Data.marks) do
+        marks[mark.key] = true
+        local measured = DoTs.Measured.marks[mark.key]
+        expect(measured, mark.key .. ": what it stores measured")
+        for key in pairs(measured.stores) do
+            expect(keys[key], ("%s stores %s: a followed spell"):format(mark.key, key))
+        end
+    end
+    for key in pairs(DoTs.Measured.marks) do
+        expect(marks[key], key .. ": a followed mark")
     end
     for talentSpellID, bySpell in pairs(DoTs.Measured.talents) do
         for key, ranks in pairs(bySpell) do

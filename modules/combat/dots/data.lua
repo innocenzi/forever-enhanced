@@ -199,4 +199,11 @@ DoTs.Data = {
             comboPoints = "award",
         },
     },
+    -- Spell ID of one rank -> the mark it puts on its target, storing part of the
+    -- damage the player deals it, dealt at once after `duration` seconds:
+    -- { key, duration, comboPoints } (a finishing move: what it stores and its
+    -- cap are read from its description).
+    marks = {
+        [1316709] = { key = "death_mark", duration = 6, comboPoints = "spend" },
+    },
 }

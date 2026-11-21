@@ -1,4 +1,5 @@
--- What the client's data doesn't say, measured in game against the combat log.
+-- What the client's data doesn't say, measured in game against the combat log
+-- (or, where marked unmeasured, taken from the spell's description).
 -- Each value says how it was measured, or that it wasn't, so a content patch
 -- can be checked the same way. data.lua (generated) holds the rest.
 
@@ -40,4 +41,15 @@ DoTs.Measured = {
     -- Talent spell ID -> spell key -> the bonus at each rank, replacing the
     -- data's where it was measured to differ. None so far.
     talents = {},
+    -- Mark key -> `stores`: spell key -> how many times the share its description
+    -- gives ("60% stored" with 5 points) the mark stores of that effect's ticks.
+    -- What the player's other attacks deal can't be told in combat: their share
+    -- is left out, so the damage shown is only part of what the mark deals.
+    marks = {
+        -- Unmeasured: its description's "Garrote and Rupture damage is stored at
+        -- twice the rate". Also unmeasured: that the stored damage is dealt
+        -- whole (bleeds ignore armor), and that casting it again replaces the
+        -- mark.
+        death_mark = { stores = { garrote = 2, rupture = 2 } },
+    },
 }

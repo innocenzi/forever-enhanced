@@ -19,6 +19,13 @@
 -- spells, the attack and spell power parts too (measured for Garrote and
 -- Rupture, see measured.lua). Ticks are evenly spaced, and talents lengthening
 -- the effect add ticks; an amplifier on the target raises whole ticks.
+--
+-- A mark (Death Mark) stores part of the damage the player deals its target
+-- and deals it at once when it ends, up to a cap. Its description lists, per
+-- combo point, the share stored and the cap ("5 points: 60% stored, 1,976
+-- damage cap"), the cap including the player's attack power and critical
+-- strike chance. Only the share of the followed effects' ticks can be told
+-- (measured.lua says which, and how many times the share).
 
 local _, ns = ...
 
@@ -34,6 +41,13 @@ local PATTERNS = {
     frFR = "(%d[%d ]*) points de dégâts en (%d+) s",
 }
 
+-- A mark's share stored (percent) and cap on each line, in order, once
+-- no-break spaces are plain spaces.
+local MARK_PATTERNS = {
+    enUS = "(%d+)%% stored, (%d[%d,]*) damage cap",
+    frFR = "(%d+) %% des dégâts accumulés, limite de dégâts de (%d[%d ]*)",
+}
+
 -- No-break space and narrow no-break space, in UTF-8.
 local NO_BREAK_SPACES = { "\194\160", "\226\128\175" }
 
@@ -43,6 +57,8 @@ local NO_BREAK_SPACES = { "\194\160", "\226\128\175" }
 local spellsByName
 -- Spell name -> data.lua's amplifier entry.
 local amplifiersByName
+-- Spell name -> mark definition: { key, duration, comboPoints, stores }.
+local marksByName
 -- Spell key -> its name.
 local names
 
@@ -62,7 +78,7 @@ local function ByKey(sources)
 end
 
 local function Build()
-    spellsByName, amplifiersByName, names = {}, {}, {}
+    spellsByName, amplifiersByName, marksByName, names = {}, {}, {}, {}
     local talents = ByKey({ DoTs.Data.talents, DoTs.Measured.talents })
     local durations = ByKey({ DoTs.Data.durations })
     for spellID, spell in pairs(DoTs.Data.spells) do
@@ -90,6 +106,19 @@ local function Build()
             amplifiersByName[name] = amplifier
         end
     end
+    for spellID, mark in pairs(DoTs.Data.marks) do
+        local name = C_Spell.GetSpellName(spellID)
+        local measured = DoTs.Measured.marks[mark.key]
+        if name and measured then
+            names[mark.key] = name
+            marksByName[name] = {
+                key = mark.key,
+                duration = mark.duration,
+                comboPoints = mark.comboPoints,
+                stores = measured.stores,
+            }
+        end
+    end
 end
 
 -- The definition of a damage over time spell, or nil.
@@ -108,7 +137,15 @@ function Spells:GetAmplifier(spellID)
     return amplifiersByName[C_Spell.GetSpellName(spellID)]
 end
 
--- The name of the damage over time spell `key` (every rank shares it).
+-- The definition of a spell marking its target, or nil.
+function Spells:GetMark(spellID)
+    if not marksByName then
+        Build()
+    end
+    return marksByName[C_Spell.GetSpellName(spellID)]
+end
+
+-- The name of the damage over time spell or mark `key` (every rank shares it).
 function Spells:GetName(key)
     if not names then
         Build()
@@ -116,9 +153,18 @@ function Spells:GetName(key)
     return names[key]
 end
 
--- The base damage and duration on the description's line `line`, or nil.
-local function ReadDescription(spellID, line)
+-- Spell ID -> its description, as last read while it wasn't secret.
+local descriptions = {}
+
+-- The two numbers `patterns` (by locale) captures on the description's line
+-- `line`, or nil.
+local function ReadDescription(spellID, line, patterns)
     local description = C_Spell.GetSpellDescription(spellID)
+    if description and issecretvalue(description) then
+        description = descriptions[spellID]
+    elseif description then
+        descriptions[spellID] = description
+    end
     if not description then
         return nil
     end
@@ -126,13 +172,23 @@ local function ReadDescription(spellID, line)
         description = description:gsub(space, " ")
     end
     local index = 0
-    for total, duration in description:gmatch(PATTERNS[GetLocale()] or PATTERNS.enUS) do
+    for first, second in description:gmatch(patterns[GetLocale()] or patterns.enUS) do
         index = index + 1
         if index == line then
-            return tonumber((total:gsub("%D", ""))), tonumber(duration)
+            return tonumber((first:gsub("%D", ""))), tonumber((second:gsub("%D", "")))
         end
     end
     return nil
+end
+
+-- The share of the damage the rank `spellID` of a mark stores with `points`
+-- combo points (0.6 for 60%), and its cap; nil when its description doesn't say.
+function Spells:ReadMark(spellID, points)
+    local percent, cap = ReadDescription(spellID, points, MARK_PATTERNS)
+    if not percent then
+        return nil
+    end
+    return percent / 100, cap
 end
 
 -- The sum of the player's ranks of talents (talent spell ID -> value at each rank).
@@ -157,7 +213,7 @@ function Spells:Read(definition, spellID, points)
         perTick, duration = rank[1], rank[2] + SumTalents(definition.durations)
     else
         local total
-        total, duration = ReadDescription(spellID, points)
+        total, duration = ReadDescription(spellID, points, PATTERNS)
         if not total or duration <= 0 then
             return nil
         end

@@ -9,7 +9,8 @@
 //     each rank (TraitDefinitionEffectPoints curves, the talent's base points
 //     without one), found by the class mask of their spell modifiers;
 //   - the debuffs a spell puts on its target raising the damage it takes from
-//     the caster's spells (Hemorrhage), with their bonus and duration.
+//     the caster's spells (Hemorrhage), with their bonus and duration;
+//   - the marks followed (Death Mark), with their duration.
 // What the server adds in its own code (attack power) isn't in the data: it is
 // measured in game, in modules/combat/dots/measured.lua.
 //
@@ -43,7 +44,15 @@ export const FOLLOWED = [
     8050, // Flame Shock
 ];
 
-// SpellEffect and SpellMisc values.
+// Finishing moves marking the target, followed by the spell ID of one rank: the
+// mark stores part of the damage the player deals the target, then deals it at
+// once when it ends. How much it stores and its cap are read from its
+// description; which effects it stores more of is in measured.lua.
+export const MARKS = [
+    1316709, // Death Mark
+];
+
+// SpellEffect, SpellMisc and SpellPower values.
 const AURA_PERIODIC_DAMAGE = 3;
 const AURA_ADD_FLAT_MODIFIER = 107;
 const AURA_ADD_PCT_MODIFIER = 108;
@@ -81,6 +90,13 @@ export type Amplifier = {
     comboPoints: ComboPoints;
 };
 
+export type Mark = {
+    spellID: number;
+    key: string;
+    duration: number;
+    comboPoints: ComboPoints;
+};
+
 export type Tables = {
     SpellEffect: Row[];
     SpellClassOptions: Row[];
@@ -92,6 +108,7 @@ export type Tables = {
     TraitDefinitionEffectPoints: Row[];
     CurvePoint: Row[];
     SkillLineAbility: Row[];
+    SpellPower: Row[];
 };
 
 export const TABLE_NAMES: (keyof Tables)[] = [
@@ -105,6 +122,7 @@ export const TABLE_NAMES: (keyof Tables)[] = [
     "TraitDefinitionEffectPoints",
     "CurvePoint",
     "SkillLineAbility",
+    "SpellPower",
 ];
 
 type ClassOptions = { classSet: number; mask: number[] };
@@ -143,9 +161,10 @@ function schoolOf(mask: number): number {
     return index + 1;
 }
 
-function comboPointsOf(effects: Row[], durationRow: Row | undefined): ComboPoints {
+function comboPointsOf(effects: Row[], durationRow: Row | undefined, costs: Row[]): ComboPoints {
     const periodic = effects.find((effect) => integer(effect, "EffectAura") === AURA_PERIODIC_DAMAGE);
     const spends =
+        costs.some((cost) => integer(cost, "PowerType") === POWER_COMBO_POINTS) ||
         (periodic !== undefined && float(periodic, "EffectPointsPerResource") > 0) ||
         (durationRow !== undefined && integer(durationRow, "DurationPerResource") > 0);
     if (spends) {
@@ -159,8 +178,10 @@ function comboPointsOf(effects: Row[], durationRow: Row | undefined): ComboPoint
     return awards ? "award" : undefined;
 }
 
-export function collect(tables: Tables, followed: number[]) {
+export function collect(tables: Tables, followed: number[], marked: number[]) {
     const effectsBySpell = groupBy(tables.SpellEffect, "SpellID");
+    const costsBySpell = groupBy(tables.SpellPower, "SpellID");
+    const costsOf = (spellID: number) => costsBySpell.get(spellID) ?? [];
     const names = new Map(tables.SpellName.map((row) => [integer(row, "ID"), row.Name_lang]));
     const classOptions = new Map<number, ClassOptions>(
         tables.SpellClassOptions.map((row) => [
@@ -227,7 +248,7 @@ export function collect(tables: Tables, followed: number[]) {
         if (float(misc, "Speed") > 0) {
             throw new Error(`Spell ${spellID} (${nameOf(spellID)}) is a projectile: it lands after the cast`);
         }
-        const comboPoints = comboPointsOf(effects, durationOf(spellID));
+        const comboPoints = comboPointsOf(effects, durationOf(spellID), costsOf(spellID));
         return {
             spellID,
             key: keyOf(nameOf(spellID)),
@@ -341,11 +362,28 @@ export function collect(tables: Tables, followed: number[]) {
             bonus: float(effect, "EffectBasePointsF") / 100,
             duration: integer(duration, "Duration") / 1000,
             amplifies,
-            comboPoints: comboPointsOf(effects, duration),
+            comboPoints: comboPointsOf(effects, duration, costsOf(spellID)),
         });
     }
     amplifiers.sort((a, b) => a.spellID - b.spellID);
-    return { spells, talents, durationTalents, amplifiers };
+
+    const marks: Mark[] = marked.map((spellID) => {
+        const duration = durationOf(spellID);
+        if (!duration || integer(duration, "Duration") <= 0) {
+            throw new Error(`Mark ${spellID} (${nameOf(spellID)}) has no duration`);
+        }
+        const comboPoints = comboPointsOf(effectsBySpell.get(spellID) ?? [], duration, costsOf(spellID));
+        if (comboPoints !== "spend") {
+            throw new Error(`Mark ${spellID} (${nameOf(spellID)}) isn't a finishing move: its description can't be read`);
+        }
+        return {
+            spellID,
+            key: keyOf(nameOf(spellID)),
+            duration: integer(duration, "Duration") / 1000,
+            comboPoints,
+        };
+    });
+    return { spells, talents, durationTalents, amplifiers, marks };
 }
 
 // DB2 floats are single precision (0.2 reads 0.20000000298): 6 significant digits.
@@ -376,7 +414,7 @@ function talentsLua(talents: Talents): string[] {
 }
 
 export function renderLua(collected: ReturnType<typeof collect>, build: string): string {
-    const { spells, talents, durationTalents, amplifiers } = collected;
+    const { spells, talents, durationTalents, amplifiers, marks } = collected;
     const set = (keys: string[]) => `{ ${keys.map((key) => `${key} = true`).join(", ")} }`;
     const ranksLua = (ranks: Ranks | undefined) => {
         if (!ranks) {
@@ -439,6 +477,20 @@ export function renderLua(collected: ReturnType<typeof collect>, build: string):
                 ])},`,
         ),
         "    },",
+        "    -- Spell ID of one rank -> the mark it puts on its target, storing part of the",
+        "    -- damage the player deals it, dealt at once after `duration` seconds:",
+        "    -- { key, duration, comboPoints } (a finishing move: what it stores and its",
+        "    -- cap are read from its description).",
+        "    marks = {",
+        ...marks.map(
+            (mark) =>
+                `        [${mark.spellID}] = ${record([
+                    ["key", lua(mark.key)],
+                    ["duration", number(mark.duration)],
+                    ["comboPoints", mark.comboPoints && lua(mark.comboPoints)],
+                ])},`,
+        ),
+        "    },",
         "}",
         "",
     ];
@@ -465,9 +517,9 @@ if (import.meta.main) {
     for (const name of TABLE_NAMES) {
         tables[name] = parseCsv(await table(path.join(repoRoot, CACHE), name, build, refresh));
     }
-    const collected = collect(tables, FOLLOWED);
+    const collected = collect(tables, FOLLOWED, MARKS);
     await writeLua(path.join(repoRoot, OUTPUT), renderLua(collected, build));
     console.log(
-        `${OUTPUT}: ${collected.spells.length} spells, ${collected.talents.size} talents, ${collected.durationTalents.size} duration talents, ${collected.amplifiers.length} amplifiers (build ${build})`,
+        `${OUTPUT}: ${collected.spells.length} spells, ${collected.talents.size} talents, ${collected.durationTalents.size} duration talents, ${collected.amplifiers.length} amplifiers, ${collected.marks.length} marks (build ${build})`,
     );
 }

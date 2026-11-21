@@ -6298,6 +6298,7 @@ local SPELL_NAMES = {
         [674] = "Dual Wield",
         [1943] = "Rupture",
         [16511] = "Hemorrhage",
+        [1316709] = "Death Mark",
         [772] = "Rend",
         [589] = "Shadow Word: Pain",
         [172] = "Corruption",
@@ -6312,6 +6313,7 @@ local SPELL_NAMES = {
         [674] = "Ambidextrie",
         [1943] = "Rupture",
         [16511] = "Hémorragie",
+        [1316709] = "Marque de mort",
         [772] = "Pourfendre",
         [589] = "Mot de l’ombre : Douleur",
         [172] = "Corruption",
@@ -6331,6 +6333,8 @@ world.spells = {
     [8639] = { base = 1943 },
     [11275] = { base = 1943 },
     [16511] = { icon = 136168 },
+    [1316709] = { icon = 132094 },
+    [1325758] = { base = 1316709 },
     [772] = { icon = 132155 },
     [6546] = { base = 772 },
     [589] = { icon = 136207 },
@@ -6339,14 +6343,20 @@ world.spells = {
 
 -- Finishing moves' descriptions (the only ones read), as Forever writes them
 -- (measured in game; where French no-break spaces go is a guess), by spell rank.
+-- Death Mark's are its data's with no attack power nor critical strike chance
+-- (unmeasured in game).
 local SPELL_DESCRIPTIONS = {
     enUS = {
         [8639] = "Finishing move that causes damage over time, increased by your Attack Power.  Lasts longer per combo point:\n   1 point  : 44 damage over 8 secs\n   2 points: 63 damage over 10 secs\n   3 points: 87 damage over 12 secs\n   4 points: 114 damage over 14 secs\n   5 points: 144 damage over 16 secs",
         [11275] = "Finishing move that causes damage over time, increased by your Attack Power.  Lasts longer per combo point:\n   1 point  : 512 damage over 8 secs\n   2 points: 640 damage over 10 secs\n   3 points: 768 damage over 12 secs\n   4 points: 896 damage over 14 secs\n   5 points: 1,032 damage over 16 secs",
+        [1316709] = "Finishing move that marks the target, storing a portion of the damage dealt by your attacks per Combo Point. Garrote and Rupture damage is stored at twice the rate. After 6 sec, the stored damage is dealt, up to a maximum increased by Attack Power and Critical Strike chance:\n   1 point  : 12% stored, 165 damage cap\n   2 points: 24% stored, 267 damage cap\n   3 points: 36% stored, 369 damage cap\n   4 points: 48% stored, 471 damage cap\n   5 points: 60% stored, 573 damage cap",
+        [1325758] = "Finishing move that marks the target, storing a portion of the damage dealt by your attacks per Combo Point. Garrote and Rupture damage is stored at twice the rate. After 6 sec, the stored damage is dealt, up to a maximum increased by Attack Power and Critical Strike chance:\n   1 point  : 12% stored, 401 damage cap\n   2 points: 24% stored, 646 damage cap\n   3 points: 36% stored, 891 damage cap\n   4 points: 48% stored, 1,136 damage cap\n   5 points: 60% stored, 1,381 damage cap",
     },
     frFR = {
         [8639] = "Coup de grâce qui inflige des dégâts sur la durée. Les dégâts augmentent avec votre puissance d’attaque et l’effet dure plus longtemps selon le nombre de points de combo :\r\n 1 point\194\160: 44\194\160points de dégâts en 8\194\160s\r\n 2 points\194\160: 63\194\160points de dégâts en 10\194\160s\r\n 3 points\194\160: 87\194\160points de dégâts en 12\194\160s\r\n 4 points\194\160: 114\194\160points de dégâts en 14\194\160s\r\n 5 points\194\160: 144\194\160points de dégâts en 16\194\160s",
         [11275] = "Coup de grâce qui inflige des dégâts sur la durée. Les dégâts augmentent avec votre puissance d’attaque et l’effet dure plus longtemps selon le nombre de points de combo :\r\n 1 point : 512 points de dégâts en 8 s\r\n 2 points : 640 points de dégâts en 10 s\r\n 3 points : 768 points de dégâts en 12 s\r\n 4 points : 896 points de dégâts en 14 s\r\n 5 points : 1\194\160032 points de dégâts en 16 s",
+        [1316709] = "Un coup de grâce qui marque la cible et accumule une partie des dégâts infligés par vos attaques par point de combo. Les dégâts de Garrot et de Rupture sont accumulés deux fois plus vite. Au bout de 6\194\160s, ces dégâts accumulés sont infligés, jusqu’à une valeur maximale augmentée par la puissance d’attaque et les chances de coup critique\194\160:\n   1\194\160point\194\160: 12\194\160% des dégâts accumulés, limite de dégâts de 165.\n   2\194\160points\194\160: 24\194\160% des dégâts accumulés, limite de dégâts de 267\n   3\194\160points\194\160: 36\194\160% des dégâts accumulés, limite de dégâts de 369.\n   4\194\160points\194\160: 48\194\160% des dégâts accumulés, limite de dégâts de 471.\n   5\194\160points\194\160: 60\194\160% des dégâts accumulés, limite de dégâts de 573 .",
+        [1325758] = "Un coup de grâce qui marque la cible et accumule une partie des dégâts infligés par vos attaques par point de combo. Les dégâts de Garrot et de Rupture sont accumulés deux fois plus vite. Au bout de 6\194\160s, ces dégâts accumulés sont infligés, jusqu’à une valeur maximale augmentée par la puissance d’attaque et les chances de coup critique\194\160:\n   1\194\160point\194\160: 12\194\160% des dégâts accumulés, limite de dégâts de 401.\n   2\194\160points\194\160: 24\194\160% des dégâts accumulés, limite de dégâts de 646\n   3\194\160points\194\160: 36\194\160% des dégâts accumulés, limite de dégâts de 891.\n   4\194\160points\194\160: 48\194\160% des dégâts accumulés, limite de dégâts de 1\194\160136.\n   5\194\160points\194\160: 60\194\160% des dégâts accumulés, limite de dégâts de 1\194\160381 .",
     },
 }
 

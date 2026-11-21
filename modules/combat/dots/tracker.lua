@@ -12,6 +12,11 @@
 -- spent once it lands). Casting the spell again on the unit replaces its
 -- effect, like the game does.
 --
+-- A mark (Death Mark) deals, when it ends, a share of what the followed
+-- effects' ticks dealt the unit while it lasted (spells.lua): it keeps the
+-- effects that ran on the unit then, replaced ones included (up to when they
+-- were), and counts their ticks in its window.
+--
 -- Effects are kept by unit: by its GUID, or by its nameplate while its GUID
 -- is secret (Tracker:GetUnitKey).
 --
@@ -47,10 +52,14 @@ local EMPTY = {}
 local effects = {}
 -- Unit key -> amplifier key -> { from, to, bonus, amplifies }.
 local amplifiers = {}
+-- Unit key -> mark key -> { from, to, share, cap, stores, sources } (sources:
+-- the effects that ran on the unit while it lasts, `ended` set on one replaced).
+local marks = {}
 -- The last cast sent: { castGUID, unitKey, points } (its target, and the combo
 -- points on it then).
 local lastSent
--- Casts that landed this frame: { unitKey, spellID, definition, amplifier, points, time, missed }.
+-- Casts that landed this frame: { unitKey, spellID, definition, amplifier, mark,
+-- points, time, missed }.
 local pending = {}
 -- Casts that may have missed, waiting for their combo points: { cast, timer }.
 local unconfirmed = {}
@@ -89,7 +98,58 @@ local function TickDamage(unitKey, effect, time)
     return effect.perTick * multiplier
 end
 
+-- The damage the mark stores from its sources' ticks, up to its cap.
+local function StoredDamage(unitKey, mark)
+    local stored = 0
+    for _, effect in ipairs(mark.sources) do
+        for index = 1, TickCount(effect) do
+            local time = effect.start + index * effect.tick
+            if time > mark.from and time <= mark.to and time <= (effect.ended or math.huge) then
+                stored = stored + TickDamage(unitKey, effect, time) * mark.share * mark.stores[effect.key]
+            end
+        end
+    end
+    return math.min(stored, mark.cap)
+end
+
+-- Whether a mark on the unit has yet to deal its damage.
+local function HasRunningMark(unitKey, now)
+    for _, mark in pairs(marks[unitKey] or EMPTY) do
+        if now < mark.to then
+            return true
+        end
+    end
+    return false
+end
+
+local function ApplyMark(cast)
+    local definition = cast.mark
+    local share, cap = DoTs.Spells:ReadMark(cast.spellID, cast.points)
+    if not share then
+        return
+    end
+    local sources = {}
+    for key, effect in pairs(effects[cast.unitKey] or EMPTY) do
+        if definition.stores[key] then
+            table.insert(sources, effect)
+        end
+    end
+    marks[cast.unitKey] = marks[cast.unitKey] or {}
+    marks[cast.unitKey][definition.key] = {
+        from = cast.time,
+        to = cast.time + definition.duration,
+        share = share,
+        cap = cap,
+        stores = definition.stores,
+        sources = sources,
+    }
+end
+
 local function Apply(cast)
+    if cast.mark then
+        ApplyMark(cast)
+        return
+    end
     if cast.amplifier then
         local amplifier = cast.amplifier
         amplifiers[cast.unitKey] = amplifiers[cast.unitKey] or {}
@@ -107,13 +167,23 @@ local function Apply(cast)
         return
     end
     effects[cast.unitKey] = effects[cast.unitKey] or {}
-    effects[cast.unitKey][definition.key] = {
+    local replaced = effects[cast.unitKey][definition.key]
+    if replaced then
+        replaced.ended = cast.time
+    end
+    local effect = {
         key = definition.key,
         start = cast.time,
         duration = duration,
         perTick = perTick,
         tick = definition.tick,
     }
+    effects[cast.unitKey][definition.key] = effect
+    for _, mark in pairs(marks[cast.unitKey] or EMPTY) do
+        if mark.stores[definition.key] and cast.time < mark.to then
+            table.insert(mark.sources, effect)
+        end
+    end
 end
 
 local function Unconfirm(cast)
@@ -136,7 +206,7 @@ local function Commit()
     for _, cast in ipairs(casts) do
         if not cast.missed then
             Apply(cast)
-        elseif (cast.definition or cast.amplifier).comboPoints then
+        elseif (cast.definition or cast.amplifier or cast.mark).comboPoints then
             Unconfirm(cast)
         end
     end
@@ -168,7 +238,8 @@ end
 local function OnCast(castGUID, spellID)
     local definition = DoTs.Spells:Get(spellID)
     local amplifier = DoTs.Spells:GetAmplifier(spellID)
-    if not (definition or amplifier) then
+    local mark = DoTs.Spells:GetMark(spellID)
+    if not (definition or amplifier or mark) then
         return
     end
     -- A spell with a cast time lands on the unit targeted as it was sent.
@@ -191,6 +262,7 @@ local function OnCast(castGUID, spellID)
         spellID = spellID,
         definition = definition,
         amplifier = amplifier,
+        mark = mark,
         points = points or GetComboPoints("player", "target"),
         time = GetTime(),
     })
@@ -209,24 +281,33 @@ local function OnMiss(unit)
     end
 end
 
--- Out of combat: drops the effects on the unit whose aura is gone, and gives
--- the others the aura's timing.
+local function GetAura(unit, key)
+    return C_UnitAuras.GetAuraDataBySpellName(unit, DoTs.Spells:GetName(key), "HARMFUL|PLAYER")
+end
+
+-- Out of combat: drops the effects and marks on the unit whose aura is gone,
+-- and gives the other effects the aura's timing.
 local function Reconcile(unit)
     if InCombatLockdown() or C_Secrets.ShouldAurasBeSecret() then
         return
     end
     local unitKey = Tracker:GetUnitKey(unit)
-    local unitEffects = unitKey and effects[unitKey]
-    if not unitEffects then
+    if not unitKey or not (effects[unitKey] or marks[unitKey]) then
         return
     end
-    for key, effect in pairs(unitEffects) do
-        local aura = C_UnitAuras.GetAuraDataBySpellName(unit, DoTs.Spells:GetName(key), "HARMFUL|PLAYER")
+    for key, effect in pairs(effects[unitKey] or EMPTY) do
+        local aura = GetAura(unit, key)
         if aura then
             effect.duration = aura.duration
             effect.start = aura.expirationTime - aura.duration
         else
-            unitEffects[key] = nil
+            effect.ended = GetTime()
+            effects[unitKey][key] = nil
+        end
+    end
+    for key in pairs(marks[unitKey] or EMPTY) do
+        if not GetAura(unit, key) then
+            marks[unitKey][key] = nil
         end
     end
     DoTs.Overlays:Refresh()
@@ -244,7 +325,10 @@ end
 
 local listener = ns:CreateEventListener({
     UNIT_SPELLCAST_SENT = function(_, unit, _, castGUID, spellID)
-        if unit == "player" and (DoTs.Spells:Get(spellID) or DoTs.Spells:GetAmplifier(spellID)) then
+        if
+            unit == "player"
+            and (DoTs.Spells:Get(spellID) or DoTs.Spells:GetAmplifier(spellID) or DoTs.Spells:GetMark(spellID))
+        then
             lastSent = {
                 castGUID = castGUID,
                 unitKey = Tracker:GetUnitKey("target"),
@@ -279,13 +363,18 @@ local listener = ns:CreateEventListener({
     end,
 })
 
--- The damage the player's effects on the unit have yet to deal.
+-- The damage the player's effects and marks on the unit have yet to deal.
 function Tracker:GetRemainingDamage(unitKey)
     local now = GetTime()
     local remaining = 0
     for _, effect in pairs(effects[unitKey] or EMPTY) do
         for index = LandedTicks(effect, now) + 1, TickCount(effect) do
             remaining = remaining + TickDamage(unitKey, effect, effect.start + index * effect.tick)
+        end
+    end
+    for _, mark in pairs(marks[unitKey] or EMPTY) do
+        if now < mark.to then
+            remaining = remaining + StoredDamage(unitKey, mark)
         end
     end
     return remaining
@@ -295,10 +384,12 @@ end
 function Tracker:Forget(unitKey)
     effects[unitKey] = nil
     amplifiers[unitKey] = nil
+    marks[unitKey] = nil
 end
 
--- Forgets the effects whose last tick landed and the amplifiers that ended,
--- on every unit (most are never shown again).
+-- Forgets the effects whose last tick landed, the marks that dealt their
+-- damage and the amplifiers that ended (kept while a mark counts the ticks
+-- they raised), on every unit (most are never shown again).
 function Tracker:ForgetEnded()
     local now = GetTime()
     for unitKey, unitEffects in pairs(effects) do
@@ -311,9 +402,20 @@ function Tracker:ForgetEnded()
             effects[unitKey] = nil
         end
     end
+    for unitKey, unitMarks in pairs(marks) do
+        for key, mark in pairs(unitMarks) do
+            if now >= mark.to then
+                unitMarks[key] = nil
+            end
+        end
+        if next(unitMarks) == nil then
+            marks[unitKey] = nil
+        end
+    end
     for unitKey, unitAmplifiers in pairs(amplifiers) do
+        local marked = HasRunningMark(unitKey, now)
         for key, amplifier in pairs(unitAmplifiers) do
-            if now > amplifier.to then
+            if now > amplifier.to and not marked then
                 unitAmplifiers[key] = nil
             end
         end
@@ -323,9 +425,9 @@ function Tracker:ForgetEnded()
     end
 end
 
--- Whether any unit has effects running.
+-- Whether any unit has effects or marks running.
 function Tracker:IsTracking()
-    return next(effects) ~= nil
+    return next(effects) ~= nil or next(marks) ~= nil
 end
 
 function Tracker:Enable()
@@ -339,6 +441,7 @@ function Tracker:Disable()
     end
     effects = {}
     amplifiers = {}
+    marks = {}
     lastSent = nil
     pending = {}
     unconfirmed = {}
