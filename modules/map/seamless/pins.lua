@@ -365,12 +365,20 @@ local function IconAt(x, y, clickable)
     return best
 end
 
+-- A unit's "First Surname": Forever's UnitName gives the surname apart.
+local function FullName(unit)
+    local name, surname = UnitName(unit)
+    if name and not issecretvalue(name) and surname and not issecretvalue(surname) and surname ~= "" then
+        return name .. " " .. surname
+    end
+    return name
+end
+
 -- A group member's or friend's name and class, unless the game keeps the name secret.
 local function NameOf(entry)
     local name, class
     if entry.kind == "member" then
-        name = UnitName(entry.unit)
-        class = select(2, UnitClass(entry.unit))
+        name, class = FullName(entry.unit), select(2, UnitClass(entry.unit))
     else
         name, class = Friends():DescribeFriend(entry.guid)
     end

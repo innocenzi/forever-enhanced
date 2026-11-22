@@ -1139,7 +1139,7 @@ end)
 
 test("names every group member under the cursor, at Blizzard's size", function(world)
     Setup(world)
-    world:JoinGroup("Ahnna")
+    world:JoinGroup("Ahnna Stormhold")
     world:GuestJoins("Brom")
     for _, member in ipairs(world.partyMembers) do
         member.position = { x = 500, y = 500, continentID = 0 }
@@ -1153,10 +1153,10 @@ test("names every group member under the cursor, at Blizzard's size", function(w
     world:NextFrame()
     equal(
         world.tooltip,
-        RAID_CLASS_COLORS.MAGE:WrapTextInColorCode("Ahnna")
+        RAID_CLASS_COLORS.MAGE:WrapTextInColorCode("Ahnna Stormhold")
             .. "\n"
             .. RAID_CLASS_COLORS.WARRIOR:WrapTextInColorCode("Brom"),
-        "both, one per line"
+        "both, one per line, by their full names"
     )
 end)
 
