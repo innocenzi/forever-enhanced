@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.6.0 - 2026-11-22
+
+
+### Features
+- **combat:** show on health bars what Death Mark will deal from the bleeds it stores
+- **combat:** add the strikes and white swings Death Mark stores, through the target's armor, shown apart from the bleeds
+- **combat:** show what Death Mark will deal from the health's end, the bleeds from the bar's left end
+- **map:** zoom out past Blizzard's world map into a seamless view of the whole world
+
+
+### Fixes
+- **inventory:** close the gaps locked items leave when bags or bank are sorted
+
 ## 1.5.1 - 2026-11-20
 
 
