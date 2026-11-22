@@ -6,17 +6,21 @@
 --
 -- local mover = ns:CreateMover({ Plan = function() return moves end, maxMovesPerKey = 3 })
 --   Plan() reads the live containers and returns the moves still needed:
---   { { from = { bagID, slot }, to = { bagID, slot }, key = <item GUID> }, ... }
+--   { { from = { bagID, slot }, to = { bagID, slot }, key = <item GUID>, count }, ... }
+--   A move with `count` splits that many off the source stack, onto an empty
+--   slot or a stack of the same item with room for all of them; without, it
+--   moves the whole stack.
 --   An empty list (or only moves out of attempts) ends the run.
 --   Optional OnFinished(movedCount) runs when a run ends that way, with the
 --   number of moves it sent; never when it's stopped, gives up or a drop fails.
 --
 -- Each round sends every move that shares no slot with another and touches no
--- busy slot, as two pickups: onto the same item, the client merges the stacks;
--- otherwise it swaps them. Other moves wait for a later round. A round's moves
--- go out MOVES_PER_FRAME a frame. The next round runs on the bag update that
--- follows the last of them, once the sent slots are free. Rounds
--- re-plan from live positions, so a late server batch just costs one more round.
+-- busy slot, as two pickups (a split, then a pickup, for a move with `count`):
+-- onto the same item, the client merges the stacks; otherwise it swaps them.
+-- Other moves wait for a later round. A round's moves go out MOVES_PER_FRAME a
+-- frame. The next round runs on the bag update that follows the last of them,
+-- once the sent slots are free. Rounds re-plan from live positions, so a late
+-- server batch just costs one more round.
 -- A key moved maxMovesPerKey times is dropped (the server refuses the move).
 --
 -- No rounds run in combat: the run pauses until combat ends. Seen on Forever: in
@@ -185,7 +189,11 @@ function MoverMixin:SendQueued()
         if not IsSlotBusy(move.from) and not IsSlotBusy(move.to) then
             self.moveCounts[move.key] = (self.moveCounts[move.key] or 0) + 1
             self.movedCount = self.movedCount + 1
-            Pickup(move.from)
+            if move.count then
+                C_Container.SplitContainerItem(move.from.bagID, move.from.slot, move.count)
+            else
+                Pickup(move.from)
+            end
             Pickup(move.to)
             -- A completed drop empties the cursor at once; anything left was refused.
             if CursorHasItem() then

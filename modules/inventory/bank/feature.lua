@@ -14,6 +14,8 @@
 -- items (Item Locking) never move. Opening the bank can refill the bags'
 -- partial stacks ("autoRefill") and deposit the marked items ("autoDeposit").
 -- With "autoSort", a transfer that moved items ends with the bank's Clean Up.
+-- Other features withdraw exact quantities with Bank:WithdrawUpTo, whatever
+-- the parts (transfers.lua).
 --
 -- Files of this slice:
 --   feature.lua    registration, schema and lifecycle (this file)
@@ -109,6 +111,7 @@ function Bank:SyncParts()
 end
 
 function Bank:OnEnable()
+    self.Transfers:Start()
     self:SyncParts()
 end
 
@@ -121,4 +124,5 @@ end
 
 function Bank:OnDisable()
     self:SyncParts()
+    self.Transfers:Stop()
 end

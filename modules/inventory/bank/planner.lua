@@ -10,6 +10,10 @@
 --             (Item marks), whether or not the bank holds them.
 --   "refill": (withdraw, automatic) like "stacks", except for the items marked
 --             for the bank, which the automatic deposit takes back.
+--   "upTo":   (withdraw, Bank:WithdrawUpTo) brings the bags up to a total of
+--             each item: whole bank stacks, smallest first, while they fit what
+--             is missing, then the rest split off the next one. Each goes onto
+--             a bag stack with room for all of it, or an empty slot.
 -- Locked items (Item Locking) never move, but their stacks are filled like any
 -- other: a merge keeps the receiving stack (and its lock) in place.
 
@@ -149,13 +153,70 @@ local function GetItemIDs(mode, sources, destinations)
     return destinations.itemIDs
 end
 
-function Planner:Plan(direction, mode)
+local function CountStacks(stacks)
+    local total = 0
+    for _, stack in ipairs(stacks or {}) do
+        total = total + stack.count
+    end
+    return total
+end
+
+-- A destination stack of the item with room for `count` more (the room is
+-- taken), or else an empty slot that accepts the item.
+local function TakeRoom(stacks, emptySlots, itemID, count)
+    for _, stack in ipairs(stacks or {}) do
+        if stack.maxCount - stack.count >= count then
+            stack.count = stack.count + count
+            return stack.location
+        end
+    end
+    return TakeEmptySlot(emptySlots, itemID)
+end
+
+-- The "upTo" moves: what the destination lacks of totals[itemID], from the
+-- movable source stacks, smallest first, the last one split if it holds more.
+local function PlanUpTo(moves, totals, sources, destinations, emptySlots)
+    local itemIDs = {}
+    for itemID in pairs(totals) do
+        table.insert(itemIDs, itemID)
+    end
+    table.sort(itemIDs)
+    for _, itemID in ipairs(itemIDs) do
+        local missing = totals[itemID] - CountStacks(destinations[itemID])
+        for _, stack in ipairs(GetMovableStacks(sources[itemID])) do
+            if missing <= 0 then
+                break
+            end
+            local count = math.min(stack.count, missing)
+            local to = TakeRoom(destinations[itemID], emptySlots, itemID, count)
+            if not to then
+                break
+            end
+            local move = Move(stack, to)
+            if count < stack.count then
+                move.count = count
+            end
+            table.insert(moves, move)
+            missing = missing - count
+        end
+    end
+end
+
+-- The moves still needed; `totals` ({ [itemID] = count }) for the "upTo" mode.
+-- Other modes leave out the items of `skipped` (a set of item IDs).
+function Planner:Plan(direction, mode, totals, skipped)
     local sourceIDs, destinationIDs = GetSides(direction)
     local sources = Scan(sourceIDs)
     local destinations, emptySlots = Scan(destinationIDs)
     local moves = {}
+    if mode == "upTo" then
+        PlanUpTo(moves, totals, sources, destinations, emptySlots)
+        return moves
+    end
     for _, itemID in ipairs(GetItemIDs(mode, sources, destinations)) do
-        PlanItem(moves, itemID, sources, destinations, emptySlots, mode == "all" or mode == "marked")
+        if not (skipped and skipped[itemID]) then
+            PlanItem(moves, itemID, sources, destinations, emptySlots, mode == "all" or mode == "marked")
+        end
     end
     return moves
 end

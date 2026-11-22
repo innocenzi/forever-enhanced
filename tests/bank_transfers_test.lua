@@ -469,3 +469,85 @@ test("no cleanup when a move is blocked", function(world)
     Transfer(world, "deposit", "stacks")
     equal(#world.bankSorts, 0, "no cleanup")
 end)
+
+-- Bank:WithdrawUpTo, for other features (Planned recipes).
+local function WithdrawUpTo(world, totals)
+    local finished = false
+    local started = world.ns:GetFeature("inventory", "bank"):WithdrawUpTo(totals, function()
+        finished = true
+    end)
+    world:Elapse(5)
+    return started, finished
+end
+
+test("withdrawing up to a total takes whole stacks, then splits the rest off", function(world)
+    Setup(world, {}, { "L4", "L3" }, {}, {
+        L3 = { "linen", 2 },
+        L4 = { "linen", 20 },
+    })
+    local started, finished = WithdrawUpTo(world, { linen = 6 })
+    expect(started and finished, "started and finished")
+    equal(world:Slots(0), "L3(2) L4'(4) - -", "bags")
+    equal(world:Slots(6), "L4(16) - - -", "bank")
+    equal(world.splits, 1, "one split")
+end)
+
+test("withdrawing up to a total counts what the bags hold and fills their stacks", function(world)
+    Setup(world, { "L1", "W1" }, { "L3", "W3" }, {}, {
+        L1 = { "linen", 15 },
+        W1 = { "wool", 10 },
+        L3 = { "linen", 12 },
+        W3 = { "wool", 20 },
+    })
+    WithdrawUpTo(world, { linen = 18, wool = 8 })
+    equal(world:Slots(0), "L1(18) W1(10) - -", "linen split onto its stack, wool already there")
+    equal(world:Slots(6), "L3(9) W3(20) - -", "bank")
+end)
+
+test("a split that doesn't fit the bags' stack goes to an empty slot", function(world)
+    Setup(world, { "L1" }, { "L3" }, {}, {
+        L1 = { "linen", 18 },
+        L3 = { "linen", 12 },
+    })
+    WithdrawUpTo(world, { linen = 23 })
+    equal(world:Slots(0), "L1(18) L3'(5) - -", "bags")
+    equal(world:Slots(6), "L3(7) - - -", "bank")
+end)
+
+test("withdrawing up to a total takes what the bank has", function(world)
+    Setup(world, {}, { "L3" }, {}, {
+        L3 = { "linen", 2 },
+    })
+    local _, finished = WithdrawUpTo(world, { linen = 5, wool = 1 })
+    expect(finished, "finished")
+    equal(world:Slots(0), "L3(2) - - -", "bags")
+end)
+
+test("withdrawing up to a total needs the open bank and the bank feature, not its buttons", function(world)
+    Stock(world, {}, { "L3" }, {}, {
+        L3 = { "linen", 12 },
+    })
+    expect(not WithdrawUpTo(world, { linen = 1 }), "bank closed")
+    world:OpenBank()
+    world:Setting("inventory.bank.enabled"):SetValue(false)
+    expect(not WithdrawUpTo(world, { linen = 1 }), "feature off")
+    world:Setting("inventory.bank.enabled"):SetValue(true)
+    world:Setting("inventory.bank.transfers"):SetValue(false)
+    expect(WithdrawUpTo(world, { linen = 1 }), "buttons off")
+    equal(world:Slots(0), "L3' - - -", "bags")
+end)
+
+test("withdrawing up to a total joins the automatic transfers, which leave its items alone", function(world)
+    Stock(world, { "L1", "W1" }, { "L3", "W3" }, {}, {
+        L1 = { "linen", 15 },
+        W1 = { "wool", 5 },
+        L3 = { "linen", 12 },
+        W3 = { "wool", 20 },
+    })
+    world:Setting("inventory.bank.autoRefill"):SetValue(true)
+    world:OpenBank()
+    local _, finished = WithdrawUpTo(world, { wool = 8 })
+    expect(finished, "finished")
+    equal(world:Slots(0), "L1(20) W1(8) - -", "linen refilled, wool up to the total")
+    equal(world:Slots(6), "L3(7) W3(17) - -", "bank")
+end)

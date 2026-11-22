@@ -126,6 +126,10 @@ modules\professions\skillups\data.lua
 modules\professions\skillups\nodes.lua
 modules\professions\skillups\chance.lua
 modules\professions\skillups\tooltip.lua
+modules\professions\plans\feature.lua
+modules\professions\plans\locales.lua
+modules\professions\plans\button.lua
+modules\professions\plans\withdrawal.lua
 
 # Combat
 modules\combat\module.lua

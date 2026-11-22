@@ -71,6 +71,7 @@ local world = {
     repairs = {},
     swapTimes = {},
     pickups = 0,
+    splits = 0,
     alt = false,
     cursor = nil,
     blockDrops = false,
@@ -332,6 +333,7 @@ for _, name in ipairs({
     "RegisterForClicks",
     "RegisterForDrag",
     "SetHighlightTexture",
+    "SetHighlightAtlas",
     "SetToplevel",
     "SetHorizTile",
     "SetVertTile",
@@ -342,6 +344,7 @@ for _, name in ipairs({
     "HighlightText",
     "ClearFocus",
     "SetMaxLetters",
+    "SetNumeric",
     "SetBlendMode",
     "SetIgnoreParentAlpha",
     "SetWordWrap",
@@ -1725,6 +1728,7 @@ end
 
 function ClearCursor()
     world.cursor = nil
+    world.cursorSplit = nil
     world.cursorAction = nil
     world:Fire("CURSOR_CHANGED")
 end
@@ -1812,6 +1816,35 @@ C_Container = {
             return
         end
 
+        local split = world.cursorSplit
+        if split then
+            -- Onto an empty slot, or a stack of the same item with room for
+            -- all of it; anything else is refused and keeps it on the cursor.
+            local bags = world.bags
+            local moving, target = bags[from.bagID][from.slot], bags[bagID][slot]
+            if target then
+                if ItemID(target) ~= ItemID(moving) or MaxStack(target) - StackCount(target) < split then
+                    return
+                end
+                world.counts[target] = StackCount(target) + split
+            else
+                local guid = moving
+                repeat
+                    guid = guid .. "'"
+                until not world.itemIDs[guid]
+                world.itemIDs[guid] = ItemID(moving)
+                world.counts[guid] = split
+                bags[bagID][slot] = guid
+            end
+            world.counts[moving] = StackCount(moving) - split
+            world.cursor, world.cursorSplit = nil, nil
+            C_Timer.NewTimer(SERVER_CONFIRM_SECONDS, function()
+                world:Fire("BAG_UPDATE_DELAYED")
+            end)
+            world:Fire("CURSOR_CHANGED")
+            return
+        end
+
         world.cursor = nil
         if from.bagID ~= bagID or from.slot ~= slot then
             local bags = world.bags
@@ -1834,6 +1867,16 @@ C_Container = {
                 world:Fire("BAG_UPDATE_DELAYED")
             end)
         end
+        world:Fire("CURSOR_CHANGED")
+    end,
+    -- Picks up `count` of the stack (fewer than it holds): the next
+    -- PickupContainerItem drops them (world.splits counts the splits).
+    SplitContainerItem = function(bagID, slot, count)
+        local guid = world.bags[bagID][slot]
+        assert(not world.cursor and guid and count < StackCount(guid), "split of a stack with more than " .. count)
+        world.splits = world.splits + 1
+        world.cursor = ItemLocation:CreateFromBagAndSlot(bagID, slot)
+        world.cursorSplit = count
         world:Fire("CURSOR_CHANGED")
     end,
     -- Only selling (merchant open) is modelled: the item leaves the bag.
@@ -6022,7 +6065,13 @@ C_TradeSkillUI = {
             maxSkillLevel = 300,
         }
     end,
+    -- The reagent slots of a recipe: world.recipeSchematics[recipeID] ({ world:Reagent(...), ... }).
+    GetRecipeSchematic = function(recipeID)
+        return { recipeID = recipeID, reagentSlotSchematics = world.recipeSchematics[recipeID] or {} }
+    end,
 }
+
+world.recipeSchematics = {}
 
 -- The skill of the profession window's profession, and its bonuses (racial).
 world.professionSkill = { level = 1, modifier = 0 }
@@ -6097,6 +6146,82 @@ function world:LoadProfessions()
     }
     self.loadedAddOns.Blizzard_ProfessionsTemplates = true
     self:Fire("ADDON_LOADED", "Blizzard_ProfessionsTemplates")
+end
+
+-- The profession window (Blizzard_Professions, load-on-demand, after the
+-- templates): its crafting page's schematic form, showing the recipe icon,
+-- name (OutputText) and favorite star, and its craft count box, which shows
+-- world.craftCount (0, disabled, while the bags lack reagents).
+world.craftCount = 0
+function world:LoadProfessionsWindow()
+    if not Professions then
+        self:LoadProfessions()
+    end
+    local page = CreateFrame("Frame")
+    local form = CreateFrame("Frame", nil, page)
+    form.OutputIcon = CreateFrame("Button", nil, form)
+    form.OutputText = form:CreateFontString()
+    form.FavoriteButton = CreateFrame("CheckButton", nil, form)
+    form.FavoriteButton:Hide()
+    function form:GetRecipeInfo()
+        return self.currentRecipeInfo
+    end
+    page.SchematicForm = form
+    page.CreateMultipleInputBox = {
+        GetValue = function()
+            return world.craftCount
+        end,
+    }
+    ProfessionsFrame = CreateFrame("Frame")
+    ProfessionsFrame.CraftingPage = page
+    self.loadedAddOns.Blizzard_Professions = true
+    self:Fire("ADDON_LOADED", "Blizzard_Professions")
+end
+
+-- The player selects a recipe ({ recipeID, name, learned }) in the profession
+-- window, opening it first. Like the form's Init, the star shows for learned
+-- recipes, beside the name, or in the form's corner when `minimized`; then the
+-- list's selection event fires, and a frame passes.
+function world:SelectRecipe(recipeInfo, minimized)
+    if not ProfessionsFrame then
+        self:LoadProfessionsWindow()
+    end
+    local form = ProfessionsFrame.CraftingPage.SchematicForm
+    form.currentRecipeInfo = recipeInfo
+    local favorite = form.FavoriteButton
+    favorite:SetShown(recipeInfo.learned == true)
+    favorite:ClearAllPoints()
+    if minimized then
+        favorite:SetPoint("TOPRIGHT", -10, -10)
+    else
+        favorite:SetPoint("LEFT", form.OutputText, "RIGHT", 4, 1)
+    end
+    EventRegistry:TriggerEvent("ProfessionsRecipeListMixin.Event.OnRecipeSelected", recipeInfo)
+    self:NextFrame()
+end
+
+-- Our plan button on the star, if created.
+function world:PlanButton()
+    local favorite = ProfessionsFrame and ProfessionsFrame.CraftingPage.SchematicForm.FavoriteButton
+    for _, frame in ipairs(self.frames) do
+        if favorite and frame.parent == favorite then
+            return frame
+        end
+    end
+end
+
+-- Clicks the plan button ("LeftButton" or "RightButton").
+function world:ClickPlanButton(mouseButton)
+    local button = assert(self:PlanButton(), "plan button")
+    assert(button:IsVisible(), "plan button shown")
+    button:RunScript("OnClick", mouseButton or "LeftButton")
+end
+
+-- Hovers the plan button: its tooltip's title and lines.
+function world:PlanButtonTooltip()
+    self.tooltip, self.tooltipLines = nil, {}
+    assert(self:PlanButton(), "plan button"):RunScript("OnEnter")
+    return self.tooltip, self.tooltipLines
 end
 
 -- The player points at the skill-up arrow of a recipe in the profession
