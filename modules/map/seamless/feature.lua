@@ -26,13 +26,13 @@
 --   - Blizzard's map changes map only from the player's input, or from
 --     C_Map.OpenWorldMap called from our own click or wheel handler (measured:
 --     Blizzard's map, quest log and tracker stay untainted; refused in combat);
---   - what's left in Blizzard's map: a post-hook on its scroll container's wheel
---     (Blizzard's handler runs first, ours only reads), and data providers (view.lua's
---     reads the map's changes, quests.lua's puts pins of our own up, no Blizzard quest
---     pins: they'd run Blizzard's quest code from ours), which the canvas calls from its
---     own code one by one (secureexecuterange). Their only writes are the canvas's own
---     extension points (its providers, quests.lua's pin pool) and what every pin addon's
---     refresh writes (MarkCanvasDirty);
+--   - what's left in Blizzard's map: post-hooks on its scroll container's wheel, mouse
+--     down and mouse up (Blizzard's handlers run first, ours only read), and data
+--     providers (view.lua's reads the map's changes, quests.lua's puts pins of our own
+--     up, no Blizzard quest pins: they'd run Blizzard's quest code from ours), which the
+--     canvas calls from its own code one by one (secureexecuterange). Their only writes
+--     are the canvas's own extension points (its providers, quests.lua's pin pool) and
+--     what every pin addon's refresh writes (MarkCanvasDirty);
 --   - while the view shows, the two map controls in the map's own strata (the quest
 --     log's toggle, the coordinates panel) are raised over it (SetFrameStrata: no Lua
 --     value of Blizzard's), and put back after;

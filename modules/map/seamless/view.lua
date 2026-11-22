@@ -4,7 +4,8 @@
 -- view over it.
 --   - Opening: the wheel zooming out on the world, a continent or a zone already at
 --     Blizzard's widest view (Blizzard's zoom does nothing there). The view starts
---     exactly on Blizzard's view, fades in, and zooms out that notch.
+--     exactly on Blizzard's view, fades in, and zooms out that notch. Or a drag there
+--     (Blizzard's map can't pan at its widest view): the view opens and takes the drag over.
 --   - In the view: the wheel zooms from the whole world down to street level, toward the
 --     cursor (the point under it stays put, and the map can be dragged mid-zoom); a drag
 --     pans across the whole world, and a little past its edges once zoomed in; a click
@@ -84,6 +85,12 @@ local sinceTick = 0
 local raised = {} -- Blizzard's controls raised over the view -> their own strata
 local label -- the zone label's font string
 local pinCursor = false -- whether the cursor is the map pin's, set by us
+-- A left press on Blizzard's map: where it started (screen), until it turns into a drag or goes up.
+local blizzardPress
+-- Whether the view took over a drag started on Blizzard's map, which keeps the mouse until
+-- the button goes up (its release comes to Blizzard's map, not to the view).
+local blizzardDrag = false
+local pressWatcher -- follows a press on Blizzard's map
 
 local function Clamp(value, low, high)
     return math.min(math.max(value, low), high)
@@ -127,11 +134,15 @@ local function PerPx(zoom)
     return 1 / (width * px), 1 / (height * px)
 end
 
--- The cursor from the middle of the view, in view pixels (y down).
-local function CursorOffset()
-    local x, y = GetCursorPosition()
+-- A screen point (GetCursorPosition's units) from the middle of the view, in view pixels (y down).
+local function ScreenOffset(x, y)
     local scale = frame:GetEffectiveScale()
     return x / scale - (frame:GetLeft() + frame:GetWidth() / 2), (frame:GetTop() - frame:GetHeight() / 2) - y / scale
+end
+
+-- The cursor from the middle of the view, in view pixels (y down).
+local function CursorOffset()
+    return ScreenOffset(GetCursorPosition())
 end
 
 local function CursorWorld()
@@ -305,6 +316,7 @@ local function Close()
     state = "hidden"
     anim, grab, handOff, expected = nil, nil, nil, nil
     wipe(press)
+    blizzardDrag = false
     frame:Hide()
     frame:EnableMouse(true)
     frame:EnableMouseWheel(true)
@@ -658,12 +670,9 @@ end
 
 -- Blizzard's map ------------------------------------------------------------------------
 
--- The wheel on Blizzard's map, after Blizzard's own zoom: zooming out where it already
--- couldn't opens the view. (Blizzard's zoom is instant: its notch changes the scale at once.)
-local function OnBlizzardWheel(_, delta)
-    if not Seamless:IsActive() or delta >= 0 or zoomedAt == GetTime() then
-        return
-    end
+-- The map the view may open on over Blizzard's: one it draws, at Blizzard's widest view (where
+-- Blizzard's wheel and drag do nothing); nil if it may not.
+local function OpenableMap()
     -- (fading out after handing back, Blizzard's map already has the mouse: opened again; not
     -- while still gliding to a map Blizzard changed to as it faded)
     if state == "fading" and not anim then
@@ -673,11 +682,79 @@ local function OnBlizzardWheel(_, delta)
         return
     end
     local mapID = map:GetMapID()
-    if not Geometry:IsStitchable(mapID) or not sc:IsAtMinZoom() then
+    if Geometry:IsStitchable(mapID) and sc:IsAtMinZoom() then
+        return mapID
+    end
+end
+
+-- The wheel on Blizzard's map, after Blizzard's own zoom: zooming out where it already
+-- couldn't opens the view. (Blizzard's zoom is instant: its notch changes the scale at once.)
+local function OnBlizzardWheel(_, delta)
+    if not Seamless:IsActive() or delta >= 0 or zoomedAt == GetTime() then
+        return
+    end
+    local mapID = OpenableMap()
+    if mapID then
+        Open(mapID)
+        ZoomAtCursor(1 / ZOOM_STEP)
+    end
+end
+
+local function StopWatchingPress()
+    blizzardPress = nil
+    pressWatcher:Hide()
+end
+
+-- A left press on Blizzard's map, after Blizzard's own handler: followed until it turns into
+-- a drag (Blizzard's click distance, as the view's) or goes up.
+local function OnBlizzardMouseDown(_, button)
+    if not Seamless:IsActive() or button ~= "LeftButton" then
+        return
+    end
+    local x, y = GetCursorPosition()
+    blizzardPress = { x = x, y = y }
+    pressWatcher:Show()
+end
+
+-- The press on Blizzard's map turned into a drag where Blizzard's map can't pan (its widest
+-- view): the view opens on Blizzard's view and takes the drag over, from where it started.
+local function TakeBlizzardDrag()
+    local start = blizzardPress
+    StopWatchingPress()
+    local mapID = OpenableMap()
+    if not mapID then
         return
     end
     Open(mapID)
-    ZoomAtCursor(1 / ZOOM_STEP)
+    local sx, sy = ScreenOffset(start.x, start.y)
+    local pu, pv = PerPx(view.zoom)
+    grab = { u = view.u + sx * pu, v = view.v + sy * pv }
+    blizzardDrag = true
+    -- (where the cursor is already, this frame)
+    sx, sy = CursorOffset()
+    SetView(grab.u - sx * pu, grab.v - sy * pv, view.zoom)
+end
+
+local function WatchPress()
+    local x, y = GetCursorPosition()
+    local scale = map:GetEffectiveScale()
+    local dx, dy = (x - blizzardPress.x) / scale, (y - blizzardPress.y) / scale
+    if dx * dx + dy * dy > CLICK_SLOP then
+        TakeBlizzardDrag()
+    end
+end
+
+-- The button going up on Blizzard's map, after Blizzard's own handler: the end of the press,
+-- or of the drag the view took over.
+local function OnBlizzardMouseUp(_, button)
+    if button ~= "LeftButton" then
+        return
+    end
+    StopWatchingPress()
+    if blizzardDrag then
+        blizzardDrag = false
+        grab = nil
+    end
 end
 
 -- Blizzard's map events, read only: its providers are called from Blizzard's own code, one
@@ -803,6 +880,11 @@ local function Install()
         end
     end)
     sc:HookScript("OnMouseWheel", OnBlizzardWheel)
+    pressWatcher = CreateFrame("Frame")
+    pressWatcher:Hide()
+    pressWatcher:SetScript("OnUpdate", WatchPress)
+    sc:HookScript("OnMouseDown", OnBlizzardMouseDown)
+    sc:HookScript("OnMouseUp", OnBlizzardMouseUp)
 end
 
 function View:Enable()
@@ -818,6 +900,7 @@ end
 function View:Disable()
     listener:Stop()
     map:RemoveDataProvider(provider)
+    StopWatchingPress()
     if state ~= "hidden" then
         Close()
     end
