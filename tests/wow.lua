@@ -203,16 +203,22 @@ function wipe(tbl)
 end
 
 -- hooksecurefunc([tbl,] name, hook): a global function when no table is given.
+-- secureHookOriginals[wrapper]: the function a secure hook wrapped (fake only: for
+-- world:BlizzardMapWrites to tell a post-hook from a replacement).
+local secureHookOriginals = setmetatable({}, { __mode = "k" })
+
 function hooksecurefunc(tbl, name, hook)
     if type(tbl) == "string" then
         tbl, name, hook = _G, tbl, name
     end
     local original = tbl[name]
-    tbl[name] = function(...)
+    local function wrapper(...)
         local result = original(...)
         hook(...)
         return result
     end
+    secureHookOriginals[wrapper] = original
+    tbl[name] = wrapper
 end
 
 -- The game reports func's error to the error handler and carries on; here it
@@ -327,7 +333,6 @@ for _, name in ipairs({
     "RegisterForDrag",
     "SetHighlightTexture",
     "SetToplevel",
-    "EnableMouse",
     "SetHorizTile",
     "SetVertTile",
     "SetRotation",
@@ -507,6 +512,55 @@ end
 -- world.mouseOver: the frame under the mouse (only pins are modelled).
 function Region:IsMouseOver()
     return world.mouseOver == self
+end
+
+-- Mouse input, as set: whether the frame takes clicks (EnableMouse) and the wheel
+-- (EnableMouseWheel), and whether it clips its children. Frames start with neither.
+function Region:EnableMouse(enabled)
+    self.mouseEnabled = enabled and true or false
+end
+
+function Region:IsMouseEnabled()
+    return self.mouseEnabled == true
+end
+
+function Region:EnableMouseWheel(enabled)
+    self.mouseWheelEnabled = enabled and true or false
+end
+
+function Region:IsMouseWheelEnabled()
+    return self.mouseWheelEnabled == true
+end
+
+-- Clicks off: the frame still gets the mouse's motion (OnEnter, OnLeave), clicks go on below.
+function Region:SetMouseClickEnabled(enabled)
+    self.mouseClickDisabled = not enabled
+end
+
+function Region:IsMouseClickEnabled()
+    return self.mouseEnabled == true and not self.mouseClickDisabled
+end
+
+-- Whether the mouse is over this frame and no frame above it takes the mouse (the map's
+-- frames: see world:MapFrameUnderMouse).
+function Region:IsMouseMotionFocus()
+    return world:MapFrameUnderMouse("LeftButton") == self
+end
+
+function Region:SetClipsChildren(clips)
+    self.clipsChildren = clips and true or false
+end
+
+function Region:DoesClipChildren()
+    return self.clipsChildren == true
+end
+
+-- The buttons whose clicks go on to the frame below: each call replaces the set.
+function Region:SetPassThroughButtons(...)
+    self.passThroughButtons = {}
+    for _, button in ipairs({ ... }) do
+        self.passThroughButtons[button] = true
+    end
 end
 
 -- Every frame starts at level 1 (tests only compare levels).
@@ -1365,6 +1419,19 @@ Enum = {
     TradeskillRelativeDifficulty = { Optimal = 0, Medium = 1, Easy = 2, Trivial = 3 },
     QuestTag = { Group = 1, PvP = 41, Raid = 62, Dungeon = 81, Heroic = 85, Raid10 = 88, Raid25 = 89 },
     UIMapType = { Cosmic = 0, World = 1, Continent = 2, Zone = 3, Dungeon = 4, Micro = 5, Orphan = 6 },
+    QuestClassification = {
+        Important = 0,
+        Legendary = 1,
+        Campaign = 2,
+        Calling = 3,
+        Meta = 4,
+        Recurring = 5,
+        Questline = 6,
+        Normal = 7,
+        BonusObjective = 8,
+        Threat = 9,
+        WorldQuest = 10,
+    },
     ItemClass = { Weapon = 2, Questitem = 12, Miscellaneous = 15 },
     ItemWeaponSubclass = { Sword1H = 7, Dagger = 15 },
 }
@@ -1800,7 +1867,9 @@ C_Container = {
 
 -- Quests ----------------------------------------------------------------------------------
 -- world.questLog entries: { questID, title, distance (yards, nil = no location),
--- offContinent, onMap (true, or its position { x, y } on any map; 0.5, 0.5 for true),
+-- offContinent, onMap (true, or its position { x, y, mapID }: on that map only, or on any map
+-- without mapID; 0.5, 0.5 on any map for true), waypoint (where the game sends the player
+-- next: { x, y, mapID }, likewise), isMapIndicatorQuest,
 -- isHeader, isHidden, isTask, isBounty, isWorldQuest,
 -- tagID (Enum.QuestTag, nil = untagged),
 -- objectives = { { text, finished, numFulfilled, numRequired }, ... } }.
@@ -1822,6 +1891,18 @@ local function WatchIndex(questID)
 end
 
 Constants = { QuestWatchConsts = { MAX_QUEST_WATCHES = 25 } }
+
+-- A quest's classification: the log's quest.classification, else Normal.
+C_QuestInfoSystem = {
+    GetQuestClassification = function(questID)
+        for _, quest in ipairs(world.questLog) do
+            if quest.questID == questID then
+                return quest.classification or Enum.QuestClassification.Normal
+            end
+        end
+        return Enum.QuestClassification.Normal
+    end,
+}
 
 C_QuestLog = {
     -- Only the soft interact object is modelled (see Soft interact below).
@@ -1859,15 +1940,20 @@ C_QuestLog = {
     end,
     -- Returns nothing while the client has no quest data for the map (seen
     -- after a zone change on a boat).
-    GetQuestsOnMap = function()
+    GetQuestsOnMap = function(uiMapID)
         if world.mapQuestsUnavailable then
             return
         end
         local pois = {}
         for _, quest in ipairs(world.questLog) do
-            if quest.onMap then
-                local position = type(quest.onMap) == "table" and quest.onMap or { x = 0.5, y = 0.5 }
-                table.insert(pois, { questID = quest.questID, x = position.x, y = position.y })
+            local position = type(quest.onMap) == "table" and quest.onMap or { x = 0.5, y = 0.5 }
+            if quest.onMap and (not position.mapID or position.mapID == uiMapID) then
+                table.insert(pois, {
+                    questID = quest.questID,
+                    x = position.x,
+                    y = position.y,
+                    isMapIndicatorQuest = quest.isMapIndicatorQuest,
+                })
             end
         end
         return pois
@@ -1912,6 +1998,10 @@ C_QuestLog = {
     GetTitleForQuestID = function(questID)
         local quest = FindQuest(questID)
         return quest and quest.title
+    end,
+    IsComplete = function(questID)
+        local quest = FindQuest(questID)
+        return quest and quest.isComplete or false
     end,
     GetLogIndexForQuestID = function(questID)
         for index, quest in ipairs(world.questLog) do
@@ -2043,6 +2133,11 @@ function UnitIsGroupLeader(unit)
     local index = unit:match("^party(%d)$")
     local member = index and world.partyMembers[tonumber(index)]
     return member ~= nil and member.leader == true
+end
+
+-- The party's other members (party1 to partyN).
+function GetNumSubgroupMembers()
+    return world.party and #world.partyMembers or 0
 end
 
 function GetNumGroupMembers()
@@ -2746,8 +2841,13 @@ C_SuperTrack = {
         world:Fire("SUPER_TRACKING_CHANGED")
         EventRegistry:TriggerEvent("Supertracking.OnChanged")
     end,
+    -- (the client fires SUPER_TRACKING_CHANGED on a change)
     SetSuperTrackedUserWaypoint = function(superTracked)
+        local changed = (world.superTrackingWaypoint == true) ~= superTracked
         world.superTrackingWaypoint = superTracked
+        if changed then
+            world:Fire("SUPER_TRACKING_CHANGED")
+        end
     end,
     IsSuperTrackingUserWaypoint = function()
         return world.superTrackingWaypoint == true
@@ -2844,11 +2944,25 @@ function GetInstanceInfo()
     return continent.name, "none", 0, "", 0, 0, false, position.continentID
 end
 
+-- Where `unit` is: world.position for the player, a party member's own `position`
+-- (same shape) for "partyN"; nil for a member without one.
+local function UnitPositionOf(unit)
+    if unit == nil or unit == "player" then
+        return world.position
+    end
+    local index = unit:match("^party(%d)$")
+    local member = index and world.partyMembers[tonumber(index)]
+    return member and member.position
+end
+
 C_Map = {
     -- Nothing in an instance without a map (the Stockade, 34, on build 70888);
     -- the continent for a moment after a loading screen (world.onContinentMap).
-    GetBestMapForUnit = function()
-        local position = world.position
+    GetBestMapForUnit = function(unit)
+        local position = UnitPositionOf(unit)
+        if not position then
+            return nil
+        end
         if position.instanceID then
             if INSTANCES_WITHOUT_MAP[position.instanceID] then
                 return nil
@@ -2883,8 +2997,10 @@ C_Map = {
     end,
     -- Nil off the player's continent and in an instance, like the client.
     GetPlayerMapPosition = function(uiMapID, unit)
-        assert(unit == "player", "only the player is modelled")
-        local position = world.position
+        local position = UnitPositionOf(unit)
+        if not position then
+            return nil
+        end
         if not position.instanceID and MAP_CONTINENTS[uiMapID] == position.continentID then
             return { x = position.x / MAP_SIZE, y = position.y / MAP_SIZE }
         end
@@ -2900,9 +3016,9 @@ C_Map = {
         world:Fire("USER_WAYPOINT_UPDATED")
         return true
     end,
+    -- (super tracking left as it is: Blizzard's callers clear it themselves)
     ClearUserWaypoint = function()
         world.waypoint = nil
-        world.superTrackingWaypoint = false
         world:Fire("USER_WAYPOINT_UPDATED")
     end,
     HasUserWaypoint = function()
@@ -3018,7 +3134,13 @@ function strsplit(delimiters, text, pieces)
 end
 
 function CreateVector2D(x, y)
-    return { x = x, y = y }
+    return {
+        x = x,
+        y = y,
+        GetXY = function(self)
+            return self.x, self.y
+        end,
+    }
 end
 
 function CreateFromMixins(...)
@@ -3290,11 +3412,18 @@ end
 function QuestPinMixin:GetQuestID()
     return self.questID
 end
+-- A click super-tracks the quest (Blizzard's goes through POIButtonMixin.OnClick).
+function QuestPinMixin:OnMouseClickAction()
+    C_SuperTrack.SetSuperTrackedQuestID(self.questID)
+end
 
 templates.QuestPinTemplate = function(frame)
     Mixin(frame, QuestPinMixin)
 end
-templates.ForeverEnhancedQuestPinTemplate = templates.QuestPinTemplate
+templates.ForeverEnhancedQuestPinTemplate = function(frame)
+    frame:EnableMouse(true)
+    Mixin(frame, ForeverEnhanced:GetFeature("map", "seamless").Quests.PinMixin)
+end
 
 function QuestMapFrame_GetFocusedQuestID()
     return QuestMapFrame.DetailsFrame.questID
@@ -3306,11 +3435,33 @@ function QuestDataProviderMixin:GetPinTemplate()
     return "QuestPinTemplate"
 end
 
+-- Blizzard's registers its events and callbacks as the map shows (RegisterEvents) and
+-- drops them as it hides, all but the super tracking one.
 function QuestDataProviderMixin:OnShow()
+    self:RegisterEvents()
+end
+
+function QuestDataProviderMixin:OnHide()
+    self:UnregisterEvents()
+end
+
+function QuestDataProviderMixin:RegisterEvents()
+    self:GetMap():RegisterCallback("SetFocusedQuestID", self.RefreshAllData, self)
+    self:GetMap():RegisterCallback("ClearFocusedQuestID", self.RefreshAllData, self)
     EventRegistry:RegisterCallback("Supertracking.OnChanged", function()
         self:RefreshAllData()
     end, self)
 end
+
+function QuestDataProviderMixin:UnregisterEvents()
+    self:GetMap():UnregisterCallback("SetFocusedQuestID", self)
+    self:GetMap():UnregisterCallback("ClearFocusedQuestID", self)
+end
+
+function QuestDataProviderMixin:OnCVarUpdate() end
+function QuestDataProviderMixin:SetBounty() end
+function QuestDataProviderMixin:OnPingQuestID() end
+function QuestDataProviderMixin:OnHighlightedQuestPOIChange() end
 
 function QuestDataProviderMixin:RemoveAllData()
     self:GetMap():RemoveAllPinsByTemplate(self:GetPinTemplate())
@@ -3390,6 +3541,19 @@ function WorldMapFrame:RemoveDataProvider(provider)
     provider:RemoveAllData()
     self.dataProviders[provider] = nil
     provider:OnRemoved(self)
+end
+
+-- The map's callbacks (CallbackRegistryMixin): event -> owner -> callback. Nothing triggers them here.
+WorldMapFrame.mapCallbacks = {}
+function WorldMapFrame:RegisterCallback(event, callback, owner)
+    self.mapCallbacks[event] = self.mapCallbacks[event] or {}
+    self.mapCallbacks[event][owner] = callback
+end
+
+function WorldMapFrame:UnregisterCallback(event, owner)
+    if self.mapCallbacks[event] then
+        self.mapCallbacks[event][owner] = nil
+    end
 end
 
 function WorldMapFrame:GetMapID()
@@ -3526,6 +3690,10 @@ end
 
 -- The map's pin button (Blizzard's WorldMapTrackingPinButton): while it's on, a click places a map pin.
 WorldMapFrame.WorldMapTrackingPinButton = { isActive = false }
+
+-- The quest log's toggle, in the canvas's corner, in the map's own strata (no frameStrata
+-- of its own in Blizzard's template, unlike the map's other controls).
+WorldMapFrame.SidePanelToggle = CreateFrame("Button", nil, WorldMapFrame)
 
 -- Blizzard's map pins (WaypointLocationDataProvider, priority 90): Ctrl Click, or a click
 -- with the pin button on, puts the pin on the map shown, where the cursor is on it.
@@ -3684,12 +3852,16 @@ end)
 -- The map's view: Blizzard's MapCanvasScrollControllerMixin, the parts the addon
 -- touches. 1000 x 700 at (100, 100) from the screen's top left. Scrolls are
 -- normalized on the canvas (the map's art), the view's middle; the canvas scale is
--- view px per canvas unit. Zoom levels come from the map's art layer (one level:
--- the map fits the view), and the scroll extents keep the view on the map.
+-- view px per canvas unit. Zoom levels come from the map's art layer like
+-- Blizzard's (the widest fits the view), and the scroll extents keep the view on
+-- the map. The world map zooms instantly (ShouldZoomInstantly): right after a
+-- wheel notch, GetCanvasScale() already equals targetScale (measured in game).
 local scroll = CreateFrame("ScrollFrame", nil, WorldMapFrame)
 WorldMapFrame.ScrollContainer = scroll
 scroll:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 100, -100)
 scroll:SetSize(1000, 700)
+scroll:EnableMouse(true)
+scroll:EnableMouseWheel(true)
 scroll.Child = CreateFrame("Frame", nil, scroll)
 scroll.mouseButtonInfo = { LeftButton = { down = false }, RightButton = { down = false } }
 scroll.mouseWheelZoomMode = MAP_CANVAS_MOUSE_WHEEL_ZOOM_BEHAVIOR_FULL
@@ -3718,10 +3890,34 @@ function scroll:OnCanvasSizeChanged()
     self:ResetZoom()
 end
 
+-- What CreateZoomLevels last built (fake only: for world:BlizzardMapWrites).
+local builtZoomLevels, builtBaseScale
+
+-- Blizzard's (MapCanvas_ScrollContainerMixin, `forever` branch): the scale fitting the
+-- first layer in the view, then per layer 2 + additionalZoomSteps levels from minScale
+-- to maxScale (one when they're equal), always increasing, each times that base scale.
 function scroll:CreateZoomLevels()
-    local layer = C_Map.GetMapArtLayers(self.mapID)[1]
-    self.baseScale = math.min(self:GetWidth() / layer.layerWidth, self:GetHeight() / layer.layerHeight)
-    self.zoomLevels = { { scale = self.baseScale, layerIndex = 1 } }
+    local layers = C_Map.GetMapArtLayers(self.mapID)
+    self.baseScale = math.min(self:GetWidth() / layers[1].layerWidth, self:GetHeight() / layers[1].layerHeight)
+    local currentScale = 0
+    local MIN_SCALE_DELTA = 0.01
+    self.zoomLevels = {}
+    for layerIndex, layer in ipairs(layers) do
+        local numZoomLevels, zoomDeltaPerStep
+        local zoomDelta = layer.maxScale - layer.minScale
+        if zoomDelta > 0 then
+            numZoomLevels = 2 + layer.additionalZoomSteps
+            zoomDeltaPerStep = zoomDelta / (numZoomLevels - 1)
+        else
+            numZoomLevels, zoomDeltaPerStep = 1, 1
+        end
+        for zoomLevelIndex = 0, numZoomLevels - 1 do
+            currentScale = math.max(layer.minScale + zoomDeltaPerStep * zoomLevelIndex, currentScale + MIN_SCALE_DELTA)
+            local desiredScale = currentScale * self.baseScale
+            table.insert(self.zoomLevels, { scale = desiredScale == 0 and 1 or desiredScale, layerIndex = layerIndex })
+        end
+    end
+    builtZoomLevels, builtBaseScale = self.zoomLevels, self.baseScale
 end
 
 function scroll:SetCanvasSize(width, height)
@@ -3798,6 +3994,42 @@ function scroll:ZoomOut()
     if zoomOut < self:GetCanvasScale() then
         self:InstantPanAndZoom(zoomOut, self.targetScrollX, self.targetScrollY)
     end
+end
+
+function scroll:ShouldZoomInstantly()
+    return true
+end
+
+function scroll:SetPanTarget(x, y)
+    self.targetScrollX, self.targetScrollY = x, y
+end
+
+function scroll:GetScaleForMinZoom()
+    return self.zoomLevels[1].scale
+end
+
+function scroll:GetScaleForMaxZoom()
+    return self.zoomLevels[#self.zoomLevels].scale
+end
+
+function scroll:IsAtMinZoom()
+    return self:GetCanvasScale() == self:GetScaleForMinZoom()
+end
+
+function scroll:IsAtMaxZoom()
+    return self:GetCanvasScale() == self:GetScaleForMaxZoom()
+end
+
+function scroll:IsZoomingIn()
+    return self:GetCanvasScale() < self.targetScale
+end
+
+function scroll:IsZoomingOut()
+    return self.targetScale < self:GetCanvasScale()
+end
+
+function scroll:CanPan()
+    return self:GetCanvasScale() > self.baseScale
 end
 
 function scroll:GetCanvasScale()
@@ -3908,9 +4140,18 @@ scroll:SetScript("OnUpdate", function(self, elapsed)
     end
 end)
 
+-- Blizzard's wheel in its world map's mode (full steps, zooming instantly): unless
+-- already at the last level that way, the pan's target goes to the point under the
+-- cursor, then the view zooms a level in or out about it (InstantPanAndZoom's scale
+-- ratio keeps that point under the cursor). The smooth mode isn't modelled.
 scroll:SetScript("OnMouseWheel", function(self, delta)
-    if self.mouseWheelZoomMode == MAP_CANVAS_MOUSE_WHEEL_ZOOM_BEHAVIOR_NONE then
+    local mode = self.mouseWheelZoomMode
+    if mode == MAP_CANVAS_MOUSE_WHEEL_ZOOM_BEHAVIOR_NONE then
         return
+    end
+    assert(mode == MAP_CANVAS_MOUSE_WHEEL_ZOOM_BEHAVIOR_FULL, "unmodelled mouse wheel zoom mode")
+    if not (delta > 0 and self:IsAtMaxZoom() or delta <= 0 and self:IsAtMinZoom()) then
+        self:SetPanTarget(self:CanvasPoint(self:GetCursorPosition()))
     end
     if delta > 0 then
         self:ZoomIn()
@@ -3918,6 +4159,140 @@ scroll:SetScript("OnMouseWheel", function(self, delta)
         self:ZoomOut()
     end
 end)
+
+-- Writes into Blizzard's map from addon code (fake only): world:BlizzardMapWrites()
+-- lists them, for the invariant that an addon drawing its own map leaves Blizzard's
+-- alone. Addon code is a function from the addon's files (chunks "@core/...",
+-- "@modules/..."; not the debug addon's nor the tests'). Blizzard's methods that
+-- change the map record "<owner>:<method>" when addon code is on the stack above the
+-- newest secure boundary: C_Map.OpenWorldMap runs Blizzard's code inside one, so
+-- what it does isn't the addon's (an addon function it calls back still is). The
+-- player's own input runs no addon code underneath (addon post-hooks run after
+-- Blizzard's, not around it). A tail call from addon code hides it from the stack.
+local mapWrites = {}
+local secureBoundaries = {}
+
+-- The caller's depth from the stack's bottom (1).
+local function StackDepth()
+    local levels = 1
+    while debug.getinfo(levels + 1, "") do
+        levels = levels + 1
+    end
+    return levels - 1
+end
+
+local function IsAddonSource(source)
+    return source:sub(1, 6) == "@core/" or source:sub(1, 9) == "@modules/"
+end
+
+local function AddonCodeAboveBoundary()
+    local boundary = secureBoundaries[#secureBoundaries] or 0
+    -- (this function sits at `depth` from the stack's bottom, the one at level L at
+    -- depth - L + 1)
+    local depth = StackDepth()
+    local level = 2
+    while depth - level + 1 > boundary do
+        local info = debug.getinfo(level, "S")
+        if not info then
+            return false
+        end
+        if IsAddonSource(info.source) then
+            return true
+        end
+        level = level + 1
+    end
+    return false
+end
+
+-- Runs func(...) as Blizzard's secure code: addon code below doesn't own its writes.
+local function RunSecurely(func, ...)
+    table.insert(secureBoundaries, StackDepth())
+    local ok, err = xpcall(func, debug.traceback, ...)
+    table.remove(secureBoundaries)
+    if not ok then
+        error(err, 0)
+    end
+end
+
+local function RecordMapWrite(entry)
+    if not mapWrites[entry] then
+        mapWrites[entry] = true
+        table.insert(mapWrites, entry)
+    end
+end
+
+-- Wraps owner[method] (its own, or the Region method it inherits, looked up at call time).
+local function WatchMapWrites(owner, ownerName, methods)
+    for _, method in ipairs(methods) do
+        local own = rawget(owner, method)
+        owner[method] = function(self, ...)
+            if AddonCodeAboveBoundary() then
+                RecordMapWrite(ownerName .. ":" .. method)
+            end
+            if own then
+                return own(self, ...)
+            end
+            return Region[method](self, ...)
+        end
+    end
+end
+
+WatchMapWrites(
+    WorldMapFrame,
+    "WorldMapFrame",
+    { "SetMapID", "AddCanvasClickHandler", "AddGlobalPinMouseActionHandler", "RefreshDetailLayers" }
+)
+WatchMapWrites(scroll, "ScrollContainer", {
+    "SetMapID",
+    "InstantPanAndZoom",
+    "ResetZoom",
+    "ZoomIn",
+    "ZoomOut",
+    "SetMouseWheelZoomMode",
+    "SetScalingMode",
+    "CreateZoomLevels",
+    "SetCanvasSize",
+})
+WatchMapWrites(frameLevels, "PinFrameLevels", { "InsertFrameLevelAbove" })
+WatchMapWrites(detailLayer, "DetailLayer", { "Show", "Hide", "SetShown", "SetAlpha" })
+WatchMapWrites(explorationPin, "ExplorationPin", { "Show", "Hide", "SetShown", "SetAlpha" })
+
+-- Blizzard's functions as the client loaded them, against which replacements show.
+local blizzardMapFunctions = {
+    { scroll, "CalculateScrollExtentsAtScale", "ScrollContainer.CalculateScrollExtentsAtScale" },
+    { MapCanvasPinMixin, "CheckMouseButtonPassthrough", "MapCanvasPinMixin.CheckMouseButtonPassthrough" },
+    { SuperTrackablePinMixin, "UpdateMousePropagation", "SuperTrackablePinMixin.UpdateMousePropagation" },
+}
+for _, entry in ipairs(blizzardMapFunctions) do
+    entry[4] = entry[1][entry[2]]
+end
+
+-- Whether func is original, or secure hooks around it.
+local function IsHookedOriginal(func, original)
+    while func and func ~= original do
+        func = secureHookOriginals[func]
+    end
+    return func == original
+end
+
+-- The writes into Blizzard's map made from addon code so far, each once, in the order
+-- first seen: "<owner>:<method>" for a call, "replaced <owner>.<name>" for a function
+-- replaced (not secure post-hooked), "wrote zoomLevels" / "wrote baseScale" for zoom
+-- levels other than Blizzard's CreateZoomLevels last built.
+function world:BlizzardMapWrites()
+    for _, entry in ipairs(blizzardMapFunctions) do
+        if not IsHookedOriginal(entry[1][entry[2]], entry[4]) then
+            RecordMapWrite("replaced " .. entry[3])
+        end
+    end
+    if scroll.zoomLevels ~= builtZoomLevels then
+        RecordMapWrite("wrote zoomLevels")
+    end
+    if scroll.baseScale ~= builtBaseScale then
+        RecordMapWrite("wrote baseScale")
+    end
+    return { unpack(mapWrites) }
+end
 
 -- world.mouse: the cursor on screen, { x, y } from the bottom left.
 world.mouse = { x = 0, y = 0 }
@@ -4083,6 +4458,10 @@ C_Map.GetMapInfoAtPosition = function(uiMapID, x, y)
     return GetMapInfo(best or uiMapID)
 end
 
+-- One art layer per map; world.mapMaxScale[uiMapID] sets how far in its view zooms
+-- (1, the default: one zoom level, the map fitting the view).
+world.mapMaxScale = {}
+
 C_Map.GetMapArtLayers = function(uiMapID)
     if MAPS[uiMapID] then
         return {
@@ -4092,11 +4471,34 @@ C_Map.GetMapArtLayers = function(uiMapID)
                 tileWidth = MAP_ART.tile,
                 tileHeight = MAP_ART.tile,
                 minScale = 1,
-                maxScale = 1,
+                maxScale = world.mapMaxScale[uiMapID] or 1,
                 additionalZoomSteps = 0,
             },
         }
     end
+end
+
+-- Measured in game: from addon code, out of combat, it opens the map like the player
+-- would, without taint (Blizzard's code runs it: ShowUIPanel if the map is closed,
+-- then SetMapID, which shows the map's widest view). In combat the game refuses it
+-- (ADDON_ACTION_BLOCKED) and the map doesn't change. world.openWorldMapCalls lists
+-- the calls: { mapID, hardware } (whether from a click or a key press).
+world.openWorldMapCalls = {}
+
+C_Map.OpenWorldMap = function(uiMapID)
+    if world.inCombat then
+        table.insert(world.forbidden, "OpenWorldMap")
+        return
+    end
+    table.insert(world.openWorldMapCalls, { mapID = uiMapID, hardware = world.hardware > 0 })
+    RunSecurely(function()
+        if not WorldMapFrame:IsShown() then
+            ShowUIPanel(WorldMapFrame)
+        end
+        if uiMapID then
+            WorldMapFrame:SetMapID(uiMapID)
+        end
+    end)
 end
 
 -- The art's tiles, row-major: file IDs uiMapID * 100 + 1, + 2, ...
@@ -4125,8 +4527,12 @@ C_MapExplorationInfo = {
 
 -- UI globals ---------------------------------------------------------------------------
 
+-- world.tooltipOwner: the frame owning it (SetOwner, or a test hovering one: world:HoverZoneText);
+-- world.tooltipShown: whether it shows.
 GameTooltip = {
-    SetOwner = NoOp,
+    SetOwner = function(_, owner)
+        world.tooltipOwner = owner
+    end,
     SetBagItem = NoOp,
     SetItemByID = function(_, itemID)
         world.tooltip = itemID
@@ -4147,9 +4553,13 @@ GameTooltip = {
     GetName = function()
         return "GameTooltip"
     end,
-    Show = NoOp,
-    Hide = NoOp,
-    -- world.tooltipOwner: the frame a test hovers (world:HoverZoneText).
+    Show = function()
+        world.tooltipShown = true
+    end,
+    Hide = function()
+        world.tooltipShown = false
+        world.tooltipOwner = nil
+    end,
     IsOwned = function(_, owner)
         return world.tooltipOwner ~= nil and world.tooltipOwner == owner
     end,
@@ -4223,7 +4633,181 @@ SOUNDKIT = setmetatable({}, {
     end,
 })
 
-PlaySound = NoOp
+-- world.sounds: the sounds played, by SOUNDKIT name.
+world.sounds = {}
+PlaySound = function(sound)
+    table.insert(world.sounds, sound)
+end
+
+-- The world map's own: its quest objectives filter (questPOI), its map pin rule, its
+-- cursor (world.mapCursor), the corpse (world.corpse: mapID -> { x, y }), a map's level
+-- range (world.mapLevels: mapID -> { low, high }), the area named at a zone's point
+-- (world.areaNames: mapID -> name), and the quest the quest log's hovered entry lights up
+-- (world.logHighlight).
+world.cvars.questpoi = "1"
+world.corpse = {}
+world.mapLevels = {}
+world.areaNames = {}
+
+function GetCVarBool(name)
+    return C_CVar.GetCVar(name) == "1"
+end
+
+Enum.GameRule = { WorldMapTrackingPinDisabled = 1 }
+C_GameRules = {
+    IsGameRuleActive = function()
+        return false
+    end,
+}
+
+function SetCursor(cursor)
+    world.mapCursor = cursor
+end
+
+function ResetCursor()
+    world.mapCursor = nil
+end
+
+C_DeathInfo = {
+    GetCorpseMapPosition = function(mapID)
+        local corpse = world.corpse[mapID]
+        return corpse and CreateVector2D(corpse.x, corpse.y)
+    end,
+}
+
+C_Map.GetMapLevels = function(mapID)
+    local levels = world.mapLevels[mapID]
+    if levels then
+        return levels[1], levels[2], 0, 0
+    end
+    return 0, 0, 0, 0
+end
+
+MapUtil = {
+    FindBestAreaNameAtMouse = function(mapID)
+        return world.areaNames[mapID]
+    end,
+}
+
+-- Difficulty colours by level against the player's, as DifficultyUtil's (enough to tell apart).
+QuestDifficultyColors = {
+    impossible = CreateColor(1, 0.1, 0.1),
+    difficult = CreateColor(1, 0.82, 0),
+    standard = CreateColor(0.25, 0.75, 0.25),
+    trivial = CreateColor(0.5, 0.5, 0.5),
+}
+function GetQuestDifficultyColor(level)
+    local difference = level - world.player.level
+    if difference >= 5 then
+        return QuestDifficultyColors.impossible
+    elseif difference >= -2 then
+        return QuestDifficultyColors.difficult
+    elseif difference >= -8 then
+        return QuestDifficultyColors.standard
+    end
+    return QuestDifficultyColors.trivial
+end
+
+function RGBTableToColorCode(color)
+    local r, g, b = color:GetRGB()
+    return ("|cff%02x%02x%02x"):format(math.floor(r * 255), math.floor(g * 255), math.floor(b * 255))
+end
+
+FONT_COLOR_CODE_CLOSE = "|r"
+
+POIButtonHighlightManager = {
+    GetQuestID = function()
+        return world.logHighlight
+    end,
+}
+
+-- Quest tooltips (QuestPinMixin's lines): world.questLog entries' `waypoint` ({ x, y } on
+-- any map: where the game sends the player next) and `waypointText`; `noData` (its data
+-- not loaded), `isBonus` (a bonus objective).
+function HaveQuestData(questID)
+    local quest = FindQuest(questID)
+    return quest ~= nil and not quest.noData
+end
+
+function QuestUtils_IsQuestBonusObjective(questID)
+    local quest = FindQuest(questID)
+    return quest ~= nil and quest.isBonus == true
+end
+
+function QuestUtils_IsQuestWatched(questID)
+    return WatchIndex(questID) ~= nil
+end
+
+function SetQuestTitleLevelAndDifficultyColor(_, title)
+    return title
+end
+
+QuestUtils_AddQuestTypeToTooltip = NoOp
+GameTooltip_CheckAddQuestTimeToTooltip = NoOp
+
+C_QuestLog.GetNextWaypointText = function(questID)
+    local quest = FindQuest(questID)
+    return quest and quest.waypointText
+end
+
+C_QuestLog.GetNextWaypointForMap = function(questID, uiMapID)
+    local quest = FindQuest(questID)
+    if quest and quest.waypoint and (not quest.waypoint.mapID or quest.waypoint.mapID == uiMapID) then
+        return quest.waypoint.x, quest.waypoint.y
+    end
+end
+
+function GetNumQuestItemDrops()
+    return 0
+end
+
+function GetNumQuestLeaderBoards(logIndex)
+    local quest = world.questLog[logIndex]
+    return quest and quest.objectives and #quest.objectives or 0
+end
+
+function GetQuestLogLeaderBoard(index, logIndex)
+    local objective = world.questLog[logIndex].objectives[index]
+    return objective.text, "monster", objective.finished
+end
+
+GetQuestLogItemDrop = GetQuestLogLeaderBoard
+
+QUEST_DASH = "- "
+GREEN_FONT_COLOR = CreateColor(0.1, 1, 0.1)
+MAP_PIN_SHARING = "Map Pin"
+MAP_PIN_SHARING_TOOLTIP = "<Shift Click to Share>"
+MAP_PIN_REMOVE = "<Ctrl Click to Remove>"
+CORPSE_RED = "|cffff2020Corpse|r"
+MAX_PARTY_MEMBERS = 4
+MAX_RAID_MEMBERS = 40
+
+function GameTooltip_SetTitle(tooltip, text)
+    tooltip:SetText(text)
+end
+
+function GameTooltip_AddColoredLine(tooltip, text)
+    tooltip:AddLine(text)
+end
+
+function UnitInSubgroup()
+    return true
+end
+
+QuestUtil = {
+    CanRemoveQuestWatch = function()
+        return true
+    end,
+}
+
+-- A quest's link put in chat by Shift Click, while the chat edit box is open (world.chatBoxOpen).
+function ChatFrameUtil.TryInsertQuestLinkForQuestID(questID)
+    if IsModifiedClick("CHATLINK") and world.chatBoxOpen then
+        table.insert(world.chatLinks, "quest:" .. questID)
+        return true
+    end
+    return false
+end
 
 -- Slash commands, as in the client: addons fill SlashCmdList and SLASH_<KEY>n, and
 -- every chat line moves them into hash_SlashCmdList (keyed by the uppercase
@@ -6213,13 +6797,6 @@ function world:PointMouseAt(u, v)
     }
 end
 
--- The point of Azeroth's map (normalized) under the mouse, as the world map shows it now.
-function world:MapPointUnderMouse()
-    local rect = MAPS[WorldMapFrame.mapID].rect
-    local x, y = WorldMapFrame.ScrollContainer:CanvasPoint(GetCursorPosition())
-    return rect[1] + x * (rect[2] - rect[1]), rect[3] + y * (rect[4] - rect[3])
-end
-
 -- Whether Blizzard's own art of the map shown is drawn: its detail layers and its explored areas.
 function world:IsBlizzardMapArtShown()
     return detailLayer:IsShown() and explorationPin:IsShown()
@@ -6238,45 +6815,139 @@ function world:SetMapRect(mapID, rect)
     MAPS[mapID].rect = rect
 end
 
+-- The mouse over the world map: the frame under world.mouse that gets the input, among
+-- WorldMapFrame's descendants. Like the client: a visible frame taking that input
+-- (EnableMouse for clicks, not passing the button through; EnableMouseWheel for the
+-- wheel) whose rect holds the mouse, the topmost (frame level, then the latest
+-- created). Frames without a rect (pins have none here) are skipped, and scales
+-- aren't applied (GetScreenRect); nil with none (the mouse off the map).
+local function MapFrameUnderMouse(button)
+    local best
+    for _, frame in ipairs(world.frames) do
+        local ancestor = frame.parent
+        while ancestor and ancestor ~= WorldMapFrame do
+            ancestor = ancestor.parent
+        end
+        local takes
+        if button then
+            takes = frame.mouseEnabled and not (frame.passThroughButtons and frame.passThroughButtons[button])
+        else
+            takes = frame.mouseWheelEnabled
+        end
+        if ancestor and takes and frame:IsVisible() then
+            local ok, left, bottom, width, height = pcall(frame.GetScreenRect, frame)
+            local x, y = world.mouse.x, world.mouse.y
+            if
+                ok
+                and left
+                and width > 0
+                and height > 0
+                and x >= left
+                and x <= left + width
+                and y >= bottom
+                and y <= bottom + height
+                and (not best or frame:GetFrameLevel() >= best:GetFrameLevel())
+            then
+                best = frame
+            end
+        end
+    end
+    return best
+end
+
+-- The frame a click or the wheel from `helper` goes to: one must be under the mouse.
+local function InputFrameUnderMouse(button, helper)
+    return assert(MapFrameUnderMouse(button), helper .. ": the mouse isn't over the world map")
+end
+
+-- Runs a frame's script from a click or a turn of the wheel (world.hardware).
+local function DeliverMouse(frame, script, ...)
+    world.hardware = world.hardware + 1
+    frame:RunScript(script, ...)
+    world.hardware = world.hardware - 1
+end
+
+-- The frame the mouse is over on the world map, for a click of `button` or, without
+-- one, for the wheel.
+function world:MapFrameUnderMouse(button)
+    return MapFrameUnderMouse(button)
+end
+
+-- A mouse button going down where the mouse is: the frame under it gets OnMouseDown,
+-- and keeps the mouse until the button goes up (like the client).
+world.mouseDownFrames = {}
+
+function world:MouseDown(button)
+    button = button or "LeftButton"
+    local frame = InputFrameUnderMouse(button, "MouseDown")
+    self.mouseDownFrames[button] = frame
+    DeliverMouse(frame, "OnMouseDown", button)
+end
+
+-- Moves the mouse to (x, y) on screen (GetCursorPosition's units, from the bottom
+-- left), then runs a frame, so OnUpdate scripts following the cursor see it.
+function world:MoveMouse(x, y)
+    self.mouse = { x = x, y = y }
+    self:NextFrame()
+end
+
+-- The button going up: OnMouseUp to the frame that got it going down.
+function world:MouseUp(button)
+    button = button or "LeftButton"
+    local frame = self.mouseDownFrames[button] or InputFrameUnderMouse(button, "MouseUp")
+    self.mouseDownFrames[button] = nil
+    DeliverMouse(frame, "OnMouseUp", button)
+end
+
+local function AssertBlizzardMapUnderMouse(helper)
+    local frame = MapFrameUnderMouse("LeftButton")
+    assert(
+        frame == WorldMapFrame.ScrollContainer,
+        helper .. " drives Blizzard's map, but the mouse is over another frame: use MouseDown, MoveMouse and MouseUp"
+    )
+end
+
 -- Drags the world map so its view's middle is at (u, v) on Azeroth's map: like
--- Blizzard's drag, the scroll follows the mouse within the scroll extents.
+-- Blizzard's drag, the scroll follows the mouse within the scroll extents. Only over
+-- Blizzard's own map (its scroll container under the mouse).
 function world:DragMap(u, v)
     local scroll = WorldMapFrame.ScrollContainer
     local rect = MAPS[WorldMapFrame.mapID].rect
     local fromU, fromV = self:MapView()
     self:PointMouseAt(fromU, fromV)
-    scroll:RunScript("OnMouseDown", "LeftButton")
+    AssertBlizzardMapUnderMouse("DragMap")
+    DeliverMouse(scroll, "OnMouseDown", "LeftButton")
     local x, y = (u - rect[1]) / (rect[2] - rect[1]), (v - rect[3]) / (rect[4] - rect[3])
     scroll:InstantPanAndZoom(scroll:GetCanvasScale(), x, y, true)
     self.mouse = { x = self.mouse.x + 100, y = self.mouse.y }
-    scroll:RunScript("OnMouseUp", "LeftButton")
+    DeliverMouse(scroll, "OnMouseUp", "LeftButton")
 end
 
--- Drags the world map to (u, v) and lets go while still moving: like Blizzard's, the
--- pan's target flings on by `flingU` (of Azeroth's width), and the view eases there.
-function world:FlingMap(u, v, flingU)
-    self:DragMap(u, v)
-    local scroll = WorldMapFrame.ScrollContainer
-    local rect = MAPS[WorldMapFrame.mapID].rect
-    scroll.targetScrollX = scroll.targetScrollX + flingU / (rect[2] - rect[1])
-end
-
--- Turns the mouse wheel over the world map (up: delta 1).
+-- Turns the mouse wheel where the mouse is over the world map (up: delta 1): the
+-- frame under it taking the wheel gets OnMouseWheel.
 function world:MapWheel(delta)
-    WorldMapFrame.ScrollContainer:RunScript("OnMouseWheel", delta)
+    DeliverMouse(InputFrameUnderMouse(nil, "MapWheel"), "OnMouseWheel", delta)
 end
 
--- Clicks the world map where the mouse is.
+-- Clicks the world map where the mouse is: OnMouseDown, then OnMouseUp, both to the
+-- frame under the mouse.
 function world:MapClick(button)
-    local scroll = WorldMapFrame.ScrollContainer
-    scroll:RunScript("OnMouseDown", button or "LeftButton")
-    scroll:RunScript("OnMouseUp", button or "LeftButton")
+    button = button or "LeftButton"
+    local frame = InputFrameUnderMouse(button, "MapClick")
+    DeliverMouse(frame, "OnMouseDown", button)
+    DeliverMouse(frame, "OnMouseUp", button)
 end
 
 -- Clicks a map pin, the mouse over it.
 function world:ClickPin(pin, button)
     self.mouseOver = pin
     pin:OnClick(button or "LeftButton")
+end
+
+-- Clicks a map pin of ours whose OnMouseUp handles the click (pins have no rect here, so
+-- the mouse can't be put over them): the button let go over it, unless `upInside` is false.
+function world:ClickOwnPin(pin, button, upInside)
+    DeliverMouse(pin, "OnMouseUp", button or "LeftButton", upInside ~= false)
 end
 
 local function IsDrawn(region)
@@ -6293,42 +6964,6 @@ local function IsDrawn(region)
     return true
 end
 
--- The files of the textures drawn on the world map's canvas (shown, with their frames,
--- and not faded out): file -> how many textures draw it.
-function world:MapArt()
-    local files = {}
-    for _, texture in ipairs(self.textures) do
-        local frame = texture.owner
-        while frame and frame ~= WorldMapFrame.ScrollContainer.Child do
-            frame = frame.parent
-        end
-        if frame and texture.texture and IsDrawn(texture) then
-            files[texture.texture] = (files[texture.texture] or 0) + 1
-        end
-    end
-    return files
-end
-
--- How many of the textures drawn on the world map's canvas with `file` are masked by a
--- mask with `maskFile`.
-function world:MapArtMasked(file, maskFile)
-    local count = 0
-    for _, texture in ipairs(self.textures) do
-        local frame = texture.owner
-        while frame and frame ~= WorldMapFrame.ScrollContainer.Child do
-            frame = frame.parent
-        end
-        if frame and texture.texture == file and IsDrawn(texture) then
-            for _, mask in ipairs(texture.masks or {}) do
-                if mask.texture == maskFile then
-                    count = count + 1
-                end
-            end
-        end
-    end
-    return count
-end
-
 -- The vertex colour ({ r, g, b }) of the first texture with `file`.
 function world:MapArtTint(file)
     for _, texture in ipairs(self.textures) do
@@ -6339,14 +6974,9 @@ function world:MapArtTint(file)
     end
 end
 
--- Where the frame drawing the texture with `file` sits: its first anchor's offsets.
-function world:DrawnAt(file)
-    for _, texture in ipairs(self.textures) do
-        if texture.texture == file and texture.owner.anchors and texture.owner.anchors[1] then
-            local anchor = texture.owner.anchors[1]
-            return anchor[4], anchor[5]
-        end
-    end
+-- Whether `region` is drawn: shown, not transparent, and so is every frame it's on.
+function world:IsRegionDrawn(region)
+    return IsDrawn(region)
 end
 
 -- Whether a texture with `file` is drawn anywhere.
@@ -6590,7 +7220,6 @@ function Region:SetVertexColor(r, g, b)
     end
 end
 
-Region.SetPassThroughButtons = NoOp
 Region.SetMouseMotionEnabled = NoOp
 
 -- Runs a restricted snippet: `signature` names its arguments ("self,stateid,newstate",
@@ -7410,9 +8039,11 @@ end
 function Region:GetStringHeight()
     return 12
 end
-Region.SetFrameStrata = NoOp
+function Region:SetFrameStrata(strata)
+    self.strata = strata
+end
 function Region:GetFrameStrata()
-    return "MEDIUM"
+    return self.strata or "MEDIUM"
 end
 
 -- Blizzard's table and function utilities.

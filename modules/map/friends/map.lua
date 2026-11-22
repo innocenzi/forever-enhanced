@@ -143,6 +143,26 @@ function Map:ClearPosition(guid)
     end
 end
 
+-- Public API, for map.seamless's view over the map: calls func(guid, mapID, x, y) with each
+-- friend's position this shows (unexpired, outside the group), while the feature is active
+-- (none otherwise: callers need no check of their own).
+function Friends:ForEachFriendPosition(func)
+    if not self:IsActive() then
+        return
+    end
+    local now = GetTime()
+    for guid, position in pairs(positions) do
+        if now <= position.expiresAt and not C_PartyInfo.IsGUIDInGroup(guid) then
+            func(guid, position.mapID, position.x, position.y)
+        end
+    end
+end
+
+-- Public API: a friend's name and class file (either may be nil), as their pin's tooltip names them.
+function Friends:DescribeFriend(guid)
+    return Roster:Describe(guid)
+end
+
 function Map:OnPosition(guid, mapID, x, y)
     peers[guid] = true
     self:SetPosition(guid, mapID, x, y, POSITION_SECONDS)

@@ -1,7 +1,5 @@
--- The player's arrow, while the map underneath can't show it: Blizzard draws the
--- player only on a map they're on, and the stitched map shows the neighbours too
--- (on Westfall's map, the player just over the border in Elwynn Forest). On the
--- map's view, not its canvas, so it keeps its size as the map zooms.
+-- The player's arrow on the seamless view, which covers Blizzard's map and its
+-- own arrow. On the view, not its canvas, so it keeps its size as the map zooms.
 
 local _, ns = ...
 
@@ -10,7 +8,11 @@ local Seamless = ns:GetFeature("map", "seamless")
 local Arrow = {}
 Seamless.Arrow = Arrow
 
-local SIZE = 28
+-- Blizzard's own arrow on its map (GroupMembersDataProvider's player pin), so the two match as
+-- the view fades in and out over it.
+local ATLAS = "UI-WorldMapArrow"
+local SIZE = 27
+Arrow.SIZE = SIZE
 
 local frame, texture
 
@@ -21,10 +23,9 @@ function Arrow:Show(view, level, x, y, facing)
         frame:SetSize(SIZE, SIZE)
         texture = frame:CreateTexture(nil, "OVERLAY")
         texture:SetAllPoints()
-        texture:SetTexture("Interface\\Minimap\\MinimapArrow")
+        texture:SetAtlas(ATLAS)
+        frame:SetFrameLevel(level)
     end
-    frame:SetFrameLevel(level)
-    frame:ClearAllPoints()
     frame:SetPoint("CENTER", view, "CENTER", x, y)
     texture:SetRotation(facing)
     frame:Show()

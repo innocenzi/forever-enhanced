@@ -1,5 +1,12 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/ https://raw.githubusercontent.com/Gethe/wow-ui-source/live/Interface/AddOns/Blizzard_SharedXML/UI.xsd">
-    <!-- A quest on a continent's map (quests.lua): Blizzard's quest pin, in a pool of its own,
-         so Blizzard's provider never reuses a pin our code set up. -->
-    <Button name="ForeverEnhancedQuestPinTemplate" inherits="QuestPinTemplate" virtual="true"/>
+    <!-- A quest on a continent's map: see PinMixin in quests.lua, which draws Blizzard's quest
+         marker on it. The map canvas calls its OnLoad, OnMouseEnter and OnMouseLeave. -->
+    <Frame name="ForeverEnhancedQuestPinTemplate" enableMouse="true" virtual="true">
+        <Size x="20" y="20"/>
+        <Scripts>
+            <OnLoad>
+                Mixin(self, ForeverEnhanced:GetFeature("map", "seamless").Quests.PinMixin)
+            </OnLoad>
+        </Scripts>
+    </Frame>
 </Ui>

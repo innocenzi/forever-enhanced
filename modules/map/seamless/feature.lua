@@ -1,64 +1,51 @@
 -- Seamless World Map: the world map as one map of the whole world. Every zone's
 -- map is drawn in place on one canvas, so zooming out of a zone shows its
 -- neighbours, then the continent, then the world, and the map pans anywhere.
--- It lives in Blizzard's own map: once the view rests, the map underneath
--- becomes the zone (or continent) in the middle of it, so quest areas, map
--- pins, coordinates and other addons' icons belong to what's on screen.
+-- It's a view of our own over Blizzard's map (view.lua), opened by zooming out
+-- past Blizzard's widest view; once the view comes to a zone, Blizzard's map is
+-- opened on it and the view fades out, so quest areas, map pins, coordinates
+-- and other addons' icons are Blizzard's again.
 --
 -- Built on OpenMap's seamless map (MIT, github.com/openmap-world/openmap,
--- openmap-license.txt): its way of hosting the art in Blizzard's map, and its zone
--- masks and colour matching, from which tools/seamless.ts shares the world out
--- between the zones (each place inside some zone's map is one zone's). Without
--- the rest of that addon (painted gaps and sea, minimap detail, caves, dungeons,
--- icons, the menu): the art is only the game's own maps.
+-- openmap-license.txt): its zone masks and colour matching, from which
+-- tools/seamless.ts shares the world out between the zones (each place inside
+-- some zone's map is one zone's), and its zoom and pan. Without the rest of that
+-- addon (painted gaps and sea, minimap detail, caves, dungeons, icons, the
+-- menu): the art is only the game's own maps.
 --
--- TAINT: the addon's only exception to "never write into Blizzard's frames".
--- Panning past a map's edge and zooming from the whole world down to a street
--- can't be done from outside Blizzard's scroll container (the map's
--- WorldMapFrame.ScrollContainer), so view.lua, once the feature is first
--- turned on:
---   - replaces its CalculateScrollExtentsAtScale (the pan reaches the world,
---     not only the map underneath),
---   - writes its zoomLevels and baseScale (zoom levels from the whole world
---     to street level, in the map underneath's scale),
---   - inserts a pin frame level for the art (PIN_FRAME_LEVEL_FOREVERENHANCED_SEAMLESS),
---   - pans and zooms it from our code (InstantPanAndZoom, SetMapID), sets its
---     mouse wheel and scaling modes (SetMouseWheelZoomMode, SetScalingMode), and
---     hides Blizzard's own art under ours (its detail layers, its explored-area pin).
--- Blizzard's map code then reads values we wrote, and runs tainted. The game
--- blocks some of what tainted code does in combat: a map pin setting its mouse
--- input (SetPassThroughButtons, SetPropagateMouseClicks) as the map refreshes
--- in combat (opening it, the quest log updating). So combat.lua writes its own
--- CheckMouseButtonPassthrough and UpdateMousePropagation, which wait out combat,
--- into every pin mixin made from Blizzard's (MapCanvasPinMixin and
--- SuperTrackablePinMixin themselves, other addons' global mixins too) and into
--- every pin made from one. Shift Click on the map pin copies its /mappin command
--- (CopyToClipboard), which the game blocks from tainted code at any time: waypoint.lua
--- shares the pin in chat without the copy.
--- Known limitation, not worked around: the taint reaches the quest log beside
--- the map and, through it, Blizzard's objective tracker (measured in game, none
--- of it with the feature off and a /reload). Opening a quest's details (from the
--- tracker or the log) shows the map, so the quest log writes the open quest
--- (QuestMapFrame.DetailsFrame.questID, returnMapID, questMapID) from tainted
--- code; clicking a quest on the map changes super tracking from tainted code.
--- The tracker reads the open quest (QuestMapFrame_GetFocusedQuestID) and
--- handles SUPER_TRACKING_CHANGED in every update, so its own state turns tainted
--- for the session, and in combat its update throws on the player's secret
--- auras (ShouldShowMawBuffs, in its scenario module) and stops halfway, and
--- Blizzard never schedules another update: tracker.lua runs it once combat ends
--- (the tracker stays as the error left it until then). The quest log then updates from tainted
--- code too (QuestMapFrame_UpdateAll reads the open quest): in combat (opening
--- the map, the open log refreshing) Blizzard refuses its gamepad navigation
--- marks (SmartNavigation_MarkFrameIgnored on each quest's checkbox and button)
--- and shows "Interface action failed because of an AddOn", once per session;
--- nothing else changes with a mouse. Neither path is ours to shield (Blizzard
--- writes and reads both); avoiding it means not writing into Blizzard's map.
--- What we replaced and wrote can't be put back: turning the feature off hands
--- every replaced method over to Blizzard's and restores Blizzard's zoom levels,
--- view, art and mouse wheel, but the map stays tainted until a /reload, and so
--- combat.lua's waiting, tracker.lua's updates after combat and waypoint.lua's sharing stay on
--- for the session (all OnDisable leaves).
--- The map never changes map underneath in combat.
+-- TAINT: nothing of ours is written into Blizzard's map. Code of ours that
+-- Blizzard's map ran, or values it read from us, would taint the map, then the
+-- quest log beside it (the open quest it writes as the map changes) and, through
+-- it, the objective tracker, for the session: in combat (and in instances, where
+-- the player's auras are secret out of combat too) the tracker's update throws on
+-- them (ShouldShowMawBuffs) and stops halfway, and opening the map is refused its
+-- emote (measured in game, with an earlier version drawing the art inside Blizzard's
+-- map). So:
+--   - the view is a frame of ours over Blizzard's scroll container, above every
+--     pin, with its own canvas, zoom, pan and input;
+--   - Blizzard's map changes map only from the player's input, or from
+--     C_Map.OpenWorldMap called from our own click or wheel handler (measured:
+--     Blizzard's map, quest log and tracker stay untainted; refused in combat);
+--   - what's left in Blizzard's map: a post-hook on its scroll container's wheel
+--     (Blizzard's handler runs first, ours only reads), and data providers (view.lua's
+--     reads the map's changes, quests.lua's puts pins of our own up, no Blizzard quest
+--     pins: they'd run Blizzard's quest code from ours), which the canvas calls from its
+--     own code one by one (secureexecuterange). Their only writes are the canvas's own
+--     extension points (its providers, quests.lua's pin pool) and what every pin addon's
+--     refresh writes (MarkCanvasDirty);
+--   - while the view shows, the two map controls in the map's own strata (the quest
+--     log's toggle, the coordinates panel) are raised over it (SetFrameStrata: no Lua
+--     value of Blizzard's), and put back after;
+--   - the quest log's hovered quest (POIButtonHighlightManager, which lights its marker up)
+--     is only read, through its getter: never set, which runs Blizzard's callbacks from ours.
+-- Placing, removing or tracking a map pin (waypoint.lua) and following a quest (a click on its
+-- marker, watched first if it isn't) go through ns:ShieldObjectiveTracker, as map.pin's /way
+-- and quests.tracking do, and never in combat. The shield mutes the tracker and the quest log,
+-- not Blizzard's open map nor its super tracking cache (a file local no addon can mute): they
+-- handle the events inside that call, the map's providers putting their pins up from our code,
+-- which the game blocks in combat. Out of combat that was measured harmless with a pin placed
+-- from a frame of ours (its Shift Click copy still works); debug/watches.lua watches the map's
+-- quest pins for the rest.
 --
 -- Files of this slice:
 --   feature.lua        registration, schema and lifecycle (this file)
@@ -67,13 +54,15 @@
 --                      their tints, which continents have their land, the papers' sizes
 --   geometry.lua       maps on the world: rectangles, art sizes, the maps under a point
 --   art.lua            the stitched art: layers, zoom fades, what's near the view, file loading
---   arrow.lua          the player's arrow while the map underneath can't show it
---   combat.lua         map pins' mouse input deferred to the end of combat
---   tracker.lua        Blizzard's objective tracker updated again after an update stopped by combat
---   waypoint.lua       Shift Click on the map pin: shared in chat without Blizzard's blocked copy
---   view.lua           hosting the art in Blizzard's map: zoom, pan, clicks, the map underneath
---   quests.lua         every quest of the log on a continent, where Blizzard's shows only the super-tracked one
+--   arrow.lua          the player's arrow on the view
+--   waypoint.lua       the map pin: placed, removed, shared and tracked as on Blizzard's map
+--   quests.lua         every quest of the log on Blizzard's continent maps, where Blizzard's shows only the
+--                      super-tracked one; and what the view's quest markers share with them (which quests
+--                      show, their marker, tooltip and click)
 --   quests.xml         their pin template
+--   pins.lua           icons on the view: the log's quests, the map pin, the corpse, the group's members
+--                      and map.friends' friends
+--   view.lua           the view over Blizzard's map: opening, zoom, pan, clicks, handing back
 --   media/             masks (PNG, generated by tools/seamless.ts): each zone's share of the world (zone/),
 --                      where its base art is blank parchment (blank/),
 --                      each continent's land (land/), blank land and sea (land.png, sea.png: patches
@@ -84,7 +73,7 @@ local _, ns = ...
 
 local Seamless = ns:RegisterFeature("map", "seamless", {
     order = 1,
-    -- It replaces how Blizzard's world map draws and moves: the player opts in.
+    -- It changes how Blizzard's world map zooms out: the player opts in.
     enabledByDefault = false,
     settings = {
         { key = "unexplored", type = "toggle", default = false },
@@ -100,9 +89,6 @@ Seamless.MEDIA = "Interface\\AddOns\\ForeverEnhanced\\modules\\map\\seamless\\me
 
 function Seamless:OnEnable()
     self.Art:SetUnexploredShown(self.db.unexplored)
-    self.Combat:Enable()
-    self.Tracker:Enable()
-    self.Waypoint:Enable()
     self.View:Enable()
     self.Quests:Enable()
 end
@@ -110,9 +96,6 @@ end
 function Seamless:OnDisable()
     self.Quests:Disable()
     self.View:Disable()
-    self.Waypoint:Disable()
-    self.Tracker:Disable()
-    self.Combat:Disable()
 end
 
 function Seamless:OnSettingChanged(key, value)
@@ -120,5 +103,6 @@ function Seamless:OnSettingChanged(key, value)
         self.Art:SetUnexploredShown(value)
     elseif key == "quests" then
         self.Quests:Refresh()
+        self.Pins:Refresh()
     end
 end

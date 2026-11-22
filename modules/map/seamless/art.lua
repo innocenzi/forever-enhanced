@@ -1,7 +1,6 @@
 -- The stitched art: every zone's map on one canvas. Each region is placed once,
--- in world units, on `root`; Layout only scales and moves root into the canvas
--- units of whichever map Blizzard's map shows (the host), so nothing else moves
--- when the map underneath changes.
+-- in world units, on `root`, at the corner of the seamless view's canvas
+-- (view.lua), which the view scales and moves: nothing under it moves on its own.
 --
 -- Layers, bottom to top, and the zoom where each fades in. The zoom is by how much
 -- of the world is in view (View's DetailScale): 1, the whole world's area.
@@ -27,12 +26,14 @@
 --   whole        the zone or city the view is on (SetView, PickWhole: the one whose land is
 --                in the view's middle, zoomed in on far enough, WHOLE_IN; a zone's map
 --                reaches well past its border, over its neighbours' land drawn its own way,
---                so not the one whose map covers the most of the view), whole: its art
+--                so not the one whose map covers the most of the view; out of combat the
+--                view mostly hands Blizzard's map back on a zone before that), whole: its art
 --                unmasked, on its own parchment (no land paper), so the map reads as it
 --                does on its own, its edge lying over the stitched art around it. Built
 --                the first time it's picked; fading in or out over WHOLE_FADE seconds as
---                the view comes to it or leaves it (as the view moves, not once it rests,
---                as the map underneath does, which then becomes it).
+--                the view comes to it or leaves it. The zone the view hands Blizzard's map
+--                back to is drawn whole as the view glides to it (SetHandOff), so the art
+--                fades out onto Blizzard's own.
 -- A zone without its share takes its whole map less a thin border (media/feather-thin).
 --
 -- Only what's near the view is drawn (Cull): a zone's textures get their file
@@ -92,8 +93,6 @@ local MARGIN, KEEP, ZOOM_IN = 0.35, 0.1, 1.6
 local root
 local layers = {}
 local worldWidth, worldHeight
-local hostMapID, hostScale
-local zoomNow = 1
 local muted
 local detailShown = false
 local unexploredShown = false
@@ -117,6 +116,8 @@ local wholes = {}
 local view
 local middle
 local wholeMapID
+-- the zone the view is handing Blizzard's map back to: drawn whole whatever the zoom
+local handOffMapID
 -- mapID -> piece key -> { unexplored }: one per piece, shared by its copies
 local pieces = {}
 -- the world's and continents' art textures, muted as the zones come in
@@ -136,9 +137,9 @@ local function Put(region, x, y, width, height)
     Anchor(region)
 end
 
--- 0 to 1 as the zoom now goes from `from` to `to`, eased.
-local function Smooth(from, to)
-    local t = math.max(0, math.min(1, (zoomNow - from) / (to - from)))
+-- 0 to 1 as `zoom` goes across `range` ({ from, to }), eased.
+local function Smooth(zoom, range)
+    local t = math.max(0, math.min(1, (zoom - range[1]) / (range[2] - range[1])))
     return t * t * (3 - 2 * t)
 end
 
@@ -476,12 +477,13 @@ local function Layer(level, parent)
     return frame
 end
 
--- Builds the art on `canvas` (Blizzard's map canvas), between frame levels
--- `level` and `level + range`.
-function Art:Build(canvas, level, range)
+-- Builds the art on `canvas` (the seamless view's, in world units: its corner is the
+-- world's), between frame levels `level` and `level + range`.
+local function Build(canvas, level, range)
     worldWidth, worldHeight = Geometry:Size()
     root = CreateFrame("Frame", nil, canvas)
     root:SetSize(1, 1)
+    root:SetPoint("TOPLEFT", canvas, "TOPLEFT", 0, 0)
     root:SetFrameLevel(level)
     root:Hide()
     layers.world = Layer(level)
@@ -495,22 +497,19 @@ function Art:Build(canvas, level, range)
     BaseArt(layers.world, WORLD, function()
         return {}
     end)
-    for _, info in ipairs(C_Map.GetMapChildrenInfo(WORLD, Enum.UIMapType.Continent, true) or {}) do
-        if Geometry:IsStitchable(info.mapID) then
-            BaseArt(layers.continents, info.mapID, function(placement)
-                return { Mask(layers.continents, placement, FEATHER_WIDE) }
-            end)
-            local placement = Placement(info.mapID)
-            if Seamless.Lands[info.mapID] and placement then
-                local layer = placement.layer
-                local width, height = layer.layerWidth * placement.sx, layer.layerHeight * placement.sy
-                local land = Mask(layers.continents, placement, MEDIA .. "land\\" .. info.mapID .. ".png")
-                local list =
-                    Paper(layers.continents, "ARTWORK", 1, "land", placement.left, placement.top, width, height)
-                for _, paper in ipairs(list) do
-                    paper:AddMaskTexture(land)
-                    table.insert(papers, paper)
-                end
+    for _, mapID in ipairs(Geometry:Continents()) do
+        BaseArt(layers.continents, mapID, function(placement)
+            return { Mask(layers.continents, placement, FEATHER_WIDE) }
+        end)
+        local placement = Placement(mapID)
+        if Seamless.Lands[mapID] and placement then
+            local layer = placement.layer
+            local width, height = layer.layerWidth * placement.sx, layer.layerHeight * placement.sy
+            local land = Mask(layers.continents, placement, MEDIA .. "land\\" .. mapID .. ".png")
+            local list = Paper(layers.continents, "ARTWORK", 1, "land", placement.left, placement.top, width, height)
+            for _, paper in ipairs(list) do
+                paper:AddMaskTexture(land)
+                table.insert(papers, paper)
             end
         end
     end
@@ -560,9 +559,8 @@ local function BuildWhole(mapID)
         end, entries)
     end
     Fade(frame, 0)
-    wholes[mapID] = { kind = "whole", frame = frame, entries = entries, weight = 0 }
-    -- (its tiles near the view: from the next full Cull)
-    cullBox = nil
+    -- (near the view as its zone is: its tiles show once it fades in, FadeWhole)
+    wholes[mapID] = { kind = "whole", frame = frame, entries = entries, weight = 0, near = zones[mapID].near }
 end
 
 -- Whether the view is zoomed in on the zone or city far enough to draw it whole (less far
@@ -652,7 +650,9 @@ local function PickWhole()
         end
     end
     local current = wholeMapID
-    if
+    if handOffMapID and zones[handOffMapID] then
+        pick = handOffMapID
+    elseif
         current
         and current ~= pick
         and not (pick and zones[pick].kind == "city")
@@ -671,34 +671,21 @@ local function PickWhole()
     end
 end
 
-function Art:IsBuilt()
-    return root ~= nil
+-- Shows the art on `canvas` (the seamless view's, in world units: its corner is the world's),
+-- between frame levels `level` and `level + range`, built the first time. What's near the
+-- view is worked out again in full on the next SetView.
+function Art:Show(canvas, level, range)
+    if not root then
+        Build(canvas, level, range)
+    end
+    root:Show()
+    cullBox = nil
 end
 
-function Art:SetShown(shownNow)
+function Art:Hide()
     if root then
-        root:SetShown(shownNow)
+        root:Hide()
     end
-end
-
--- Lays the art out in `mapID`'s canvas units: root's scale and corner. False when the map isn't on the world.
-function Art:Layout(mapID)
-    local artWidth = Geometry:ArtSize(mapID)
-    local left, right, top = Geometry:Rect(mapID)
-    if not root or not artWidth or not left then
-        return false
-    end
-    local scale = artWidth / ((right - left) * worldWidth)
-    -- (the same map again, each time the map opens: moving root would lay out everything under it again)
-    if hostMapID == mapID and hostScale == scale then
-        return true
-    end
-    hostMapID, hostScale = mapID, scale
-    root:SetScale(scale)
-    root:ClearAllPoints()
-    -- (offsets in root's own, scaled, units)
-    root:SetPoint("TOPLEFT", root:GetParent(), "TOPLEFT", -left * worldWidth, top * worldHeight)
-    return true
 end
 
 -- The layers' fades for `zoom` (by how much of the world is in view: see the top of the file).
@@ -706,10 +693,9 @@ function Art:SetZoom(zoom)
     if not root then
         return
     end
-    zoomNow = zoom
-    Fade(layers.continents, Smooth(CONTINENTS_IN[1], CONTINENTS_IN[2]))
+    Fade(layers.continents, Smooth(zoom, CONTINENTS_IN))
     -- (in steps: every world and continent texture is redrawn on a change)
-    local mute = math.floor(Smooth(MUTE[1], MUTE[2]) * 20 + 0.5) / 20
+    local mute = math.floor(Smooth(zoom, MUTE) * 20 + 0.5) / 20
     if mute ~= muted then
         muted = mute
         for _, texture in ipairs(backdrop) do
@@ -719,13 +705,14 @@ function Art:SetZoom(zoom)
             Fade(paper, mute)
         end
     end
-    local detail = HINT * Smooth(DETAIL_HINT[1], DETAIL_HINT[2]) + (1 - HINT) * Smooth(DETAIL[1], DETAIL[2])
+    local detail = HINT * Smooth(zoom, DETAIL_HINT) + (1 - HINT) * Smooth(zoom, DETAIL)
     Fade(layers.zones, detail)
     local detailNow = detail > 0.001
     local changed = detailNow ~= detailShown
     detailShown = detailNow
     for _, city in ipairs(cities) do
-        local alpha = Smooth(CITY_IN[1] * city.fill, CITY_IN[2] * city.fill)
+        -- (by the zoom where it fills the view)
+        local alpha = Smooth(zoom / city.fill, CITY_IN)
         if city.alpha ~= alpha then
             city.alpha = alpha
             Fade(city.frame, alpha)
@@ -744,10 +731,7 @@ function Art:SetZoom(zoom)
 end
 
 -- Draws only the art near the view: (u0, v0) to (u1, v1) on the world.
-function Art:Cull(u0, v0, u1, v1)
-    if not root then
-        return
-    end
+local function Cull(u0, v0, u1, v1)
     local width, height = u1 - u0, v1 - v0
     local box = cullBox
     if
@@ -778,7 +762,8 @@ function Art:Cull(u0, v0, u1, v1)
     end
 end
 
--- The view on the world: its middle (u, v), half its width and height. The map drawn whole follows it.
+-- The view on the world: its middle (u, v), half its width and height. The map drawn whole
+-- follows it, and only the art near it is drawn.
 function Art:SetView(u, v, halfU, halfV)
     if not root then
         return
@@ -786,16 +771,16 @@ function Art:SetView(u, v, halfU, halfV)
     view = { u = u, v = v, u0 = u - halfU, v0 = v - halfV, u1 = u + halfU, v1 = v + halfV }
     middle = Geometry:ChainAt(u, v)
     PickWhole()
+    Cull(view.u0, view.v0, view.u1, view.v1)
 end
 
--- The zone or city drawn whole, if any: the map underneath becomes it.
-function Art:GetWholeMap()
-    return wholeMapID
-end
-
--- The map shown again: the next Cull runs in full.
-function Art:Recull()
-    cullBox = nil
+-- The zone (or city) the view is handing Blizzard's map back to, drawn whole as the view
+-- glides to it; nil once handed back or called off.
+function Art:SetHandOff(mapID)
+    if handOffMapID ~= mapID then
+        handOffMapID = mapID
+        PickWhole()
+    end
 end
 
 -- Pieces the player has just explored: no longer hidden with the unexplored ones.

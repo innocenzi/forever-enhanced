@@ -186,12 +186,11 @@ modules\map\seamless\data.lua
 modules\map\seamless\geometry.lua
 modules\map\seamless\art.lua
 modules\map\seamless\arrow.lua
-modules\map\seamless\combat.lua
-modules\map\seamless\tracker.lua
 modules\map\seamless\waypoint.lua
-modules\map\seamless\view.lua
 modules\map\seamless\quests.lua
 modules\map\seamless\quests.xml
+modules\map\seamless\pins.lua
+modules\map\seamless\view.lua
 modules\map\pin\feature.lua
 modules\map\pin\locales.lua
 modules\map\pin\parser.lua

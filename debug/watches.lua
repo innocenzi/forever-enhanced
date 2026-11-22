@@ -73,6 +73,23 @@ local WATCHES = {
             return tbl == UIPanelWindows and type(key) == "string" and key:find("^ForeverEnhanced") ~= nil
         end,
     },
+    {
+        -- Blizzard's quest pins on the world map: they refresh as super tracking changes,
+        -- which map.seamless does from our code (following a quest from its marker), and a
+        -- tainted one's click super-tracks from tainted code.
+        name = "mapQuestPins",
+        resolve = function()
+            local tables = {}
+            local pool = WorldMapFrame and WorldMapFrame.pinPools and WorldMapFrame.pinPools.QuestPinTemplate
+            if pool then
+                for pin in pool:EnumerateActive() do
+                    table.insert(tables, pin)
+                end
+            end
+            return tables
+        end,
+        hooks = {},
+    },
 }
 
 -- reported[tbl][key]: logged this session. Weak keys: frames may go away.

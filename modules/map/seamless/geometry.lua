@@ -80,6 +80,37 @@ function Geometry:IsStitchable(mapID)
     return self:Rect(mapID) ~= nil and self:ArtSize(mapID) ~= nil
 end
 
+local continents
+
+-- The continents drawn on the stitched world.
+function Geometry:Continents()
+    if not continents then
+        continents = {}
+        for _, info in ipairs(C_Map.GetMapChildrenInfo(WORLD, Enum.UIMapType.Continent, true) or {}) do
+            if self:IsStitchable(info.mapID) then
+                table.insert(continents, info.mapID)
+            end
+        end
+    end
+    return continents
+end
+
+-- The deepest zone (or city) at (u, v) on the world, if any.
+function Geometry:ZoneAt(u, v)
+    local chain = self:ChainAt(u, v)
+    for index = #chain, 1, -1 do
+        if self:IsZone(chain[index]) then
+            return chain[index]
+        end
+    end
+end
+
+-- Whether the map is a zone (or a city) drawn on the stitched world.
+function Geometry:IsZone(mapID)
+    local info = mapID and mapID ~= WORLD and C_Map.GetMapInfo(mapID)
+    return info and info.mapType == Enum.UIMapType.Zone and self:IsStitchable(mapID) or false
+end
+
 -- A point of the map (normalized) on the world, and back.
 function Geometry:ToWorld(mapID, x, y)
     local left, right, top, bottom = self:Rect(mapID)
