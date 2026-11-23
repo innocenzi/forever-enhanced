@@ -14,9 +14,13 @@
 --      Each group of containers the sort fills as one (same bag type and
 --      assignment, not ignored by cleanups) is filled in its own slot order. No
 --      API says which, so it's read from the sorted layout: the order in which
---      items come before empty slots. A reserved slot (Reserved slots) its item
---      will fill, and the stack that feature moves there, are left to it; a
---      locked item going home to a reserved slot keeps it.
+--      items come before empty slots. Reserved slots (Reserved slots) of the
+--      sorted area are filled here too, with the stack that feature would move
+--      there, even when the sort moved nothing; a locked item going home to a
+--      reserved slot keeps it. That feature leaves such sorts to us (KeepsSort):
+--      its own restore, started on the same bag update, would plan from the
+--      layout before our swaps (a locked item the sort put in a reserved slot
+--      looks like it stays there) and undo some of them.
 --   4. Two rounds of swaps put every item where it goes (Plan). Each round waits
 --      for the server, and Blizzard redraws the bags after it: one swap per item
 --      would take a round per item when each one's slot holds another misplaced
@@ -68,10 +72,10 @@ local layoutPending = false
 local sortMoved = false
 -- What slots should end up holding: { { location, content } }.
 local wanted = {}
--- Reserved slots their item fills (Reserved slots): { [slotKey] = itemID }.
+-- Reserved slots their item fills (Reserved slots): { [slotKey] = true }.
 local reserved = {}
--- The stacks Reserved slots moves to them: { [guid] = true }.
-local pulled = {}
+-- Slots holding a stack going to (or staying in) a reserved slot: { [slotKey] = true }.
+local toReserved = {}
 local hooksInstalled = false
 
 local function SlotKey(location)
@@ -207,38 +211,32 @@ local function GetFillOrder(containerIDs, bySlot)
     return best
 end
 
--- Whether the entry is an item its reserved slot keeps, or the stack Reserved
--- slots moves there: the reflow leaves both to that feature.
-local function IsLeftToSlots(key, entry)
-    return not entry.isLocked and (reserved[key] == entry.itemID or pulled[entry.guid] == true)
-end
-
--- The area's reserved slots its item fills (Reserved slots), unless a locked
--- item goes there: those holding it, and those the item will move to, taking
--- the stack Reserved slots takes (Slots:FindStackToMove).
-local function FindReservedSlots(area, groups, bySlot, isWanted)
+-- The area's reserved slots (Reserved slots) its item fills, unless a locked
+-- item goes there: those holding it keep it, the others take the stack Reserved
+-- slots would move there (Slots:FindStackToMove).
+local function FillReservedSlots(area, bySlot, isWanted)
     local Slots = ns:GetFeature("inventory", "slots")
+    local containerIDs = area == "bags" and ns.Containers.BAG_IDS or ns.Containers:GetBankContainerIDs()
     local taken = {}
-    for _, containerIDs in ipairs(groups) do
-        ns.Containers:ForEachSlot(containerIDs, function(bagID, slot)
-            local itemID = Slots:GetReservedItem(bagID, slot)
-            local key = bagID .. ":" .. slot
-            if not itemID or isWanted[key] then
-                return
-            end
-            local entry = bySlot[key]
-            if entry and not entry.isLocked and entry.itemID == itemID then
-                reserved[key] = itemID
-                return
-            end
+    ns.Containers:ForEachSlot(containerIDs, function(bagID, slot)
+        local itemID = Slots:GetReservedItem(bagID, slot)
+        local key = bagID .. ":" .. slot
+        if not itemID or isWanted[key] then
+            return
+        end
+        local entry = bySlot[key]
+        local sourceKey
+        if entry and not entry.isLocked and entry.itemID == itemID then
+            sourceKey = key
+        else
             local source = Slots:FindStackToMove(area, itemID, taken)
-            if source then
-                taken[SlotKey(source)] = true
-                reserved[key] = itemID
-                pulled[bySlot[SlotKey(source)].guid] = true
-            end
-        end)
-    end
+            sourceKey = source and SlotKey(source)
+        end
+        if sourceKey then
+            taken[sourceKey], toReserved[sourceKey], reserved[key] = true, true, true
+            table.insert(wanted, { location = { bagID = bagID, slot = slot }, content = bySlot[sourceKey].content })
+        end
+    end)
 end
 
 -- The group's items, in the sort's order, take its slots no locked item goes
@@ -248,7 +246,7 @@ local function Reflow(containerIDs, bySlot, isWanted)
     for _, location in ipairs(GetFillOrder(containerIDs, bySlot)) do
         local key = SlotKey(location)
         local entry = bySlot[key]
-        if entry and not entry.isLocked and not IsLeftToSlots(key, entry) then
+        if entry and not entry.isLocked and not toReserved[key] then
             table.insert(contents, entry.content)
         end
         if not isWanted[key] and not reserved[key] then
@@ -260,22 +258,21 @@ local function Reflow(containerIDs, bySlot, isWanted)
     end
 end
 
--- Locked items go home and, once a sort moved items, the others close up behind them.
+-- Locked items go home, reserved slots take their item and, once a sort moved
+-- items, the others close up behind them.
 local function BuildWanted(bySlot)
-    wanted, reserved, pulled = {}, {}, {}
+    wanted, reserved, toReserved = {}, {}, {}
     local isWanted = {}
     for guid, home in pairs(homes) do
         table.insert(wanted, { location = home, content = guid })
         isWanted[SlotKey(home)] = true
     end
-    if not sortMoved then
-        return
-    end
     for area in pairs(sortedAreas) do
-        local groups = GetGroups(area)
-        FindReservedSlots(area, groups, bySlot, isWanted)
-        for _, containerIDs in ipairs(groups) do
-            Reflow(containerIDs, bySlot, isWanted)
+        FillReservedSlots(area, bySlot, isWanted)
+        if sortMoved then
+            for _, containerIDs in ipairs(GetGroups(area)) do
+                Reflow(containerIDs, bySlot, isWanted)
+            end
         end
     end
 end
@@ -323,11 +320,11 @@ local function Plan()
         wantedAt[SlotKey(want.location)] = want.content
     end
     -- Where each content can be taken from: slots not holding what they should,
-    -- in container order, but for what Reserved slots moves.
+    -- in container order.
     local sources = {}
     for _, entry in ipairs(entries) do
         local key = SlotKey(entry.location)
-        if wantedAt[key] ~= entry.content and not IsLeftToSlots(key, entry) then
+        if wantedAt[key] ~= entry.content then
             sources[entry.content] = sources[entry.content] or {}
             table.insert(sources[entry.content], entry.location)
         end
@@ -409,6 +406,12 @@ local function OnSortStarted(area)
     end
     layoutPending = true
     mover:WaitForServer(SORT_TIMEOUT_SECONDS)
+end
+
+-- Public API: whether the items of a sort starting now are put back here,
+-- reserved slots (Reserved slots) filled too.
+function Locking:KeepsSort()
+    return self:IsActive() and self:GetSetting("keepInPlace") and (mover:IsRunning() or next(FindLockedItems()) ~= nil)
 end
 
 -- hooksecurefunc hooks can't be removed: install once, OnSortStarted checks IsActive().

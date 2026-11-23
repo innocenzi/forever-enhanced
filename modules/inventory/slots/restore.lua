@@ -2,8 +2,9 @@
 --   * when the count of a reserved item rises in the bags (looted, bought,
 --     taken from the mail or the bank) or in the bank while it's open
 --     (deposited), so moving it out by hand is left alone;
---   * after a cleanup of the bags or the bank, like locking's "Keep in place"
---     (locking/sorting.lua says how a sort reports back).
+--   * after a cleanup of the bags or the bank (locking/sorting.lua says how a
+--     sort reports back), unless Item locking's "Keep in place" puts the items
+--     back (Locking:KeepsSort), filling reserved slots too.
 -- The largest stack outside the slots reserved for the item goes in, swapping
 -- out whatever was there. Locked items (Item locking) never move. Bags and bank
 -- are separate areas: a slot only takes the item from its own area.
@@ -179,7 +180,7 @@ local listener = ns:CreateEventListener({
 })
 
 local function OnSortStarted(area)
-    if not Slots:IsActive() or (area == "bank" and not bankOpen) then
+    if not Slots:IsActive() or (area == "bank" and not bankOpen) or Locking:KeepsSort() then
         return
     end
     ClearIfIdle()

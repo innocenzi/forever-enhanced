@@ -60,6 +60,7 @@ end)
 test("leaves the stack a reserved slot takes to it", function(world)
     world.bags[0] = { "F1", nil, "X3", "G4" }
     world.itemIDs.F1 = "FOOD"
+    world.itemIcons.FOOD = 133950
     Reserve(world, 1)
     world:AltClick(4)
     Sort(world, { 3, 4, 1, 2 }) -- X3 G4 F1 -
@@ -82,6 +83,30 @@ test("moves what the sort put in a locked item's reserved slot", function(world)
     world:AltClick(1)
     Sort(world, { 3, 4, 1, 2 }) -- X3 X4 G1 -
     equal(world:Bag(), "G1 X3 X4 -", "bag")
+end)
+
+test("fills a reserved slot the sort put a locked item in", function(world)
+    world.bags[0] = { "F1", "X2", nil, "G4" }
+    world.itemIDs.F1 = "FOOD"
+    world.itemIcons.FOOD = 133950
+    Reserve(world, 1)
+    world:AltClick(4)
+    world.bags[0] = { nil, "X2", "F1", "G4" } -- the food moved out by hand
+    world.lateMoves = true
+    Sort(world, { 4, 2, 3, 1 }) -- G4 X2 F1 -
+    equal(world:Bag(), "F1 X2 - G4", "bag")
+end)
+
+test("fills a reserved slot when the sort moved nothing", function(world)
+    world.bags[0] = { "F1", "X2", nil, "G4" }
+    world.itemIDs.F1 = "FOOD"
+    world.itemIcons.FOOD = 133950
+    Reserve(world, 1)
+    world:AltClick(4)
+    world.bags[0] = { nil, "X2", "F1", "G4" } -- the food moved out by hand
+    C_Container.SortBags()
+    world:Elapse(5)
+    equal(world:Bag(), "F1 X2 - G4", "bag")
 end)
 
 test("sends independent swaps together, on the sort's bag update", function(world)
