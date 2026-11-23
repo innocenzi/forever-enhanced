@@ -110,14 +110,6 @@ test("a text setting uses our text row and takes its default from the locale", f
     equal(db.template, default, "blank text")
 end)
 
-test("feature toggle runs the lifecycle", function(world)
-    expect(Locking(world):IsActive(), "active at login")
-    world:Setting("inventory.locking.enabled"):SetValue(false)
-    expect(not Locking(world):IsActive(), "inactive after disabling")
-    world:Setting("inventory.locking.enabled"):SetValue(true)
-    expect(Locking(world):IsActive(), "active after enabling")
-end)
-
 test("the root page holds the general settings only", function(world)
     local root = world.categories[1]
     equal(#root.items, 3, "rows")

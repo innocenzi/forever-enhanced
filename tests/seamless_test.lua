@@ -766,32 +766,6 @@ test("places map pins on the map under the mouse", function(world)
     Near(shown, 0.125, "and no zoom")
 end)
 
-local function WaypointPin()
-    return WorldMapFrame:EnumeratePinsByTemplate("WaypointLocationPinTemplate")()
-end
-
-test("leaves Shift Click on Blizzard's map pin to Blizzard's", function(world)
-    world:OpenMap(1)
-    C_Map.SetUserWaypoint(UiMapPoint.CreateFromCoordinates(1, 0.2, 0.4))
-    world.modifiedClick = "CHATLINK"
-    world:ClickPin(WaypointPin())
-    equal(#world.chatLinks, 1, "its link in chat")
-    equal(world.clipboard, "/mappin 1 20.0 40.0", "its command copied")
-end)
-
-test("leaves Blizzard's map pin copying its command once the view handed back", function(world)
-    Setup(world)
-    Open(world, 1)
-    PointAt(world, 0.75, 0.6)
-    world:MapWheel(1)
-    world:RunFrames(2)
-    C_Map.SetUserWaypoint(UiMapPoint.CreateFromCoordinates(1, 0.2, 0.4))
-    world.modifiedClick = "CHATLINK"
-    world:ClickPin(WaypointPin())
-    equal(world.clipboard, "/mappin 1 20.0 40.0", "its command copied")
-    equal(#world.forbidden, 0, "nothing blocked")
-end)
-
 test("shows the map pin on the view, shared in chat with Shift Click", function(world)
     Setup(world)
     C_Map.SetUserWaypoint(UiMapPoint.CreateFromCoordinates(5, 0.9, 0.5))

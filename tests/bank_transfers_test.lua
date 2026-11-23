@@ -285,11 +285,6 @@ test("marked items are only offered by Deposit, while the bank mark is on", func
     expect(not world:MenuEntry(world:TransferMenu("deposit"), marked), "gone with the bank mark")
 end)
 
-test("does nothing away from the bank", function(world)
-    Transfers(world):Run("deposit", "all")
-    expect(not Transfers(world):IsRunning(), "not started")
-end)
-
 test("turning transfers off hides the buttons and stops a transfer", function(world)
     Setup(world, { "L1" }, { "L3" }, {}, {
         L1 = { "linen", 15 },

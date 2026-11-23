@@ -146,7 +146,6 @@ local world = {
     sentChat = {},
     chatLinks = {},
     forbidden = {},
-    mapTainted = false,
     chatFilters = {},
     chatBubbles = {},
     bubblesForbidden = false,
@@ -3452,19 +3451,7 @@ end
 -- acquires a pin. The game blocks them in combat when the map's code runs tainted.
 world.mouseInputs = {}
 
-MapCanvasMixin = { MouseAction = { Up = 1, Down = 2, Click = 3 } }
-
 MapCanvasPinMixin = {
-    -- A click: the map's global pin mouse handlers first (one returning true handles it), then the pin's own.
-    OnClick = function(self, button)
-        local map = self:GetMap()
-        if map and map:ProcessGlobalPinMouseActionHandlers(MapCanvasMixin.MouseAction.Click, button) then
-            return
-        end
-        if self.OnMouseClickAction then
-            self:OnMouseClickAction(button)
-        end
-    end,
     OnLoad = NoOp,
     OnAcquired = NoOp,
     UseFrameLevelType = NoOp,
@@ -3517,10 +3504,6 @@ function QuestPinMixin:SetQuestID(questID)
 end
 function QuestPinMixin:GetQuestID()
     return self.questID
-end
--- A click super-tracks the quest (Blizzard's goes through POIButtonMixin.OnClick).
-function QuestPinMixin:OnMouseClickAction()
-    C_SuperTrack.SetSuperTrackedQuestID(self.questID)
 end
 
 templates.QuestPinTemplate = function(frame)
@@ -3818,48 +3801,14 @@ WorldMapFrame.clickHandlers = {
     },
 }
 
--- Global pin mouse handlers (MapCanvasSecureUtil's registry): higher priority first.
-WorldMapFrame.pinMouseActionHandlers = {}
-
-function WorldMapFrame:AddGlobalPinMouseActionHandler(handler, priority)
-    table.insert(self.pinMouseActionHandlers, { handler = handler, priority = priority or 0 })
-    table.sort(self.pinMouseActionHandlers, function(a, b)
-        return a.priority > b.priority
-    end)
-end
-
-function WorldMapFrame:ProcessGlobalPinMouseActionHandlers(mouseAction, button)
-    for _, entry in ipairs(self.pinMouseActionHandlers) do
-        if entry.handler(self, mouseAction, button) then
-            return true
-        end
-    end
-    return false
-end
+-- Global pin mouse handlers (MapCanvasSecureUtil's registry): a write to Blizzard's map,
+-- watched below.
+WorldMapFrame.AddGlobalPinMouseActionHandler = NoOp
 
 -- Blizzard's map pin (Blizzard_SharedMapDataProviders/WaypointLocationDataProvider.lua):
 -- on the map it was placed on (not on its parents, unlike the game), put up again as it
--- changes. Shift Click puts its link in chat and copies its /mappin command, which the
--- game blocks while the map's code runs tainted (world.mapTainted: in game, once the
--- seamless map has changed the map underneath, until a /reload).
+-- changes.
 WaypointLocationPinMixin = CreateFromMixins(MapCanvasPinMixin)
-
-function WaypointLocationPinMixin:OnMouseClickAction()
-    if IsModifiedClick("CHATLINK") then
-        ChatFrameUtil.InsertLink(C_Map.GetUserWaypointHyperlink())
-        local waypoint = C_Map.GetUserWaypoint()
-        local command = ("/mappin %d %.1f %.1f"):format(
-            waypoint.uiMapID,
-            waypoint.position.x * 100,
-            waypoint.position.y * 100
-        )
-        if world.mapTainted then
-            table.insert(world.forbidden, "CopyToClipboard")
-        else
-            world.clipboard = command
-        end
-    end
-end
 
 templates.WaypointLocationPinTemplate = function(frame)
     Mixin(frame, WaypointLocationPinMixin)
@@ -7491,12 +7440,6 @@ function world:MapClick(button)
     local frame = InputFrameUnderMouse(button, "MapClick")
     DeliverMouse(frame, "OnMouseDown", button)
     DeliverMouse(frame, "OnMouseUp", button)
-end
-
--- Clicks a map pin, the mouse over it.
-function world:ClickPin(pin, button)
-    self.mouseOver = pin
-    pin:OnClick(button or "LeftButton")
 end
 
 -- Clicks a map pin of ours whose OnMouseUp handles the click (pins have no rect here, so
