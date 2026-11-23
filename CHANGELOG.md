@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.7.0 - 2026-11-23
+
+
+### Features
+- **professions:** plan recipes to take their reagents from the bank at the next visit
+- **map:** drag a map at Blizzard's widest view into the seamless view
+- **inventory:** keep the best food and drink you carry on the action bar slots holding them
+- **inventory:** never mark food, quest items, tools, reagents and other kept items as lowest value
+- **map:** show on the world map how much of the map in view is explored
+
+
+### Fixes
+- **map:** name group members by their full name on the seamless view
+
 ## 1.6.0 - 2026-11-22
 
 
