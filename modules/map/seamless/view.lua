@@ -832,6 +832,26 @@ function View:ToView(u, v, margin)
     return dx, dy
 end
 
+-- Public API, for map.exploration's icon over the map: the map the view shows while it's up
+-- (nil once it's left Blizzard's map the input, and while hidden): the one it's handing back
+-- to, else the deepest map under its middle that fits in it, else the world.
+function Seamless:GetViewedMap()
+    if not self:IsActive() or state == "hidden" or state == "fading" then
+        return nil
+    end
+    if handOff then
+        return handOff
+    end
+    local chain = Geometry:ChainAt(view.u, view.v)
+    for index = #chain, 1, -1 do
+        local mapID = chain[index]
+        if mapID ~= WORLD and Geometry:IsStitchable(mapID) and FitZoom(mapID) <= view.zoom * (1 + 1e-6) then
+            return mapID
+        end
+    end
+    return WORLD
+end
+
 -- The view's frame, for the tests.
 function View:GetFrame()
     return frame

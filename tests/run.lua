@@ -47,6 +47,7 @@ local TEST_FILES = {
     "tests/friends_test.lua",
     "tests/layers_test.lua",
     "tests/seamless_test.lua",
+    "tests/exploration_test.lua",
     "tests/debug_test.lua",
 }
 

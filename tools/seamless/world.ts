@@ -18,6 +18,9 @@ const OPENMAP_TEXTURES = "OpenMap/Media/Textures/Forever/";
 /** A piece of a zone art: its size and offset in the art, then its tiles' files (row-major). */
 export type Piece = [width: number, height: number, x: number, y: number, ...files: number[]];
 
+/** A zone art's explored-area overlay: its size and offset in the art (its Piece's), then the areas it shows. */
+export type Overlay = [width: number, height: number, x: number, y: number, ...areaIDs: number[]];
+
 /** A map's rectangle on Azeroth's map, normalized: left, right, top, bottom. */
 export type Rect = [left: number, right: number, top: number, bottom: number];
 
@@ -126,6 +129,8 @@ export class World {
     private readonly arts = new Map<number, Art>();
     private readonly rects = new Map<number, Rect | null>();
     readonly pieces = new Map<number, Piece[]>();
+    /** UiMapArtID -> its explored-area overlays, the same as its pieces. */
+    readonly overlays = new Map<number, Overlay[]>();
 
     constructor(tables: Tables) {
         for (const row of parseCsv(tables.UiMap)) {
@@ -212,8 +217,12 @@ export class World {
             const pieces = this.pieces.get(art) ?? [];
             pieces.push(piece);
             this.pieces.set(art, pieces);
+            const areas = [0, 1, 2, 3].map((index) => integer(row, `AreaID_${index}`)).filter((id) => id > 0);
+            const overlays = this.overlays.get(art) ?? [];
+            overlays.push([piece[0], piece[1], piece[2], piece[3], ...areas]);
+            this.overlays.set(art, overlays);
         }
-        for (const list of this.pieces.values()) {
+        for (const list of [...this.pieces.values(), ...this.overlays.values()]) {
             list.sort((a, b) => a[2] - b[2] || a[3] - b[3] || a[0] - b[0] || a[1] - b[1]);
         }
     }

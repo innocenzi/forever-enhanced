@@ -6,6 +6,7 @@
     "crates": "bun run tools/crates.ts",
     "debug-log": "bun run tools/debuglog.ts",
     "dots": "bun run tools/dots.ts",
+    "exploration": "bun run tools/exploration.ts",
     "food": "bun run tools/food.ts",
     "format": "stylua core modules tests debug",
     "icon": "bun run tools/icon.ts",

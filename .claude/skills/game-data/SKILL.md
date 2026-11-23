@@ -1,6 +1,6 @@
 ---
 name: game-data
-description: Regenerate and check Forever Enhanced's generated game data. Use when a content patch or new Forever build landed and generated data must be refreshed (`bun run professions`, `instances`, `icons`, `seamless`, `dots`, `crates`, `food`, `cheapest`); when following a new damage over time spell in `combat.dots` (`FOLLOWED` in `tools/dots.ts`); when measuring or re-measuring values in `modules/combat/dots/measured.lua`; when changing a generator in `tools/`; when changing the seamless map's zone shares or masks, or bumping its OpenMap commit; or when regenerating the addon icon.
+description: Regenerate and check Forever Enhanced's generated game data. Use when a content patch or new Forever build landed and generated data must be refreshed (`bun run professions`, `instances`, `icons`, `seamless`, `exploration`, `dots`, `crates`, `food`, `cheapest`); when following a new damage over time spell in `combat.dots` (`FOLLOWED` in `tools/dots.ts`); when measuring or re-measuring values in `modules/combat/dots/measured.lua`; when changing a generator in `tools/`; when changing the seamless map's zone shares or masks, or bumping its OpenMap commit; or when regenerating the addon icon.
 ---
 
 # Generated game data
@@ -13,6 +13,7 @@ Never edit generated files by hand: change the generator and rerun it.
 | `bun run instances` | `tools/instances.ts` | `modules/quests/tracking/data.lua` |
 | `bun run icons` | `tools/icons.ts` | `modules/interface/macros/data.lua` |
 | `bun run seamless` | `tools/seamless.ts` | `modules/map/seamless/data.lua`, `modules/map/seamless/media/` |
+| `bun run exploration` | `tools/exploration.ts` | `modules/map/exploration/data.lua` |
 | `bun run dots` | `tools/dots.ts` | `modules/combat/dots/data.lua` |
 | `bun run crates` | `tools/crates.ts` | `modules/inventory/crates/data.lua` |
 | `bun run food` | `tools/food.ts` | `modules/inventory/food/data.lua` |
@@ -27,7 +28,7 @@ Never edit generated files by hand: change the generator and rerun it.
 
 ## Refresh after a content patch
 
-1. Run `bun run professions`, `bun run instances`, `bun run icons`, `bun run seamless`, `bun run dots`, `bun run crates`, `bun run food`, `bun run cheapest`.
+1. Run `bun run professions`, `bun run instances`, `bun run icons`, `bun run seamless`, `bun run exploration`, `bun run dots`, `bun run crates`, `bun run food`, `bun run cheapest`.
 2. `git diff --stat`: every generated header names the new build.
 3. Review each `data.lua` diff:
    - Expected: changed values, a few entries added or removed (recipes, ranks, talents).

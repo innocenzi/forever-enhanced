@@ -3866,6 +3866,10 @@ function WorldMapFrame:GetCanvas()
     return self.ScrollContainer.Child
 end
 
+function WorldMapFrame:GetCanvasContainer()
+    return self.ScrollContainer
+end
+
 -- WorldMapMixin's panel: windowed ("minimized") on the left like other panels, or
 -- maximized at the top of the screen, outside the panel layout. Its title bar is
 -- on its border, the maximize button at the title bar's right end.
@@ -4577,6 +4581,12 @@ C_Map.GetMapArtID = function(uiMapID)
     return uiMapID * 10
 end
 
+-- world.areaNames[areaID]: an area's name (AreaTable), in the client's language.
+world.areaNames = {}
+C_Map.GetAreaInfo = function(areaID)
+    return world.areaNames[areaID]
+end
+
 -- world.exploredMapTextures[uiMapID]: the explored-area pieces the client lists for the
 -- map, { fileDataIDs, offsetX, offsetY, textureWidth, textureHeight, isShownByMouseOver }.
 world.exploredMapTextures = {}
@@ -4601,12 +4611,23 @@ GameTooltip = {
     SetHyperlink = function(_, link)
         world.tooltip = link
     end,
-    SetText = function(_, text)
+    -- world.tooltipColors[n]: line n's colour, { r, g, b } (the title's: world.tooltipColor).
+    SetText = function(_, text, r, g, b)
         world.tooltip = text
+        world.tooltipColor = { r, g, b }
         world.tooltipLines = {}
+        world.tooltipColors = {}
     end,
-    AddLine = function(_, text)
+    AddLine = function(_, text, r, g, b)
         table.insert(world.tooltipLines, text)
+        world.tooltipColors = world.tooltipColors or {}
+        world.tooltipColors[#world.tooltipLines] = { r, g, b }
+    end,
+    -- One line: "left: right", in the left side's colour.
+    AddDoubleLine = function(_, left, right, r, g, b)
+        table.insert(world.tooltipLines, left .. ": " .. right)
+        world.tooltipColors = world.tooltipColors or {}
+        world.tooltipColors[#world.tooltipLines] = { r, g, b }
     end,
     NumLines = function()
         return #world.tooltipLines
@@ -5045,6 +5066,7 @@ TooltipDataProcessor = {
 NORMAL_FONT_COLOR = CreateColor(1, 0.82, 0)
 GRAY_FONT_COLOR = CreateColor(0.5, 0.5, 0.5)
 HIGHLIGHT_FONT_COLOR = CreateColor(1, 1, 1)
+UNKNOWN = "Unknown"
 
 -- Blizzard frames ------------------------------------------------------------------------
 

@@ -22,7 +22,7 @@
 local _, ns = ...
 
 local Friends = ns:RegisterFeature("map", "friends", {
-    order = 3,
+    order = 4,
     -- It sends your position to your friends: the player opts in.
     enabledByDefault = false,
     settings = {
