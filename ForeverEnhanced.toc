@@ -85,6 +85,7 @@ modules\inventory\auction\results.lua
 modules\inventory\auction\tooltip.lua
 modules\inventory\cheapest\feature.lua
 modules\inventory\cheapest\locales.lua
+modules\inventory\cheapest\data.lua
 modules\inventory\cheapest\value.lua
 modules\inventory\cheapest\buttons.lua
 modules\inventory\crates\feature.lua

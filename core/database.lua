@@ -9,7 +9,8 @@
 --
 -- Account settings are derived from the registered schemas: missing, mistyped,
 -- unknown-option, out-of-range or blank text values get their default, unknown
--- keys are dropped.
+-- keys are dropped. A multiselect is saved as { [option] = boolean } for every
+-- option: a missing or mistyped option gets its default, unknown ones are dropped.
 
 local _, ns = ...
 
@@ -31,8 +32,16 @@ local function GetOrCreateTable(parent, key)
 end
 
 -- Whether a value of the right type is allowed by the entry (dropdown options,
--- slider bounds, text that isn't blank).
+-- slider bounds, text that isn't blank, a multiselect's options as booleans).
 local function IsAllowed(entry, value)
+    if entry.type == "multiselect" then
+        for option, selected in pairs(value) do
+            if not tContains(entry.options, option) or type(selected) ~= "boolean" then
+                return false
+            end
+        end
+        return true
+    end
     if entry.type == "text" then
         return value:find("%S") ~= nil
     end
@@ -45,8 +54,25 @@ local function IsAllowed(entry, value)
     return true
 end
 
+-- Every option of a multiselect as a boolean: what `selection` says, else the default's.
+local function CompleteSelection(entry, selection, default)
+    local complete = {}
+    for _, option in ipairs(entry.options) do
+        local selected = selection[option]
+        if type(selected) ~= "boolean" then
+            selected = default[option] == true
+        end
+        complete[option] = selected
+    end
+    return complete
+end
+
 local function ApplyDefault(tbl, key, default, entry)
     local value = tbl[key]
+    if entry and entry.type == "multiselect" then
+        tbl[key] = CompleteSelection(entry, type(value) == "table" and value or {}, default)
+        return
+    end
     if type(value) ~= type(default) or (entry and not IsAllowed(entry, value)) then
         tbl[key] = default
     end

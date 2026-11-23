@@ -62,6 +62,12 @@ function Food:GetItem(itemID)
     return nil
 end
 
+-- Public API: whether itemID is food or drink, buff food included. The data doesn't depend
+-- on the feature being on: other features read it too (inventory.cheapest).
+function Food:IsFoodOrDrink(itemID)
+    return self.Data[itemID] ~= nil
+end
+
 -- Choosing ---------------------------------------------------------------------------
 
 -- What candidates are ranked by, in turn: each returns a number, higher being better.

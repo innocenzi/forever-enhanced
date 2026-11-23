@@ -16,23 +16,17 @@ local _, ns = ...
 -- In dropdown order.
 ns.PRESETS = { "minimal", "enhanced" }
 
-local function Set(tbl, key, path, value)
-    if tbl[key] ~= value then
-        ns.SettingsPanel:GetSetting(path):SetValue(value)
-    end
-end
-
 -- Settings first, then the toggle: a feature turned on reads its final values
 -- in OnEnable instead of going through OnSettingChanged for each.
 local function ApplyToFeature(feature, values)
     for _, entry in ipairs(feature.settings) do
         local value = values[entry.key]
         if value ~= nil then
-            Set(feature.db, entry.key, feature:GetLocaleKey(entry.key), value)
+            ns.SettingsPanel:SetValue(feature:GetLocaleKey(entry.key), value)
         end
     end
     if values.enabled ~= nil then
-        Set(feature.db, "enabled", feature:GetLocaleKey("enabled"), values.enabled)
+        ns.SettingsPanel:SetValue(feature:GetLocaleKey("enabled"), values.enabled)
     end
 end
 

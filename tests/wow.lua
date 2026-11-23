@@ -89,6 +89,7 @@ local world = {
     itemTypes = {},
     weaponSubclasses = {},
     questItems = {},
+    itemClasses = {},
     startsQuest = {},
     completedQuests = {},
     questFrame = nil,
@@ -1382,11 +1383,20 @@ Settings = {
     RegisterInitializer = function(category, initializer)
         table.insert(category.items, initializer)
     end,
+    -- Options of a dropdown: radio buttons (Add), or checkboxes over a bit mask
+    -- (AddCheckbox: value n is bit n - 1, see world:CheckSettingOption).
     CreateControlTextContainer = function()
         local data = {}
         return {
             Add = function(_, value, label, tooltip)
-                table.insert(data, { value = value, label = label, tooltip = tooltip })
+                local option = { value = value, label = label, tooltip = tooltip }
+                table.insert(data, option)
+                return option
+            end,
+            AddCheckbox = function(_, value, label, tooltip)
+                local option = { value = value, label = label, tooltip = tooltip, checkbox = true }
+                table.insert(data, option)
+                return option
             end,
             GetData = function()
                 return data
@@ -1435,8 +1445,8 @@ Enum = {
         Threat = 9,
         WorldQuest = 10,
     },
-    ItemClass = { Weapon = 2, Questitem = 12, Miscellaneous = 15 },
-    ItemWeaponSubclass = { Sword1H = 7, Dagger = 15 },
+    ItemClass = { Weapon = 2, Projectile = 6, Questitem = 12, Miscellaneous = 15 },
+    ItemWeaponSubclass = { Sword1H = 7, Dagger = 15, Fishingpole = 20 },
 }
 NUM_TOTAL_EQUIPPED_BAG_SLOTS = 5
 
@@ -1539,11 +1549,13 @@ C_Item = {
     end,
     -- world.itemTypes[guid] = { itemType, itemSubType, equipLoc }; items are their own IDs.
     -- Items in world.questItems are of the quest class, those in
-    -- world.weaponSubclasses weapons of that subclass. Takes numeric item IDs too.
+    -- world.weaponSubclasses weapons of that subclass, those in world.itemClasses
+    -- of that class (Enum.ItemClass). Takes numeric item IDs too.
     GetItemInfoInstant = function(itemIDOrLink)
         local guid = type(itemIDOrLink) == "string" and itemIDOrLink:match("%[(.-)%]") or itemIDOrLink
         local itemType = world.itemTypes[guid] or { "Miscellaneous", "Other", "" }
-        local classID = world.questItems[guid] and Enum.ItemClass.Questitem or Enum.ItemClass.Miscellaneous
+        local classID = world.itemClasses[guid]
+            or (world.questItems[guid] and Enum.ItemClass.Questitem or Enum.ItemClass.Miscellaneous)
         local subclassID = world.weaponSubclasses[guid]
         if subclassID then
             classID = Enum.ItemClass.Weapon
@@ -4943,6 +4955,7 @@ EventRegistry = {
 }
 
 ACCEPT = "Accept"
+NONE = "None"
 CANCEL = "Cancel"
 CLOSE = "Close"
 
@@ -5342,6 +5355,36 @@ end
 
 function world:Setting(path)
     return assert(self.settings["ForeverEnhanced." .. path], "no setting " .. path)
+end
+
+-- The settings row of `setting`: its initializer.
+local function SettingRow(setting)
+    for _, category in ipairs(world.categories) do
+        for _, item in ipairs(category.items) do
+            if item.setting == setting then
+                return item
+            end
+        end
+    end
+    error("no row for setting " .. setting.name)
+end
+
+-- Checks (or unchecks) the option labeled `label` in the checkbox dropdown of
+-- the setting at `path`, like a click in its menu (Blizzard's
+-- Settings.CreateDropdownOptionInserter: the option's bit flips in the mask).
+function world:CheckSettingOption(path, label, checked)
+    local setting = self:Setting(path)
+    for _, option in ipairs(SettingRow(setting).options) do
+        if option.checkbox and option.label == label then
+            local flag = math.floor(2 ^ (option.value - 1))
+            local mask = setting:GetValue()
+            if (bit.band(mask, flag) ~= 0) ~= checked then
+                setting:SetValue(checked and mask + flag or mask - flag)
+            end
+            return
+        end
+    end
+    error("no option " .. label .. " in " .. path)
 end
 
 -- The settings panel's button row labeled `label`: its initializer (`data.buttonClick`,

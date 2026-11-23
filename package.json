@@ -2,6 +2,7 @@
   "version": "1.6.0",
   "scripts": {
     "changelog": "bun run tools/changelog.ts",
+    "cheapest": "bun run tools/cheapest.ts",
     "crates": "bun run tools/crates.ts",
     "debug-log": "bun run tools/debuglog.ts",
     "dots": "bun run tools/dots.ts",

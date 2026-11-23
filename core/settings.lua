@@ -12,7 +12,8 @@
 --   <module>.title, <module>.description
 --   <module>.<feature>.title, <module>.<feature>.description
 --   <module>.<feature>.<key>, <module>.<feature>.<key>.tooltip (optional)
---   <module>.<feature>.<key>.<option> for each dropdown option
+--   <module>.<feature>.<key>.<option> for each dropdown or multiselect option
+--   <module>.<feature>.<key>.<option>.tooltip for a multiselect option (optional)
 --   <module>.<feature>.<key>.format for a slider's value label (optional)
 --   <module>.<feature>.<key>.default for an entry without a `default`
 --   <module>.<feature>.<key> is also an action's button text
@@ -163,8 +164,32 @@ function TextControlMixin:EvaluateState()
     self:DisplayEnabled(enabled)
 end
 
+-- A multiselect's selection ({ [option] = boolean }) as the bit mask Blizzard's
+-- checkbox dropdowns read and write: option n is bit n - 1.
+local function SelectionToMask(entry, selection)
+    local mask, flag = 0, 1
+    for _, option in ipairs(entry.options) do
+        if selection[option] then
+            mask = mask + flag
+        end
+        flag = flag * 2
+    end
+    return mask
+end
+
+local function MaskToSelection(entry, mask)
+    local selection, flag = {}, 1
+    for _, option in ipairs(entry.options) do
+        selection[option] = bit.band(mask, flag) ~= 0
+        flag = flag * 2
+    end
+    return selection
+end
+
 -- Schema entry type -> setting type and control factory.
 -- create(category, setting, tooltip, entry, labelKey, feature) returns the initializer.
+-- A type with `mask = true` is saved as a selection table but shown as a number:
+-- its setting is a proxy converting between the two.
 local controls = {
     -- { key, type = "toggle", default = boolean, action = key (optional) }
     -- With an action, a button beside the checkbox, usable while checked, calls
@@ -206,6 +231,33 @@ local controls = {
             return AddControl(category, "slider", setting, options, tooltip)
         end,
     },
+    -- { key, type = "multiselect", default = { [option] = true, ... }, options = { option, ... } }
+    -- Blizzard's dropdown of checkboxes; options left out of the default start
+    -- unchecked. The setting's value is the selection's mask; the feature reads
+    -- the selection, { [option] = boolean } (GetSetting, OnSettingChanged).
+    multiselect = {
+        varType = Settings.VarType.Number,
+        mask = true,
+        create = function(category, setting, tooltip, entry, labelKey)
+            local function GetOptions()
+                local container = Settings.CreateControlTextContainer()
+                for index, option in ipairs(entry.options) do
+                    local optionKey = labelKey .. "." .. option
+                    local data = container:AddCheckbox(index, L[optionKey], OptionalText(optionKey .. ".tooltip"))
+                    data.displayCheckboxTooltip = true
+                end
+                return container:GetData()
+            end
+            local initializer = AddControl(category, "dropdown", setting, GetOptions, tooltip)
+            -- Blizzard's text joins the checked options' labels; none checked reads "None".
+            initializer.getSelectionTextFunc = function(selections)
+                if selections and #selections == 0 then
+                    return NONE
+                end
+            end
+            return initializer
+        end,
+    },
     -- { key, type = "text", default = string } (a blank text resets to the default)
     text = {
         varType = Settings.VarType.String,
@@ -219,6 +271,8 @@ local rootCategory
 -- Registered settings by path ("<module>.<feature>.<key>"):
 -- presets change values through them, so controls and callbacks follow.
 local settingsByPath = {}
+-- Paths of multiselect settings -> their schema entry, to convert selections.
+local masksByPath = {}
 
 local function RegisterSetting(category, path, key, tbl, varType, label, default)
     local setting = Settings.RegisterAddOnSetting(category, VARIABLE_PREFIX .. path, key, tbl, varType, label, default)
@@ -228,6 +282,39 @@ end
 
 function SettingsPanel:GetSetting(path)
     return assert(settingsByPath[path], "unknown setting: " .. path)
+end
+
+-- Sets the setting at `path` to `value` (for a multiselect, a selection whose
+-- missing options are unchecked), like the player would, if it differs.
+function SettingsPanel:SetValue(path, value)
+    local setting = self:GetSetting(path)
+    local entry = masksByPath[path]
+    if entry then
+        value = SelectionToMask(entry, value)
+    end
+    if setting:GetValue() ~= value then
+        setting:SetValue(value)
+    end
+end
+
+-- A multiselect's setting: a proxy over the saved selection, as its mask.
+local function RegisterMaskSetting(category, path, entry, featureDb, label)
+    local setting = Settings.RegisterProxySetting(
+        category,
+        VARIABLE_PREFIX .. path,
+        Settings.VarType.Number,
+        label,
+        SelectionToMask(entry, entry.default),
+        function()
+            return SelectionToMask(entry, featureDb[entry.key])
+        end,
+        function(mask)
+            featureDb[entry.key] = MaskToSelection(entry, mask)
+        end
+    )
+    settingsByPath[path] = setting
+    masksByPath[path] = entry
+    return setting
 end
 
 -- The `requires = { key = value }` pair of an entry, or nil.
@@ -302,8 +389,13 @@ end
 local function AddSchemaEntry(category, feature, entry, parentInitializer)
     local control = assert(controls[entry.type], "unknown setting type: " .. tostring(entry.type))
     local labelKey = feature:GetLocaleKey(entry.key)
-    local setting =
-        RegisterSetting(category, labelKey, entry.key, feature.db, control.varType, L[labelKey], entry.default)
+    local setting
+    if control.mask then
+        setting = RegisterMaskSetting(category, labelKey, entry, feature.db, L[labelKey])
+    else
+        setting =
+            RegisterSetting(category, labelKey, entry.key, feature.db, control.varType, L[labelKey], entry.default)
+    end
 
     local initializer =
         control.create(category, setting, OptionalText(labelKey .. ".tooltip"), entry, labelKey, feature)
@@ -314,9 +406,9 @@ local function AddSchemaEntry(category, feature, entry, parentInitializer)
         return feature.db.enabled and RequirementMet(feature, entry)
     end)
 
-    setting:SetValueChangedCallback(function(_, value)
+    setting:SetValueChangedCallback(function()
         if feature:IsActive() then
-            feature:OnSettingChanged(entry.key, value)
+            feature:OnSettingChanged(entry.key, feature.db[entry.key])
         end
     end)
     return initializer

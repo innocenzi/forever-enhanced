@@ -555,3 +555,66 @@ test("sends a round's moves a few per frame", function(world)
     equal(pickupsPerFrame[2], 10, "pickups after the second frame")
     expect(not mover:IsRunning(), "run ended")
 end)
+
+-- A multiselect: Lowest value items' "ignore", its options all checked by default.
+local IGNORE = "inventory.cheapest.ignore"
+
+local function IgnoreRow(world)
+    for _, initializer in ipairs(world.categories[2].items) do
+        if initializer.setting == world:Setting(IGNORE) then
+            return initializer
+        end
+    end
+end
+
+test("a multiselect is a dropdown of checkboxes over the saved selection", function(world)
+    local row = IgnoreRow(world)
+    expect(row, "a row on the module's page")
+    equal(row.template, "ForeverEnhancedSettingsDropdownControlTemplate", "our dropdown row")
+    equal(#row.options, 8, "options")
+    expect(row.options[1].checkbox, "checkboxes")
+    equal(row.options[1].label, world.L[IGNORE .. ".food"], "option label")
+    equal(row.options[1].tooltip, world.L[IGNORE .. ".food.tooltip"], "option tooltip")
+    expect(row.options[1].displayCheckboxTooltip, "option tooltip shown in the menu")
+    equal(row.getSelectionTextFunc({}), NONE, "nothing checked reads None")
+    equal(row.getSelectionTextFunc({ {} }), nil, "otherwise Blizzard's list of labels")
+
+    local db = Feature(world, "inventory", "cheapest").db
+    equal(world:Setting(IGNORE):GetValue(), 255, "every option checked by default")
+    world:CheckSettingOption(IGNORE, world.L[IGNORE .. ".tools"], false)
+    equal(db.ignore.tools, false, "unchecked")
+    equal(db.ignore.food, true, "the others kept")
+    equal(world:Setting(IGNORE):GetValue(), 251, "its bit cleared")
+end)
+
+test("a saved selection fills missing options and drops unknown ones", function(world)
+    local features = world.env.ForeverEnhancedDB.modules.inventory.features
+    features.cheapest.ignore = { food = false, tools = "yes", removed = true }
+    world.ns.Database:Initialize()
+    local ignore = features.cheapest.ignore
+    equal(ignore.food, false, "kept")
+    equal(ignore.tools, true, "mistyped: its default")
+    equal(ignore.notes, true, "missing: its default")
+    equal(ignore.removed, nil, "unknown option dropped")
+
+    features.cheapest.ignore = "food"
+    world.ns.Database:Initialize()
+    equal(features.cheapest.ignore.food, true, "not a table: the default")
+end)
+
+test("presets set a multiselect's whole selection", function(world)
+    local Cheapest = Feature(world, "inventory", "cheapest")
+    world:CheckSettingOption(IGNORE, world.L[IGNORE .. ".food"], false)
+    ApplyPreset(world, "enhanced")
+    equal(Cheapest.db.ignore.food, true, "checked again")
+
+    Cheapest.presets.enhanced.ignore = { food = true }
+    ApplyPreset(world, "enhanced")
+    equal(Cheapest.db.ignore.food, true, "listed")
+    equal(Cheapest.db.ignore.tools, false, "left out: unchecked")
+
+    Cheapest.presets.enhanced.ignore = { bogus = true }
+    expect(not pcall(function()
+        world.ns.Database:Initialize()
+    end), "unknown option")
+end)

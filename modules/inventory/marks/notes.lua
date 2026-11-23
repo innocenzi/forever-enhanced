@@ -38,6 +38,7 @@ end
 function Marks:SetNote(guid, text)
     local note = strtrim(text)
     GetStore().notes[guid] = note ~= "" and note or nil
+    ns:RefreshItemButtons()
 end
 
 local function Save(editBox, data)

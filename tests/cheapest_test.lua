@@ -233,3 +233,220 @@ test("Blizzard redrawing unchanged bags doesn't look for the lowest value items 
     world:NextFrame()
     equal(collects, 1, "one scan for a bag change")
 end)
+
+-- Ignored items: Tough Jerky (food, inventory.food's data) and Linen Cloth (a
+-- reagent of Linen Bandage, First Aid) in the backpack's free slot, worth 1c.
+local TOUGH_JERKY = 117
+local LINEN_CLOTH = 2589
+local LINEN_BANDAGE = 3275
+local FIRST_AID = 129
+
+local function Carry(world, itemID)
+    world.itemIDs.G3 = itemID
+    world.sellPrices[itemID] = 1
+    world.bags[0][3] = "G3"
+    BagsChanged(world)
+end
+
+-- Checks or unchecks an option of the "ignore" dropdown.
+local function Ignore(world, option, checked)
+    world:CheckSettingOption("inventory.cheapest.ignore", world.L["inventory.cheapest.ignore." .. option], checked)
+end
+
+local function LearnLinenBandage(world)
+    world.professions = { nil, nil, { skillLine = FIRST_AID } }
+    world.learnedRecipes[LINEN_BANDAGE] = true
+    world:ShowTradeSkillList({ LINEN_BANDAGE })
+end
+
+test("food and drink are ignored by default", function(world)
+    SetPrices(world, { G1 = 10, G2 = 20, GJUNK = 50 })
+    Enable(world, false)
+    Carry(world, TOUGH_JERKY)
+    equal(Marked(world), "1", "the cheapest item that isn't food")
+
+    Ignore(world, "food", false)
+    equal(Marked(world), "3", "food counts once not ignored")
+end)
+
+test("food is ignored with the food feature off", function(world)
+    SetPrices(world, { G1 = 10, G2 = 20, GJUNK = 50 })
+    world:Setting("inventory.food.enabled"):SetValue(false)
+    Enable(world, false)
+    Carry(world, TOUGH_JERKY)
+    equal(Marked(world), "1", "still ignored")
+end)
+
+test("reagents of known recipes are ignored by default", function(world)
+    SetPrices(world, { G1 = 10, G2 = 20, GJUNK = 50 })
+    Enable(world, false)
+    Carry(world, LINEN_CLOTH)
+    equal(Marked(world), "3", "no recipe known: marked")
+
+    LearnLinenBandage(world)
+    BagsChanged(world)
+    equal(Marked(world), "1", "a known recipe uses it")
+
+    Ignore(world, "reagents", false)
+    equal(Marked(world), "3", "counts once not ignored")
+end)
+
+test("learning a recipe or dropping its profession updates the marks", function(world)
+    SetPrices(world, { G1 = 10, G2 = 20, GJUNK = 50 })
+    Enable(world, false)
+    Carry(world, LINEN_CLOTH)
+    world.professions = { nil, nil, { skillLine = FIRST_AID } }
+    world:Fire("NEW_RECIPE_LEARNED", LINEN_BANDAGE)
+    world:NextFrame()
+    equal(Marked(world), "1", "learned")
+
+    world.professions = {}
+    world:Fire("SKILL_LINES_CHANGED")
+    world:NextFrame()
+    equal(Marked(world), "3", "profession dropped")
+end)
+
+test("reagents count while reagent uses is off", function(world)
+    SetPrices(world, { G1 = 10, G2 = 20, GJUNK = 50 })
+    Enable(world, false)
+    Carry(world, LINEN_CLOTH)
+    LearnLinenBandage(world)
+    world:Setting("professions.reagents.enabled"):SetValue(false)
+    BagsChanged(world)
+    equal(Marked(world), "3", "no known recipes without the feature")
+end)
+
+-- Each of the other "ignore" options, checked by default: the item in slot 3
+-- (worth 1c) is left unmarked until its option is unchecked.
+local function ExpectIgnored(world, key, setup)
+    SetPrices(world, { G1 = 10, G2 = 20, GJUNK = 50 })
+    Enable(world, false)
+    setup()
+    BagsChanged(world)
+    world:NextFrame()
+    equal(Marked(world), "1", key .. ": ignored")
+    Ignore(world, key, false)
+    equal(Marked(world), "3", key .. ": marked once not ignored")
+end
+
+local MINING_PICK = 2901
+local RUNE_OF_TELEPORTATION = 17031 -- a mage reagent (the player is a mage)
+local ANKH = 17030 -- a shaman reagent
+
+test("profession tools are ignored", function(world)
+    ExpectIgnored(world, "tools", function()
+        Carry(world, MINING_PICK)
+    end)
+end)
+
+test("fishing poles are tools", function(world)
+    world.weaponSubclasses.POLE = Enum.ItemWeaponSubclass.Fishingpole
+    ExpectIgnored(world, "tools", function()
+        Carry(world, "POLE")
+    end)
+end)
+
+test("reagents of the player's class spells are ignored", function(world)
+    ExpectIgnored(world, "classReagents", function()
+        Carry(world, RUNE_OF_TELEPORTATION)
+    end)
+end)
+
+test("ammo is ignored with class reagents", function(world)
+    world.itemClasses.ARROW = Enum.ItemClass.Projectile
+    ExpectIgnored(world, "classReagents", function()
+        Carry(world, "ARROW")
+    end)
+end)
+
+test("reagents of other classes' spells are marked", function(world)
+    SetPrices(world, { G1 = 10, G2 = 20, GJUNK = 50 })
+    Enable(world, false)
+    Carry(world, ANKH)
+    equal(Marked(world), "3", "a shaman's Ankh")
+end)
+
+test("items on the action bars are ignored", function(world)
+    ExpectIgnored(world, "actionBars", function()
+        Carry(world, "POTION")
+        world:PlaceItem(1, "POTION")
+    end)
+end)
+
+test("placing an item on the action bars updates the marks", function(world)
+    SetPrices(world, { G1 = 10, G2 = 20, GJUNK = 50 })
+    Enable(world, false)
+    Carry(world, "POTION")
+    equal(Marked(world), "3", "not on a bar")
+    world:PlaceItem(1, "POTION")
+    world:NextFrame()
+    equal(Marked(world), "1", "placed")
+end)
+
+test("items a quest asks for are ignored", function(world)
+    ExpectIgnored(world, "questItems", function()
+        Carry(world, "WING")
+        world.questLog = { { questID = 1, title = "Bat Wings", objectives = { world:Objective("G3", 10, 3) } } }
+        world:Fire("QUEST_LOG_UPDATE")
+    end)
+end)
+
+test("a quest entering the log updates the marks", function(world)
+    SetPrices(world, { G1 = 10, G2 = 20, GJUNK = 50 })
+    Enable(world, false)
+    Carry(world, "WING")
+    equal(Marked(world), "3", "no quest")
+    world.questLog = { { questID = 1, title = "Bat Wings", objectives = { world:Objective("G3", 10, 3) } } }
+    world:Fire("QUEST_LOG_UPDATE")
+    world:NextFrame()
+    equal(Marked(world), "1", "a quest asks for it")
+end)
+
+test("quest items count while quest objectives are off", function(world)
+    world:Setting("quests.helpers.enabled"):SetValue(false)
+    SetPrices(world, { G1 = 10, G2 = 20, GJUNK = 50 })
+    Enable(world, false)
+    Carry(world, "WING")
+    world.questLog = { { questID = 1, title = "Bat Wings", objectives = { world:Objective("G3", 10, 3) } } }
+    world:Fire("QUEST_LOG_UPDATE")
+    BagsChanged(world)
+    equal(Marked(world), "3", "no quest index without quest helpers")
+end)
+
+test("items marked for the auction house, bank or mail are ignored", function(world)
+    local Marks = world.ns:GetFeature("inventory", "marks")
+    for _, destination in ipairs({ "auction", "bank", "mail" }) do
+        ExpectIgnored(world, "marks", function()
+            Carry(world, "LOOT")
+            Marks:ToggleDestination("LOOT", destination)
+        end)
+        Marks:ToggleDestination("LOOT", destination)
+        Ignore(world, "marks", true)
+    end
+end)
+
+test("items marked as junk are marked", function(world)
+    SetPrices(world, { G1 = 10, G2 = 20, GJUNK = 50 })
+    Enable(world, false)
+    Carry(world, "LOOT")
+    world.ns:GetFeature("inventory", "marks"):ToggleDestination("LOOT", "junk")
+    equal(Marked(world), "3", "junk")
+end)
+
+test("items with a note are ignored", function(world)
+    ExpectIgnored(world, "notes", function()
+        Carry(world, "LOOT")
+        world.ns:GetFeature("inventory", "marks"):SetNote("G3", "keep")
+    end)
+end)
+
+test("writing or erasing a note updates the marks", function(world)
+    local Marks = world.ns:GetFeature("inventory", "marks")
+    SetPrices(world, { G1 = 10, G2 = 20, GJUNK = 50 })
+    Enable(world, false)
+    Carry(world, "LOOT")
+    Marks:SetNote("G3", "keep")
+    equal(Marked(world), "1", "written")
+    Marks:SetNote("G3", " ")
+    equal(Marked(world), "3", "erased")
+end)

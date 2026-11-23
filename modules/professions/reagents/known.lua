@@ -71,3 +71,19 @@ end
 function Known:IsKnown(spellID, skillLine, playerSkillLines)
     return playerSkillLines[skillLine] == true and GetStore()[spellID] == true
 end
+
+-- Public API: whether a recipe this character knows uses itemID; always false while the
+-- feature is off (its known recipes aren't kept up to date then).
+function Reagents:IsKnownReagent(itemID)
+    local uses = self:IsActive() and self.Data[itemID]
+    if not uses then
+        return false
+    end
+    local playerSkillLines = self:GetPlayerSkillLines()
+    for _, use in ipairs(uses) do
+        if Known:IsKnown(use[1], use[2], playerSkillLines) then
+            return true
+        end
+    end
+    return false
+end

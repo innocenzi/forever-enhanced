@@ -44,6 +44,8 @@ local marked = {}
 -- Item IDs of bag items whose data wasn't loaded then: { [itemID] = true }.
 local unloaded = {}
 local refreshQueued = false
+-- The quest log at the last QUEST_LOG_UPDATE (ns:GetQuestLogSignature).
+local lastQuestLog
 
 local function CreateDecoration(button)
     local frame = CreateFrame("Frame", nil, button)
@@ -123,9 +125,37 @@ local listener = ns:CreateEventListener({
             QueueRefresh()
         end
     end,
+    -- What the "ignore" options leave out changes. Next frame, once the
+    -- features keeping that state have read the event (a learned recipe).
+    NEW_RECIPE_LEARNED = function()
+        if Cheapest:GetSetting("ignore").reagents then
+            QueueRefresh()
+        end
+    end,
+    SKILL_LINES_CHANGED = function()
+        if Cheapest:GetSetting("ignore").reagents then
+            QueueRefresh()
+        end
+    end,
+    ACTIONBAR_SLOT_CHANGED = function()
+        if Cheapest:GetSetting("ignore").actionBars then
+            QueueRefresh()
+        end
+    end,
+    -- Objective progress doesn't change which items quests ask for.
+    QUEST_LOG_UPDATE = function()
+        local questLog = ns:GetQuestLogSignature()
+        if questLog ~= lastQuestLog then
+            lastQuestLog = questLog
+            if Cheapest:GetSetting("ignore").questItems then
+                QueueRefresh()
+            end
+        end
+    end,
 })
 
 function Buttons:Enable()
+    lastQuestLog = ns:GetQuestLogSignature()
     listener:Start()
 end
 

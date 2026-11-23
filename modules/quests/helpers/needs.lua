@@ -109,3 +109,9 @@ function Needs:Release(user)
         unreadable = false
     end
 end
+
+-- Public API: whether a quest of the log needs the item named `name` (an item
+-- objective, fulfilled or not); always false while no part uses the index.
+function Helpers:IsNeededByQuest(name)
+    return next(users) ~= nil and Needs:Find(name) ~= nil
+end
