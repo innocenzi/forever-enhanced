@@ -3281,8 +3281,11 @@ C_ChatInfo.RegisterAddonMessagePrefix = function(prefix)
     return true
 end
 
+-- Whispers, and group messages (PARTY, RAID, INSTANCE_CHAT: no target).
+local GROUP_ADDON_CHANNELS = { PARTY = true, RAID = true, INSTANCE_CHAT = true }
+
 C_ChatInfo.SendAddonMessage = function(prefix, message, chatType, target)
-    assert(chatType == "WHISPER" and target, "only whispers are modelled")
+    assert(chatType == "WHISPER" and target or GROUP_ADDON_CHANNELS[chatType] and not target, "unmodelled chat type")
     return SendAddon(prefix, { message = message, chatType = chatType, target = target })
 end
 
@@ -4970,6 +4973,7 @@ EventRegistry = {
 }
 
 ACCEPT = "Accept"
+DECLINE = "Decline"
 OKAY = "Okay"
 NONE = "None"
 CANCEL = "Cancel"
@@ -7511,6 +7515,12 @@ local FRIENDS_PREFIX = "FEFriends"
 -- An addon message whispered by `sender` ("Name-Realm"), on the addon's prefix by default.
 function world:ReceiveWhisperAddon(message, sender, prefix)
     self:Fire("CHAT_MSG_ADDON", prefix or FRIENDS_PREFIX, message, "WHISPER", sender, "", 0, 0, "", 0)
+end
+
+-- An addon message `sender` ("Name-Realm") sent to the group on `chatType`
+-- (PARTY, RAID, INSTANCE_CHAT). Any of them may be secret (world:Secret).
+function world:ReceiveGroupAddon(prefix, message, chatType, sender)
+    self:Fire("CHAT_MSG_ADDON", prefix, message, chatType, sender, "", 0, 0, "", 0)
 end
 
 -- Battle.net game data from the friend playing on `gameAccountID`.

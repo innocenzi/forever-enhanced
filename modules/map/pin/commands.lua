@@ -18,19 +18,8 @@ Pin.Commands = Commands
 -- Our registered entries, each { key, command, handler }.
 local registered = {}
 
--- Silent like Blizzard's own pin: the map, the arrow and the sound show it.
 local function Place(mapID, x, y)
-    if not mapID or not C_Map.CanSetUserWaypointOnMap(mapID) then
-        ns:Error(MAP_PIN_INVALID_MAP)
-        return
-    end
-    ns:ShieldObjectiveTracker(function()
-        C_Map.SetUserWaypoint(UiMapPoint.CreateFromCoordinates(mapID, x, y))
-        if Pin:GetSetting("track") then
-            C_SuperTrack.SetSuperTrackedUserWaypoint(true)
-        end
-    end)
-    PlaySound(SOUNDKIT.UI_MAP_WAYPOINT_CONTROL_CLICK)
+    Pin:Place(mapID, x, y, Pin:GetSetting("track"))
 end
 
 local function Clear()

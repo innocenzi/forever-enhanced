@@ -2,7 +2,7 @@ local _, ns = ...
 
 ns:RegisterLocale("enUS", {
     ["map.pin.title"] = "Map pin",
-    ["map.pin.description"] = "Sets your map pin from TomTom's /way commands, and removes it when you reach it.",
+    ["map.pin.description"] = "Sets your map pin from TomTom's /way commands, shares it with your group, and removes it when you reach it.",
     ["map.pin.commands"] = "TomTom commands",
     ["map.pin.commands.tooltip"] = "Sets your map pin from /way coordinates written for TomTom.",
     ["map.pin.track"] = "Track the map pin",
@@ -14,13 +14,18 @@ ns:RegisterLocale("enUS", {
     ["map.pin.range.format"] = "%d yd",
     ["map.pin.announce"] = "Show arrival message",
     ["map.pin.announce.tooltip"] = "Shows a message at the top of the screen when you reach the map pin.",
+    ["map.pin.share"] = "Share with your group",
+    ["map.pin.share.tooltip"] = "Offers the map pins you link in group chat to members who use Forever Enhanced, and theirs to you.",
+    ["map.pin.autoAccept"] = "Accept automatically",
+    ["map.pin.autoAccept.tooltip"] = "Places and tracks map pins shared by your group without asking.",
+    ["map.pin.sharedPrompt"] = "%s shares a map pin: %s.",
     ["map.pin.unknownZone"] = "Unknown zone: %s",
     ["map.pin.usage"] = "Usage: /way [zone] x y [description], /way reset, /wayb [description], /cway",
 })
 
 ns:RegisterLocale("frFR", {
     ["map.pin.title"] = "Repère cartographique",
-    ["map.pin.description"] = "Place votre repère sur la carte avec les commandes /way de TomTom, et le retire lorsque vous l’atteignez.",
+    ["map.pin.description"] = "Place votre repère sur la carte avec les commandes /way de TomTom, le partage avec votre groupe, et le retire lorsque vous l’atteignez.",
     ["map.pin.commands"] = "Commandes TomTom",
     ["map.pin.commands.tooltip"] = "Place votre repère sur la carte à partir des coordonnées /way écrites pour TomTom.",
     ["map.pin.track"] = "Suivre le repère",
@@ -32,6 +37,11 @@ ns:RegisterLocale("frFR", {
     ["map.pin.range.format"] = "%d m",
     ["map.pin.announce"] = "Annoncer l’arrivée",
     ["map.pin.announce.tooltip"] = "Affiche un message en haut de l’écran lorsque vous atteignez le repère.",
+    ["map.pin.share"] = "Partager avec votre groupe",
+    ["map.pin.share.tooltip"] = "Propose aux membres du groupe qui utilisent Forever Enhanced les repères que vous liez dans la discussion de groupe, et vous propose les leurs.",
+    ["map.pin.autoAccept"] = "Accepter automatiquement",
+    ["map.pin.autoAccept.tooltip"] = "Place et suit les repères partagés par votre groupe sans vous demander.",
+    ["map.pin.sharedPrompt"] = "%s partage un repère cartographique : %s.",
     ["map.pin.unknownZone"] = "Zone inconnue : %s",
     ["map.pin.usage"] = "Utilisation : /way [zone] x y [description], /way reset, /wayb [description], /cway",
 })

@@ -154,3 +154,122 @@ test("leaves /way to another addon that registered it", function(world)
     world:Chat("/way 1 2")
     equal(received, "1 2", "other addon's command still runs")
 end)
+
+-- Map pins shared with the group ---------------------------------------------------------
+
+local SHARE_PREFIX = "FEPin"
+
+local function SharedPins(world)
+    local sent = {}
+    for _, record in ipairs(world.sentAddon) do
+        if record.prefix == SHARE_PREFIX then
+            table.insert(sent, record)
+        end
+    end
+    return sent
+end
+
+local function LinkPin(world, chatType, text)
+    world:Chat("/way 45 63")
+    C_ChatInfo.SendChatMessage((text or "here: %s"):format(C_Map.GetUserWaypointHyperlink()), chatType)
+end
+
+local function ReceivePin(world, message, chatType, sender)
+    world:ReceiveGroupAddon(SHARE_PREFIX, message, chatType or "PARTY", sender or "Arthas-Forever")
+end
+
+test("a map pin linked in group chat goes to the group's addons", function(world)
+    world.party = true
+    LinkPin(world, "PARTY")
+    local sent = SharedPins(world)
+    equal(#sent, 1, "messages")
+    equal(sent[1].message, "1P:1:4500:6300", "message")
+    equal(sent[1].chatType, "PARTY", "channel")
+
+    LinkPin(world, "RAID_WARNING")
+    equal(SharedPins(world)[2].chatType, "RAID", "raid warnings go to the raid")
+    LinkPin(world, "INSTANCE_CHAT")
+    equal(SharedPins(world)[3].chatType, "INSTANCE_CHAT", "instance chat")
+end)
+
+test("sends nothing for other chat or with sharing off", function(world)
+    world.party = true
+    LinkPin(world, "WHISPER")
+    LinkPin(world, "SAY")
+    C_ChatInfo.SendChatMessage("no link here", "PARTY")
+    equal(#SharedPins(world), 0, "other chat")
+
+    world:Setting("map.pin.share"):SetValue(false)
+    LinkPin(world, "PARTY")
+    equal(#SharedPins(world), 0, "sharing off")
+
+    world:Setting("map.pin.share"):SetValue(true)
+    world.party = false
+    LinkPin(world, "PARTY")
+    equal(#SharedPins(world), 0, "not in a group")
+end)
+
+test("offers a group member's map pin, followed and tracked once accepted", function(world)
+    ReceivePin(world, "1P:2:5200:4100")
+    local dialog = world:Dialog()
+    expect(dialog, "dialog shown")
+    equal(dialog.text, world.L["map.pin.sharedPrompt"]:format("Arthas", "Durotar"), "dialog text")
+    expect(not C_Map.HasUserWaypoint(), "no pin before accepting")
+
+    world:ClickDialogButton(1)
+    ExpectPin(2, 0.52, 0.41, "accepted pin")
+    expect(C_SuperTrack.IsSuperTrackingUserWaypoint(), "tracked")
+end)
+
+test("declining a shared map pin keeps the player's own", function(world)
+    world:Chat("/way 45 63")
+    ReceivePin(world, "1P:2:5200:4100")
+    world:ClickDialogButton(2)
+    ExpectPin(1, 0.45, 0.63, "own pin")
+end)
+
+test("follows shared map pins without asking when accepting automatically", function(world)
+    world:Setting("map.pin.autoAccept"):SetValue(true)
+    ReceivePin(world, "1P:2:5200:4100", "RAID")
+    expect(not world:Dialog(), "no dialog")
+    ExpectPin(2, 0.52, 0.41, "pin")
+    expect(C_SuperTrack.IsSuperTrackingUserWaypoint(), "tracked")
+end)
+
+test("ignores shared map pins it can't follow or that aren't from the group", function(world)
+    world:Setting("map.pin.autoAccept"):SetValue(true)
+    ReceivePin(world, "1P:2:5200:4100", "PARTY", "Hylmew-Forever")
+    ReceivePin(world, "1P:2:5200:4100", "WHISPER")
+    ReceivePin(world, "1P:3:5200:4100")
+    ReceivePin(world, "1P:2:52000:4100")
+    ReceivePin(world, "2P:2:5200:4100")
+    ReceivePin(world, world:Secret("1P:2:5200:4100"))
+    ReceivePin(world, "1P:2:5200:4100", "PARTY", world:Secret("Arthas-Forever"))
+    world:ReceiveGroupAddon("Other", "1P:2:5200:4100", "PARTY", "Arthas-Forever")
+    expect(not C_Map.HasUserWaypoint(), "no pin")
+end)
+
+test("a map pin accepted in combat is followed once combat ends", function(world)
+    world:EnterCombat()
+    ReceivePin(world, "1P:2:5200:4100")
+    world:ClickDialogButton(1)
+    expect(not C_Map.HasUserWaypoint(), "no pin in combat")
+    world:LeaveCombat()
+    ExpectPin(2, 0.52, 0.41, "pin after combat")
+end)
+
+test("turning sharing off closes the offer and stops listening", function(world)
+    ReceivePin(world, "1P:2:5200:4100")
+    world:Setting("map.pin.share"):SetValue(false)
+    expect(not world:Dialog(), "dialog closed")
+    ReceivePin(world, "1P:2:5200:4100")
+    expect(not world:Dialog(), "no dialog while off")
+
+    world:Setting("map.pin.share"):SetValue(true)
+    world:Setting("map.pin.autoAccept"):SetValue(true)
+    world:EnterCombat()
+    ReceivePin(world, "1P:2:5200:4100")
+    world:Setting("map.pin.share"):SetValue(false)
+    world:LeaveCombat()
+    expect(not C_Map.HasUserWaypoint(), "waiting pin dropped")
+end)
