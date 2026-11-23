@@ -1,5 +1,9 @@
--- Quest watch and super tracking changes kept away from Blizzard's objective
--- tracker.
+-- Quest watch, super tracking and recipe tracking changes kept away from
+-- Blizzard's objective tracker.
+--
+-- C_TradeSkillUI.SetRecipeTracked fires TRACKED_RECIPE_UPDATE the same way,
+-- handled by the recipe tracker module (unmeasured: shielded like the others);
+-- its next update (a bag change, BAG_UPDATE_DELAYED) shows the change.
 --
 -- C_QuestLog.AddQuestWatch / RemoveQuestWatch / SortQuestWatches fire
 -- QUEST_WATCH_LIST_CHANGED at once (measured in game), and super tracking
@@ -20,7 +24,7 @@
 
 local _, ns = ...
 
-local EVENTS = { "QUEST_WATCH_LIST_CHANGED", "SUPER_TRACKING_CHANGED" }
+local EVENTS = { "QUEST_WATCH_LIST_CHANGED", "SUPER_TRACKING_CHANGED", "TRACKED_RECIPE_UPDATE" }
 
 -- Blizzard's frames that must not handle EVENTS from our code.
 local function GetListeners()
@@ -32,8 +36,8 @@ local function GetListeners()
 end
 
 -- Calls func() with Blizzard's tracker modules and quest log deaf to the
--- events it causes. Every quest watch, super tracking or map pin change goes
--- through here.
+-- events it causes. Every quest watch, super tracking, map pin or recipe
+-- tracking change goes through here.
 function ns:ShieldObjectiveTracker(func)
     local muted = {}
     for _, frame in ipairs(GetListeners()) do

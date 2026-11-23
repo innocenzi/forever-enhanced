@@ -1,15 +1,19 @@
--- Planned recipes: a badge on a recipe's icon plans it for a number of crafts;
--- the next time the bank opens, the reagents the bags lack for every planned
--- recipe move from the bank to the bags, and the plans are forgotten, whether
--- or not the bank held everything.
+-- Tracked recipes: tracking a recipe (Blizzard's Shift Left Click in the recipe
+-- list, or its "Track recipe" checkbox) asks for a number of crafts. Blizzard's
+-- recipe tracker then shows the reagents for that many, each craft counts one
+-- down, and the last one untracks the recipe. Recipes tracked without a count
+-- stay Blizzard's own. With "withdraw", every bank visit brings the bags up to
+-- what the counted recipes still need.
 --
 -- The bank feature does the moving (Bank:WithdrawUpTo): it needs the bank
 -- feature on, but not its Deposit and Withdraw buttons.
 --
 -- Files of this slice:
---   feature.lua     registration, schema, lifecycle and the plans (this file)
+--   feature.lua     registration, schema, lifecycle and the counts (this file)
 --   locales.lua     strings
---   button.lua      the plan button on the profession window and its dialog
+--   picker.lua      the number of crafts picker, like the merchant's stack picker
+--   tracker.lua     the counted reagents in Blizzard's recipe tracker, and its menu entry
+--   tracking.lua    the picker on tracking, the count down on crafting
 --   withdrawal.lua  the withdrawal at the bank and its announcement
 
 local _, ns = ...
@@ -17,71 +21,98 @@ local _, ns = ...
 local Plans = ns:RegisterFeature("professions", "plans", {
     order = 3,
     settings = {
-        { key = "announce", type = "toggle", default = true },
+        { key = "withdraw", type = "toggle", default = true },
+        { key = "announce", type = "toggle", default = true, requires = { withdraw = true } },
     },
     presets = {
-        minimal = { enabled = true, announce = true },
-        enhanced = { enabled = true, announce = true },
+        minimal = { enabled = true, withdraw = true, announce = true },
+        enhanced = { enabled = true, withdraw = true, announce = true },
     },
 })
 
--- Per character: plans[recipeID] = { count = crafts, reagents = { [itemID] = quantity } },
--- the reagents read when the recipe was planned.
+-- The most crafts a recipe can count (three digits).
+Plans.MAX_COUNT = 999
+
+-- Per character: counts[recipeID] = crafts still to make, for tracked recipes
+-- (never recrafts).
 local function GetStore()
     local store = Plans:GetCharacterStore()
-    store.plans = store.plans or {}
-    return store.plans
+    store.plans = nil -- Planned recipes, before they were tracked.
+    store.counts = store.counts or {}
+    return store.counts
 end
 
--- The basic reagents of one craft of recipeID, { [itemID] = quantity }. A slot
--- taking several items (quality tiers) counts as its first one.
-local function ReadReagents(recipeID)
-    local reagents = {}
-    local schematic = C_TradeSkillUI.GetRecipeSchematic(recipeID, false)
-    for _, slot in ipairs(schematic and schematic.reagentSlotSchematics or {}) do
-        local reagent = slot.reagents[1]
-        if slot.reagentType == Enum.CraftingReagentType.Basic and reagent and reagent.itemID then
-            reagents[reagent.itemID] = (reagents[reagent.itemID] or 0) + slot.quantityRequired
-        end
+-- The number of crafts counted for recipeID, or nil (not tracked, or tracked without a count).
+function Plans:GetCount(recipeID)
+    return GetStore()[recipeID]
+end
+
+-- Counts `count` crafts of recipeID; 0 forgets its count.
+function Plans:SetCount(recipeID, count)
+    count = math.min(count, self.MAX_COUNT)
+    local counts = GetStore()
+    if (counts[recipeID] or 0) == count then
+        return
     end
-    return reagents
+    counts[recipeID] = count > 0 and count or nil
+    self.Tracker:Refresh()
 end
 
--- The number of crafts planned for recipeID, or nil.
-function Plans:GetPlannedCount(recipeID)
-    local plan = GetStore()[recipeID]
-    return plan and plan.count
+-- Opens the picker on `anchor` at `start`; Okay counts that many crafts of
+-- recipeID, if it's still tracked.
+function Plans:AskCount(recipeID, anchor, start)
+    self.Picker:Open(anchor, start, function(count)
+        if C_TradeSkillUI.IsRecipeTracked(recipeID, false) then
+            self:SetCount(recipeID, count)
+        end
+    end)
 end
 
--- Plans `count` crafts of recipeID; 0 (or a recipe without reagents) cancels its plan.
-function Plans:SetPlan(recipeID, count)
-    local reagents = count > 0 and ReadReagents(recipeID) or {}
-    GetStore()[recipeID] = next(reagents) and { count = count, reagents = reagents } or nil
-    self.Button:Update()
+-- Recipes with a count, in no order.
+function Plans:GetCountedRecipes()
+    local recipeIDs = {}
+    for recipeID in pairs(GetStore()) do
+        table.insert(recipeIDs, recipeID)
+    end
+    return recipeIDs
 end
 
-function Plans:ClearPlans()
-    wipe(GetStore())
-    self.Button:Update()
-end
-
--- What the bags should hold for every plan: { [itemID] = count }.
+-- What the bags should hold for every counted recipe: { [itemID] = count }.
+-- A slot taking several items (quality tiers) counts as its first one.
 function Plans:GetTotals()
     local totals = {}
-    for _, plan in pairs(GetStore()) do
-        for itemID, quantity in pairs(plan.reagents) do
-            totals[itemID] = (totals[itemID] or 0) + quantity * plan.count
+    for recipeID, count in pairs(GetStore()) do
+        local schematic = C_TradeSkillUI.GetRecipeSchematic(recipeID, false)
+        for _, slot in ipairs(schematic and schematic.reagentSlotSchematics or {}) do
+            local reagent = slot.reagents[1]
+            if slot.reagentType == Enum.CraftingReagentType.Basic and reagent and reagent.itemID then
+                totals[reagent.itemID] = (totals[reagent.itemID] or 0) + slot.quantityRequired * count
+            end
         end
     end
     return totals
 end
 
+-- Counts of recipes untracked while the feature was off (or by another addon) are forgotten.
+local function Prune()
+    local counts = GetStore()
+    for recipeID in pairs(counts) do
+        if not C_TradeSkillUI.IsRecipeTracked(recipeID, false) then
+            counts[recipeID] = nil
+        end
+    end
+end
+
 function Plans:OnEnable()
-    self.Button:Start()
+    Prune()
+    self.Tracking:Start()
     self.Withdrawal:Start()
+    self.Tracker:Start()
 end
 
 function Plans:OnDisable()
+    self.Tracker:Stop()
     self.Withdrawal:Stop()
-    self.Button:Stop()
+    self.Tracking:Stop()
+    self.Picker:Close()
 end

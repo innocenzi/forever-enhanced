@@ -133,7 +133,9 @@ modules\professions\skillups\chance.lua
 modules\professions\skillups\tooltip.lua
 modules\professions\plans\feature.lua
 modules\professions\plans\locales.lua
-modules\professions\plans\button.lua
+modules\professions\plans\picker.lua
+modules\professions\plans\tracker.lua
+modules\professions\plans\tracking.lua
 modules\professions\plans\withdrawal.lua
 
 # Combat

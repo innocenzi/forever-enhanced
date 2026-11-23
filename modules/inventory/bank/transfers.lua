@@ -7,7 +7,7 @@
 -- run: they never touch the same item, so their moves never conflict.
 --
 -- Other features withdraw exact quantities through Bank:WithdrawUpTo (e.g.
--- Planned recipes), whether or not the transfers part runs. Their job joins a
+-- Tracked recipes), whether or not the transfers part runs. Their job joins a
 -- run already going, so every transfer shares one mover: a round never sends
 -- two moves touching the same slot. The other jobs of the run leave its items
 -- alone: the refill would top off the withdrawn stack, the deposit take it back.

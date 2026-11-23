@@ -470,7 +470,7 @@ test("no cleanup when a move is blocked", function(world)
     equal(#world.bankSorts, 0, "no cleanup")
 end)
 
--- Bank:WithdrawUpTo, for other features (Planned recipes).
+-- Bank:WithdrawUpTo, for other features (Tracked recipes).
 local function WithdrawUpTo(world, totals)
     local finished = false
     local started = world.ns:GetFeature("inventory", "bank"):WithdrawUpTo(totals, function()
@@ -489,6 +489,25 @@ test("withdrawing up to a total takes whole stacks, then splits the rest off", f
     expect(started and finished, "started and finished")
     equal(world:Slots(0), "L3(2) L4'(4) - -", "bags")
     equal(world:Slots(6), "L4(16) - - -", "bank")
+    equal(world.splits, 1, "one split")
+end)
+
+test("withdrawing up to a total waits for its moves to show before counting again", function(world)
+    Setup(world, {}, { "L4" }, {}, {
+        L4 = { "linen", 20 },
+    })
+    world.lateMoves = true
+    local finished = false
+    world.ns:GetFeature("inventory", "bank"):WithdrawUpTo({ linen = 16 }, function()
+        finished = true
+    end)
+    world:Elapse(world.SERVER_CONFIRM_SECONDS / 2)
+    equal(world.splits, 1, "split sent")
+    world:Fire("BAG_UPDATE_DELAYED") -- the bank's own, before the split shows
+    world:Elapse(5)
+    expect(finished, "finished")
+    equal(world:Slots(0), "L4'(16) - - -", "bags")
+    equal(world:Slots(6), "L4(4) - - -", "bank")
     equal(world.splits, 1, "one split")
 end)
 

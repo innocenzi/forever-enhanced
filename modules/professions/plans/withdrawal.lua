@@ -1,7 +1,7 @@
--- The withdrawal: when the bank opens, the bank feature brings the bags up to
--- what every plan needs (Bank:WithdrawUpTo), and the plans are forgotten. Once
+-- The withdrawal: when the bank opens, with "withdraw", the bank feature brings
+-- the bags up to what the counted recipes still need (Bank:WithdrawUpTo). Once
 -- it's done, with "announce", chat lists what came from the bank and what is
--- still missing.
+-- still missing, when something came out.
 
 local _, ns = ...
 
@@ -26,7 +26,8 @@ local function FormatItem(itemID, count)
     return ns.L["professions.plans.item"]:format(name, count)
 end
 
--- Chat lines: the items whose bag count went up since `before`, then those still short of `totals`.
+-- Chat lines: the items whose bag count went up since `before`, then those
+-- still short of `totals`; nothing when nothing came out.
 local function Announce(totals, before)
     if not Plans:IsActive() or not Plans:GetSetting("announce") then
         return
@@ -41,9 +42,10 @@ local function Announce(totals, before)
             table.insert(missing, FormatItem(itemID, totals[itemID] - count))
         end
     end
-    if withdrawn[1] then
-        ns:Print(ns.L["professions.plans.withdrawn"]:format(table.concat(withdrawn, ", ")))
+    if not withdrawn[1] then
+        return
     end
+    ns:Print(ns.L["professions.plans.withdrawn"]:format(table.concat(withdrawn, ", ")))
     if missing[1] then
         ns:Print(ns.L["professions.plans.missing"]:format(table.concat(missing, ", ")))
     end
@@ -51,6 +53,9 @@ end
 
 local listener = ns:CreateEventListener({
     BANKFRAME_OPENED = function()
+        if not Plans:GetSetting("withdraw") then
+            return
+        end
         local totals = Plans:GetTotals()
         if not next(totals) then
             return
@@ -59,11 +64,9 @@ local listener = ns:CreateEventListener({
         for itemID in pairs(totals) do
             before[itemID] = C_Item.GetItemCount(itemID)
         end
-        if Bank:WithdrawUpTo(totals, function()
+        Bank:WithdrawUpTo(totals, function()
             Announce(totals, before)
-        end) then
-            Plans:ClearPlans()
-        end
+        end)
     end,
 })
 

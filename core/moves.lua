@@ -19,8 +19,12 @@
 -- onto the same item, the client merges the stacks; otherwise it swaps them.
 -- Other moves wait for a later round. A round's moves go out MOVES_PER_FRAME a
 -- frame. The next round runs on the bag update that follows the last of them,
--- once the sent slots are free. Rounds re-plan from live positions, so a late
--- server batch just costs one more round.
+-- once the sent slots are free and both slots of every sent move show it (what
+-- they hold changed): another bag update can come in between, the bank's own
+-- on opening for one, and planning from the old positions would send the same
+-- moves again (seen in game: a withdrawal of 16 off a stack of 20 took all 20).
+-- Rounds re-plan from live positions, so a late server batch just costs one
+-- more round.
 -- A key moved maxMovesPerKey times is dropped (the server refuses the move).
 --
 -- No rounds run in combat: the run pauses until combat ends. Seen on Forever: in
@@ -44,6 +48,17 @@ end
 local function IsSlotBusy(location)
     local info = C_Container.GetContainerItemInfo(location.bagID, location.slot)
     return info ~= nil and info.isLocked
+end
+
+-- What a slot holds, by stack (GUID) and count: a move changes it on both of
+-- its slots, a swap of two stacks of the same item included.
+local function GetContents(location)
+    local info = C_Container.GetContainerItemInfo(location.bagID, location.slot)
+    if not info then
+        return ""
+    end
+    local guid = C_Item.GetItemGUID(ItemLocation:CreateFromBagAndSlot(location.bagID, location.slot))
+    return tostring(guid) .. "x" .. info.stackCount
 end
 
 local MoverMixin = {}
@@ -189,6 +204,7 @@ function MoverMixin:SendQueued()
         if not IsSlotBusy(move.from) and not IsSlotBusy(move.to) then
             self.moveCounts[move.key] = (self.moveCounts[move.key] or 0) + 1
             self.movedCount = self.movedCount + 1
+            local before = { from = GetContents(move.from), to = GetContents(move.to) }
             if move.count then
                 C_Container.SplitContainerItem(move.from.bagID, move.from.slot, move.count)
             else
@@ -201,8 +217,8 @@ function MoverMixin:SendQueued()
                 self:Stop()
                 return
             end
-            table.insert(self.pending, move.from)
-            table.insert(self.pending, move.to)
+            table.insert(self.pending, { location = move.from, before = before.from })
+            table.insert(self.pending, { location = move.to, before = before.to })
         end
     end
     if self.queue[1] then
@@ -212,9 +228,10 @@ function MoverMixin:SendQueued()
     end
 end
 
-function MoverMixin:ArePendingSlotsFree()
-    for _, location in ipairs(self.pending) do
-        if IsSlotBusy(location) then
+-- Whether the slots of the moves sent are free and show them.
+function MoverMixin:HavePendingMovesLanded()
+    for _, slot in ipairs(self.pending) do
+        if IsSlotBusy(slot.location) or GetContents(slot.location) == slot.before then
             return false
         end
     end
@@ -234,7 +251,7 @@ function MoverMixin:OnBagsUpdated()
     if self.pausedForCombat or self.queue[1] then
         return
     end
-    if self.waitingForServer or self:ArePendingSlotsFree() then
+    if self.waitingForServer or self:HavePendingMovesLanded() then
         self:Schedule(0)
     end
 end

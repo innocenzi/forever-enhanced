@@ -341,7 +341,11 @@ for _, name in ipairs({
     "SetRotation",
     "SetTexCoord",
     "SetJustifyH",
-    "SetTextColor",
+    "SetNormalTexture",
+    "SetPushedTexture",
+    "SetDisabledTexture",
+    "SetClampedToScreen",
+    "SetAutoFocus",
     "HighlightText",
     "ClearFocus",
     "SetMaxLetters",
@@ -417,6 +421,24 @@ end
 
 function Region:GetAlpha()
     return self.alpha or 1
+end
+
+function Region:SetTextColor(r, g, b)
+    self.textColor = { r = r, g = g, b = b }
+end
+
+-- The edit box with the keyboard focus: world.focus.
+function Region:SetFocus()
+    world.focus = self
+end
+
+-- Check buttons.
+function Region:SetChecked(checked)
+    self.checked = checked and true or false
+end
+
+function Region:GetChecked()
+    return self.checked == true
 end
 
 function Region:CreateFontString()
@@ -930,6 +952,9 @@ local function NewMenuDescription()
         table.insert(self.releasedCallbacks, callback)
     end
     description.SetScrollMode = NoOp
+    function description:SetTag(tag)
+        self.tag = tag
+    end
     return description
 end
 
@@ -952,6 +977,10 @@ MenuUtil = {
         CloseContextMenu()
         local root = NewMenuDescription()
         generator(owner, root)
+        -- Like Menu.PopulateDescription: the tag's modifiers run after the generator.
+        for _, callback in ipairs(root.tag and world.menuModifiers[root.tag] or {}) do
+            callback(owner, root, {})
+        end
         world.contextMenu = { owner = owner, generator = generator, root = root }
     end,
 }
@@ -1767,6 +1796,22 @@ local function IsBankTab(bagID)
     return bagID >= Enum.BagIndex.CharacterBankTab_1 and bagID <= Enum.BagIndex.CharacterBankTab_3
 end
 
+-- A drop the server confirms: the bag update follows SERVER_CONFIRM_SECONDS
+-- later. The slots show the move at once, or with world.lateMoves only with
+-- that update (measured: slots unlock before positions update, so a bag update
+-- coming in between, e.g. the bank's own on opening, shows the old positions).
+local function DeliverMove(apply)
+    if not world.lateMoves then
+        apply()
+    end
+    C_Timer.NewTimer(SERVER_CONFIRM_SECONDS, function()
+        if world.lateMoves then
+            apply()
+        end
+        world:Fire("BAG_UPDATE_DELAYED")
+    end)
+end
+
 C_Container = {
     GetContainerNumSlots = function(bagID)
         if not world.bags[bagID] or (IsBankTab(bagID) and not world.bankOpen) then
@@ -1844,20 +1889,21 @@ C_Container = {
                 if ItemID(target) ~= ItemID(moving) or MaxStack(target) - StackCount(target) < split then
                     return
                 end
-                world.counts[target] = StackCount(target) + split
-            else
-                local guid = moving
-                repeat
-                    guid = guid .. "'"
-                until not world.itemIDs[guid]
-                world.itemIDs[guid] = ItemID(moving)
-                world.counts[guid] = split
-                bags[bagID][slot] = guid
             end
-            world.counts[moving] = StackCount(moving) - split
             world.cursor, world.cursorSplit = nil, nil
-            C_Timer.NewTimer(SERVER_CONFIRM_SECONDS, function()
-                world:Fire("BAG_UPDATE_DELAYED")
+            DeliverMove(function()
+                if target then
+                    world.counts[target] = StackCount(target) + split
+                else
+                    local guid = moving
+                    repeat
+                        guid = guid .. "'"
+                    until not world.itemIDs[guid]
+                    world.itemIDs[guid] = ItemID(moving)
+                    world.counts[guid] = split
+                    bags[bagID][slot] = guid
+                end
+                world.counts[moving] = StackCount(moving) - split
             end)
             world:Fire("CURSOR_CHANGED")
             return
@@ -1867,22 +1913,21 @@ C_Container = {
         if from.bagID ~= bagID or from.slot ~= slot then
             local bags = world.bags
             local moving, target = bags[from.bagID][from.slot], bags[bagID][slot]
-            local room = target and ItemID(target) == ItemID(moving) and MaxStack(target) - StackCount(target) or 0
-            if room > 0 then
-                local moved = math.min(room, StackCount(moving))
-                world.counts[target] = StackCount(target) + moved
-                if moved == StackCount(moving) then
-                    bags[from.bagID][from.slot] = nil
-                    world.counts[moving] = nil
+            DeliverMove(function()
+                local room = target and ItemID(target) == ItemID(moving) and MaxStack(target) - StackCount(target) or 0
+                if room > 0 then
+                    local moved = math.min(room, StackCount(moving))
+                    world.counts[target] = StackCount(target) + moved
+                    if moved == StackCount(moving) then
+                        bags[from.bagID][from.slot] = nil
+                        world.counts[moving] = nil
+                    else
+                        world.counts[moving] = StackCount(moving) - moved
+                    end
                 else
-                    world.counts[moving] = StackCount(moving) - moved
+                    bags[from.bagID][from.slot], bags[bagID][slot] = target, moving
+                    table.insert(world.swapTimes, world.now)
                 end
-            else
-                bags[from.bagID][from.slot], bags[bagID][slot] = target, moving
-                table.insert(world.swapTimes, world.now)
-            end
-            C_Timer.NewTimer(SERVER_CONFIRM_SECONDS, function()
-                world:Fire("BAG_UPDATE_DELAYED")
             end)
         end
         world:Fire("CURSOR_CHANGED")
@@ -4976,6 +5021,7 @@ EventRegistry = {
 }
 
 ACCEPT = "Accept"
+OKAY = "Okay"
 NONE = "None"
 CANCEL = "Cancel"
 CLOSE = "Close"
@@ -6136,11 +6182,276 @@ C_TradeSkillUI = {
             maxSkillLevel = 300,
         }
     end,
-    -- The reagent slots of a recipe: world.recipeSchematics[recipeID] ({ world:Reagent(...), ... }).
+    -- The reagent slots of a recipe: world.recipeSchematics[recipeID] ({ world:Reagent(...), ... }),
+    -- its name world.recipeNames[recipeID].
     GetRecipeSchematic = function(recipeID)
-        return { recipeID = recipeID, reagentSlotSchematics = world.recipeSchematics[recipeID] or {} }
+        return {
+            recipeID = recipeID,
+            name = world.recipeNames[recipeID],
+            reagentSlotSchematics = world.recipeSchematics[recipeID] or {},
+        }
+    end,
+    -- Tracking, per character: world.trackedRecipes[isRecraft][recipeID]. A change
+    -- fires TRACKED_RECIPE_UPDATE at once (recipeID, tracked), even when nothing changed.
+    IsRecipeTracked = function(recipeID, isRecraft)
+        return world.trackedRecipes[isRecraft == true][recipeID] == true
+    end,
+    SetRecipeTracked = function(recipeID, tracked, isRecraft)
+        world.trackedRecipes[isRecraft == true][recipeID] = tracked and true or nil
+        world:Fire("TRACKED_RECIPE_UPDATE", recipeID, tracked)
+    end,
+    GetRecipesTracked = function(isRecraft)
+        local recipeIDs = {}
+        for recipeID in pairs(world.trackedRecipes[isRecraft == true]) do
+            table.insert(recipeIDs, recipeID)
+        end
+        table.sort(recipeIDs)
+        return recipeIDs
     end,
 }
+
+world.recipeNames = {}
+world.trackedRecipes = { [false] = {}, [true] = {} }
+
+-- Blizzard_FrameXMLUtil's ProfessionsUtil: the parts the recipe tracker uses.
+-- Variable quantities aren't modelled.
+ProfessionsUtil = {
+    GetRecipeSchematic = function(recipeID, isRecraft)
+        local schematic = C_TradeSkillUI.GetRecipeSchematic(recipeID, isRecraft)
+        for _, slot in ipairs(schematic.reagentSlotSchematics) do
+            function slot:GetQuantityRequired()
+                return self.quantityRequired
+            end
+            function slot:IsVariableQuantityReagent()
+                return false
+            end
+        end
+        return schematic
+    end,
+    IsReagentSlotRequired = function(slot)
+        return slot.required
+    end,
+    IsReagentSlotBasicRequired = function(slot)
+        return slot.reagentType == Enum.CraftingReagentType.Basic and slot.required
+    end,
+    -- The bags' count (ItemUtil.GetCraftingReagentCount).
+    AccumulateReagentsInPossession = function(reagents)
+        local count = 0
+        for _, reagent in ipairs(reagents) do
+            count = count + C_Item.GetItemCount(reagent.itemID)
+        end
+        return count
+    end,
+}
+
+PROFESSIONS_TRACKER_REAGENT_FORMAT = "%s %s"
+PROFESSIONS_TRACKER_REAGENT_COUNT_FORMAT = "%d/%d"
+PROFESSIONS_UNTRACK_RECIPE = "Untrack Recipe"
+OBJECTIVE_DASH_STYLE_SHOW = 1
+OBJECTIVE_DASH_STYLE_HIDE = 2
+OBJECTIVE_TRACKER_COLOR = {
+    Normal = { r = 0.8, g = 0.8, b = 0.8 },
+    NormalHighlight = { r = 1, g = 1, b = 1 },
+    Complete = { r = 0.6, g = 0.6, b = 0.6 },
+    CompleteHighlight = { r = 1, g = 1, b = 1 },
+    Header = { r = 1, g = 0.82, b = 0 },
+}
+OBJECTIVE_TRACKER_COLOR.Normal.reverse = OBJECTIVE_TRACKER_COLOR.NormalHighlight
+OBJECTIVE_TRACKER_COLOR.Complete.reverse = OBJECTIVE_TRACKER_COLOR.CompleteHighlight
+
+-- Blizzard's recipe tracker module (Blizzard_ProfessionsRecipeTracker.lua,
+-- Blizzard_ObjectiveTracker loaded at startup): the parts the addon touches.
+-- Its events mark it dirty, and the tracker's next update lays it out again:
+-- BeginLayout, AddRecipe for each tracked recipe (blocks keyed by recipe ID,
+-- lines by reagent slot), then the blocks not added again are freed. Like
+-- ObjectiveTrackerBlockMixin, lines come from one pool shared by every module
+-- (world.trackerLinePool) and keep the dash and color style last drawn on them
+-- (dashStyle, Text.colorStyle): only a different style is drawn again.
+-- world.recipeTrackerEvents: the events it handled.
+world.trackerLinePool = {}
+world.recipeTrackerEvents = {}
+ProfessionsRecipeTracker = CreateFrame("Frame", "ProfessionsRecipeTracker")
+ProfessionsRecipeTracker.usedBlocks = {}
+ObjectiveTrackerManager.moduleToContainerMap[ProfessionsRecipeTracker] = ObjectiveTrackerFrame
+world.loadedAddOns.Blizzard_ObjectiveTracker = true
+for _, event in ipairs({ "TRACKED_RECIPE_UPDATE", "BAG_UPDATE_DELAYED" }) do
+    ProfessionsRecipeTracker:RegisterEvent(event)
+end
+ProfessionsRecipeTracker:SetScript("OnEvent", function(self, event)
+    table.insert(world.recipeTrackerEvents, event)
+    self.isDirty = true
+    ObjectiveTrackerFrame:MarkDirty()
+end)
+
+local updateTracker = ObjectiveTrackerFrame.Update
+function ObjectiveTrackerFrame:Update()
+    updateTracker(self)
+    if ProfessionsRecipeTracker.isDirty then
+        ProfessionsRecipeTracker.isDirty = nil
+        ProfessionsRecipeTracker:Update()
+    end
+end
+
+local function SetStringText(fontString, text, colorStyle)
+    fontString:SetText(text)
+    if fontString.colorStyle ~= colorStyle then
+        fontString:SetTextColor(colorStyle.r, colorStyle.g, colorStyle.b)
+        fontString.colorStyle = colorStyle
+    end
+end
+
+local TrackerBlock = {}
+
+function TrackerBlock:GetExistingLine(key)
+    return self.usedLines[key]
+end
+
+function TrackerBlock:AddObjective(key, text, _, _, dashStyle, colorStyle)
+    local line = self.usedLines[key]
+    if not line then
+        line = table.remove(world.trackerLinePool)
+        if not line then
+            line = CreateFrame("Frame")
+            line.Text = line:CreateFontString()
+            line.Dash = line:CreateFontString()
+            line.Icon = line:CreateTexture()
+        end
+        line:SetParent(self)
+        line:Show()
+        self.usedLines[key] = line
+    end
+    line.used = true
+    if line.dashStyle ~= dashStyle then
+        line.Dash:SetShown(dashStyle == OBJECTIVE_DASH_STYLE_SHOW)
+        line.dashStyle = dashStyle
+    end
+    SetStringText(line.Text, text, colorStyle)
+    return line
+end
+
+function ProfessionsRecipeTracker:GetExistingBlock(id)
+    return self.usedBlocks[id]
+end
+
+function ProfessionsRecipeTracker:BeginLayout()
+    for _, block in pairs(self.usedBlocks) do
+        block.used = false
+    end
+end
+
+function ProfessionsRecipeTracker:AddRecipe(recipeID, isRecraft)
+    local schematic = ProfessionsUtil.GetRecipeSchematic(recipeID, isRecraft)
+    local block = self.usedBlocks[recipeID]
+    if not block then
+        block = Mixin(CreateFrame("Frame", nil, self), TrackerBlock)
+        block.HeaderText = block:CreateFontString()
+        block.usedLines = {}
+        block.id = recipeID
+        self.usedBlocks[recipeID] = block
+    end
+    block.used = true
+    SetStringText(block.HeaderText, schematic.name, OBJECTIVE_TRACKER_COLOR.Header)
+    for slotIndex, slot in ipairs(schematic.reagentSlotSchematics) do
+        if ProfessionsUtil.IsReagentSlotBasicRequired(slot) then
+            local reagent = slot.reagents[1]
+            local needed = slot:GetQuantityRequired(reagent)
+            local have = ProfessionsUtil.AccumulateReagentsInPossession(slot.reagents)
+            local text = PROFESSIONS_TRACKER_REAGENT_FORMAT:format(
+                PROFESSIONS_TRACKER_REAGENT_COUNT_FORMAT:format(have, needed),
+                C_Item.GetItemNameByID(reagent.itemID)
+            )
+            local done = have >= needed
+            local line = block:AddObjective(
+                slotIndex,
+                text,
+                nil,
+                nil,
+                done and OBJECTIVE_DASH_STYLE_HIDE or OBJECTIVE_DASH_STYLE_SHOW,
+                OBJECTIVE_TRACKER_COLOR[done and "Complete" or "Normal"]
+            )
+            line.Icon:SetShown(done)
+            if done then
+                line.Icon:SetAtlas("ui-questtracker-tracker-check")
+            end
+        end
+    end
+    return true
+end
+
+-- Frees the blocks not added again, their lines back to the shared pool.
+function ProfessionsRecipeTracker:EndLayout()
+    for id, block in pairs(self.usedBlocks) do
+        if not block.used then
+            for _, line in pairs(block.usedLines) do
+                line:Hide()
+                line:SetParent(nil)
+                table.insert(world.trackerLinePool, line)
+            end
+            block.usedLines = {}
+            block.HeaderText:SetText("")
+            block:Hide()
+            self.usedBlocks[id] = nil
+        end
+    end
+end
+
+function ProfessionsRecipeTracker:Update()
+    self:BeginLayout()
+    for _, recipeID in ipairs(C_TradeSkillUI.GetRecipesTracked(false)) do
+        self:AddRecipe(recipeID, false)
+    end
+    self:EndLayout()
+end
+
+-- Right Click on the header of a tracked recipe's block opens Blizzard's menu
+-- (OnBlockHeaderClick), with the mouse over that block: its entries.
+function world:OpenRecipeTrackerMenu(recipeID)
+    local block = assert(ProfessionsRecipeTracker:GetExistingBlock(recipeID), "no block for " .. recipeID)
+    self.mouseFoci = { block }
+    MenuUtil.CreateContextMenu(ObjectiveTrackerFrame, function(_, rootDescription)
+        rootDescription:SetTag("MENU_PROFESSIONS_RECIPE_TRACKER")
+        rootDescription:CreateButton(PROFESSIONS_UNTRACK_RECIPE, function()
+            C_TradeSkillUI.SetRecipeTracked(recipeID, false, false)
+        end)
+    end)
+    return self.contextMenu.root.children
+end
+
+-- A tracker line as shown: "- " for the dash, " [check]" for the check mark,
+-- " [done]" for the done color.
+local function DescribeTrackerLine(line)
+    local color = line.Text.textColor
+    local done = color and color.r == OBJECTIVE_TRACKER_COLOR.Complete.r
+    return (line.Dash.shown and "- " or "")
+        .. line.Text:GetText()
+        .. ((line.Icon.shown and line.Icon:GetAtlas()) and " [check]" or "")
+        .. (done and " [done]" or "")
+end
+
+-- A tracked recipe in the tracker: its header, and its lines by reagent slot
+-- (DescribeTrackerLine); nil when it has no block.
+function world:RecipeTrackerBlock(recipeID)
+    local block = ProfessionsRecipeTracker:GetExistingBlock(recipeID)
+    if not block then
+        return nil
+    end
+    local keys = {}
+    for key in pairs(block.usedLines) do
+        table.insert(keys, key)
+    end
+    table.sort(keys)
+    local lines = {}
+    for _, key in ipairs(keys) do
+        table.insert(lines, DescribeTrackerLine(block.usedLines[key]))
+    end
+    return { header = block.HeaderText:GetText(), lines = lines }
+end
+
+-- The world's mouse focus (GetMouseFoci): world.mouseFoci.
+world.mouseFoci = {}
+function GetMouseFoci()
+    return world.mouseFoci
+end
 
 world.recipeSchematics = {}
 
@@ -6228,12 +6539,15 @@ function world:LoadProfessionsWindow()
     if not Professions then
         self:LoadProfessions()
     end
-    local page = CreateFrame("Frame")
+    ProfessionsFrame = CreateFrame("Frame")
+    local page = CreateFrame("Frame", nil, ProfessionsFrame)
     local form = CreateFrame("Frame", nil, page)
     form.OutputIcon = CreateFrame("Button", nil, form)
     form.OutputText = form:CreateFontString()
     form.FavoriteButton = CreateFrame("CheckButton", nil, form)
     form.FavoriteButton:Hide()
+    form.TrackRecipeCheckbox = CreateFrame("CheckButton", nil, form)
+    page.RecipeList = CreateFrame("Frame", nil, page)
     function form:GetRecipeInfo()
         return self.currentRecipeInfo
     end
@@ -6243,7 +6557,6 @@ function world:LoadProfessionsWindow()
             return world.craftCount
         end,
     }
-    ProfessionsFrame = CreateFrame("Frame")
     ProfessionsFrame.CraftingPage = page
     self.loadedAddOns.Blizzard_Professions = true
     self:Fire("ADDON_LOADED", "Blizzard_Professions")
@@ -6271,28 +6584,73 @@ function world:SelectRecipe(recipeInfo, minimized)
     self:NextFrame()
 end
 
--- Our plan button on the star, if created.
-function world:PlanButton()
-    local favorite = ProfessionsFrame and ProfessionsFrame.CraftingPage.SchematicForm.FavoriteButton
-    for _, frame in ipairs(self.frames) do
-        if favorite and frame.parent == favorite then
-            return frame
-        end
+-- Shift Left Click on a recipe's row in the profession window's list (opening
+-- it first), like ProfessionsRecipeListMixin's: toggles the recipe's tracking,
+-- with the mouse over the row. Returns the row.
+function world:ShiftClickRecipe(recipeInfo)
+    if not ProfessionsFrame then
+        self:LoadProfessionsWindow()
     end
+    ProfessionsFrame:Show()
+    local row = CreateFrame("Button", nil, ProfessionsFrame.CraftingPage.RecipeList)
+    local node = {
+        GetData = function()
+            return { recipeInfo = recipeInfo }
+        end,
+    }
+    row.GetElementData = function()
+        return node
+    end
+    self.mouseFoci = { row }
+    self.hardware = self.hardware + 1
+    local tracked = C_TradeSkillUI.IsRecipeTracked(recipeInfo.recipeID, false)
+    C_TradeSkillUI.SetRecipeTracked(recipeInfo.recipeID, not tracked, false)
+    self.hardware = self.hardware - 1
+    return row
 end
 
--- Clicks the plan button ("LeftButton" or "RightButton").
-function world:ClickPlanButton(mouseButton)
-    local button = assert(self:PlanButton(), "plan button")
-    assert(button:IsVisible(), "plan button shown")
-    button:RunScript("OnClick", mouseButton or "LeftButton")
+-- Clicks the form's "Track recipe" checkbox for the selected recipe (select
+-- one first), like its OnClick.
+function world:ClickTrackCheckbox()
+    local form = ProfessionsFrame.CraftingPage.SchematicForm
+    local checkbox = form.TrackRecipeCheckbox
+    self.mouseFoci = { checkbox }
+    self.hardware = self.hardware + 1
+    checkbox:SetChecked(not checkbox:GetChecked())
+    C_TradeSkillUI.SetRecipeTracked(form:GetRecipeInfo().recipeID, checkbox:GetChecked(), false)
+    self.hardware = self.hardware - 1
 end
 
--- Hovers the plan button: its tooltip's title and lines.
-function world:PlanButtonTooltip()
-    self.tooltip, self.tooltipLines = nil, {}
-    assert(self:PlanButton(), "plan button"):RunScript("OnEnter")
-    return self.tooltip, self.tooltipLines
+-- The number of crafts picker, if shown.
+function world:CountPicker()
+    local picker = _G.ForeverEnhancedCraftCountPicker
+    return picker and picker:IsVisible() and picker or nil
+end
+
+-- Types `text` over the picker's count, focused (what the edit box would show).
+function world:TypeInCountPicker(text)
+    local picker = assert(self:CountPicker(), "picker shown")
+    assert(self.focus == picker.Count, "count focused")
+    picker.Count:SetText(text)
+    picker.Count:RunScript("OnTextChanged", true)
+end
+
+-- Clicks one of the picker's buttons: "OkayButton", "CancelButton", "LeftButton", "RightButton".
+function world:ClickCountPicker(key)
+    local picker = assert(self:CountPicker(), "picker shown")
+    local button = picker[key]
+    assert(button:IsEnabled(), key .. " enabled")
+    self.hardware = self.hardware + 1
+    button:RunScript("OnClick", "LeftButton")
+    self.hardware = self.hardware - 1
+end
+
+-- The player crafts recipeID once: the cast succeeds (a recipe's ID is its
+-- spell's), then the bags change.
+function world:Craft(recipeID)
+    self:Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-" .. recipeID, recipeID)
+    self:Fire("BAG_UPDATE_DELAYED")
+    self:NextFrame()
 end
 
 -- The player points at the skill-up arrow of a recipe in the profession
@@ -6326,6 +6684,7 @@ function world:Reagent(itemID, quantityRequired)
         reagents = { { itemID = itemID } },
         quantityRequired = quantityRequired,
         reagentType = Enum.CraftingReagentType.Basic,
+        required = true,
     }
 end
 
