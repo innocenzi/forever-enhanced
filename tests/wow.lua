@@ -1522,6 +1522,11 @@ C_Item = {
     GetItemFamily = function(itemID)
         return world.itemFamilies[itemID] or 0
     end,
+    -- Picks the item up by its ID, to put it in an action slot.
+    PickupItem = function(itemID)
+        world.cursorAction, world.cursorActionItem = itemID, true
+        world:Fire("CURSOR_CHANGED")
+    end,
     -- Without its include flags: the bags only.
     GetItemCount = function(itemID)
         local count = 0
@@ -1730,6 +1735,7 @@ function ClearCursor()
     world.cursor = nil
     world.cursorSplit = nil
     world.cursorAction = nil
+    world.cursorActionItem = nil
     world:Fire("CURSOR_CHANGED")
 end
 
@@ -7171,7 +7177,10 @@ local NUM_ACTION_BUTTONS = 12
 
 world.restricted = 0
 world.actionBar = { page = 1, bonus = 0, vehicle = false }
+-- Slot -> spell ID, or item ID for the slots in world.actionItems (like the
+-- client, an item stays in its slot when the bags run out of it).
 world.actions = {}
+world.actionItems = {}
 world.bindings = {}
 world.overrides = {}
 world.stateDrivers = {}
@@ -7644,7 +7653,7 @@ C_Spell = {
     end,
     PickupSpell = function(spellID)
         AssertAllowed("PickupSpell")
-        world.cursorAction = spellID
+        world.cursorAction, world.cursorActionItem = spellID, nil
     end,
     -- Like the client, every spell shows the global cooldown (isOnGCD) after a
     -- cast, unless it's on a longer cooldown of its own.
@@ -7803,20 +7812,21 @@ end
 
 function GetActionInfo(slot)
     if world.actions[slot] then
-        return "spell", world.actions[slot]
+        return world.actionItems[slot] and "item" or "spell", world.actions[slot]
     end
 end
 
 function PickupAction(slot)
     AssertAllowed("PickupAction")
-    world.cursorAction = world.actions[slot]
-    world.actions[slot] = nil
+    world.cursorAction, world.cursorActionItem = world.actions[slot], world.actionItems[slot]
+    world.actions[slot], world.actionItems[slot] = nil, nil
     world:Fire("ACTIONBAR_SLOT_CHANGED", slot)
 end
 
 function PlaceAction(slot)
     AssertAllowed("PlaceAction")
     world.actions[slot], world.cursorAction = world.cursorAction, world.actions[slot]
+    world.actionItems[slot], world.cursorActionItem = world.cursorActionItem, world.actionItems[slot]
     world:Fire("ACTIONBAR_SLOT_CHANGED", slot)
 end
 
@@ -7922,7 +7932,26 @@ end
 -- Puts the spell in an action slot, like dragging it from the spellbook.
 function world:PlaceSpell(slot, spellID)
     self.actions[slot] = spellID
+    self.actionItems[slot] = nil
     self:Fire("ACTIONBAR_SLOT_CHANGED", slot)
+end
+
+-- Puts the item in an action slot, like dragging it from the bags.
+function world:PlaceItem(slot, itemID)
+    self.actions[slot] = itemID
+    self.actionItems[slot] = true
+    self:Fire("ACTIONBAR_SLOT_CHANGED", slot)
+end
+
+-- The item ID in an action slot, nil when it holds a spell or nothing.
+function world:ActionItem(slot)
+    return self.actionItems[slot] and self.actions[slot] or nil
+end
+
+-- The player reaching `level` (PLAYER_LEVEL_UP comes before UnitLevel gives it).
+function world:LevelUp(level)
+    self:Fire("PLAYER_LEVEL_UP", level)
+    self.player.level = level
 end
 
 -- A trainer teaching the spell (a new rank keeps its name).
@@ -8125,7 +8154,9 @@ end
 
 -- Like the client's: a spell on the cursor reports its ID fourth.
 function GetCursorInfo()
-    if world.cursorAction then
+    if world.cursorAction and world.cursorActionItem then
+        return "item", world.cursorAction
+    elseif world.cursorAction then
         return "spell", 1, "spell", world.cursorAction
     elseif world.cursor then
         return "item", world.cursor

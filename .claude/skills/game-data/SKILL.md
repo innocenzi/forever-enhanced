@@ -1,6 +1,6 @@
 ---
 name: game-data
-description: Regenerate and check Forever Enhanced's generated game data. Use when a content patch or new Forever build landed and generated data must be refreshed (`bun run professions`, `instances`, `icons`, `seamless`, `dots`, `crates`); when following a new damage over time spell in `combat.dots` (`FOLLOWED` in `tools/dots.ts`); when measuring or re-measuring values in `modules/combat/dots/measured.lua`; when changing a generator in `tools/`; when changing the seamless map's zone shares or masks, or bumping its OpenMap commit; or when regenerating the addon icon.
+description: Regenerate and check Forever Enhanced's generated game data. Use when a content patch or new Forever build landed and generated data must be refreshed (`bun run professions`, `instances`, `icons`, `seamless`, `dots`, `crates`, `food`); when following a new damage over time spell in `combat.dots` (`FOLLOWED` in `tools/dots.ts`); when measuring or re-measuring values in `modules/combat/dots/measured.lua`; when changing a generator in `tools/`; when changing the seamless map's zone shares or masks, or bumping its OpenMap commit; or when regenerating the addon icon.
 ---
 
 # Generated game data
@@ -15,6 +15,7 @@ Never edit generated files by hand: change the generator and rerun it.
 | `bun run seamless` | `tools/seamless.ts` | `modules/map/seamless/data.lua`, `modules/map/seamless/media/` |
 | `bun run dots` | `tools/dots.ts` | `modules/combat/dots/data.lua` |
 | `bun run crates` | `tools/crates.ts` | `modules/inventory/crates/data.lua` |
+| `bun run food` | `tools/food.ts` | `modules/inventory/food/data.lua` |
 | `bun run icon` | `tools/icon.ts` | `media/icon.tga`, `tools/icon/logo.png` |
 
 - Each generator's header comment is the reference for what it reads and writes.
@@ -25,7 +26,7 @@ Never edit generated files by hand: change the generator and rerun it.
 
 ## Refresh after a content patch
 
-1. Run `bun run professions`, `bun run instances`, `bun run icons`, `bun run seamless`, `bun run dots`, `bun run crates`.
+1. Run `bun run professions`, `bun run instances`, `bun run icons`, `bun run seamless`, `bun run dots`, `bun run crates`, `bun run food`.
 2. `git diff --stat`: every generated header names the new build.
 3. Review each `data.lua` diff:
    - Expected: changed values, a few entries added or removed (recipes, ranks, talents).

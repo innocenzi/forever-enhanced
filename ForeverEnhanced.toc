@@ -91,6 +91,10 @@ modules\inventory\crates\feature.lua
 modules\inventory\crates\locales.lua
 modules\inventory\crates\data.lua
 modules\inventory\crates\tooltip.lua
+modules\inventory\food\feature.lua
+modules\inventory\food\locales.lua
+modules\inventory\food\data.lua
+modules\inventory\food\slots.lua
 
 # Quests
 modules\quests\module.lua

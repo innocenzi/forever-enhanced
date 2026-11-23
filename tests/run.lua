@@ -31,6 +31,7 @@ local TEST_FILES = {
     "tests/cheapest_test.lua",
     "tests/stacks_test.lua",
     "tests/crates_test.lua",
+    "tests/food_test.lua",
     "tests/windows_test.lua",
     "tests/waypoint_test.lua",
     "tests/way_test.lua",
