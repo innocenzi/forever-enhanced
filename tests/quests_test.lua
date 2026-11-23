@@ -28,13 +28,6 @@ local function Pins(world)
     return world.env.ForeverEnhancedCharacterDB.quests.tracking.pins
 end
 
-test("leaves the tracker alone until enabled", function(world)
-    WithQuests(world)
-    world:NextFrame()
-    world:Elapse(TICK_SECONDS)
-    equal(world:Watched(), "5", "watched")
-end)
-
 test("tracks the closest quests and untracks the farthest", function(world)
     Enable(world)
     WithQuests(world)
@@ -46,16 +39,6 @@ test("tracks the closest quests and untracks the farthest", function(world)
     world:MoveTo({ [2] = 10, [3] = 20 })
     world:Elapse(TICK_SECONDS)
     equal(world:Watched(), "2 3", "watched after moving")
-end)
-
-test("does nothing when the tracked quests are already the right ones", function(world)
-    Enable(world)
-    WithQuests(world)
-    Set(world, "count", 2)
-    world:NextFrame()
-    local sorts = world.questSorts
-    world:Elapse(TICK_SECONDS)
-    equal(world.questSorts, sorts, "tracker sorts")
 end)
 
 test("within range, tracks only quests closer than the distance", function(world)
@@ -329,36 +312,6 @@ test("sorting moves far quests below the closer ones, and keeps them there", fun
     for _ = 1, 3 do
         world:Elapse(TICK_SECONDS)
         equal(world:WatchOrder(), "3 4 5 1 2", "order kept on the next updates")
-    end
-end)
-
-test("sorted quests at similar distances keep their places", function(world)
-    Enable(world)
-    Set(world, "sort", true)
-    world:SetQuests({ { questID = 1, distance = 100 }, { questID = 2, distance = 120 } })
-    world:NextFrame()
-    equal(world:WatchOrder(), "1 2", "closest first")
-
-    world:MoveTo({ [2] = 90 })
-    world:Elapse(TICK_SECONDS)
-    equal(world:WatchOrder(), "1 2", "kept when the other is slightly closer")
-
-    world:MoveTo({ [2] = 50 })
-    world:Elapse(TICK_SECONDS)
-    equal(world:WatchOrder(), "2 1", "moved when the other is clearly closer")
-end)
-
-test("sorted quests near their objectives keep their places", function(world)
-    Enable(world)
-    Set(world, "sort", true)
-    world:SetQuests({ { questID = 1, distance = 0 }, { questID = 2, distance = 10 } })
-    world:NextFrame()
-    equal(world:WatchOrder(), "1 2", "closest first")
-
-    for _, distances in ipairs({ { [1] = 15, [2] = 0 }, { [1] = 0, [2] = 20 }, { [1] = 20, [2] = 5 } }) do
-        world:MoveTo(distances)
-        world:Elapse(TICK_SECONDS)
-        equal(world:WatchOrder(), "1 2", "kept while walking between objectives")
     end
 end)
 

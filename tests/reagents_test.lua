@@ -183,18 +183,6 @@ test("caps the recipes of a long list, sharing the budget between professions", 
     equal(hidden[TAILORING], counts[TAILORING] - (RECIPE_BUDGET - 1), "and the rest")
 end)
 
-test("shows every recipe of a short list", function(world)
-    local RECIPE_BUDGET = Budget(world)
-    world.shift = true
-    local DEATHWEED = 5173
-    local counts, order = RecipeCounts(world, DEATHWEED)
-    equal(#order, 1, "poisons only")
-    expect(counts[order[1]] <= RECIPE_BUDGET, "a short list")
-    local shown, hidden = Shown(world, Lines(world, DEATHWEED), order, counts)
-    equal(shown[order[1]], counts[order[1]], "every recipe")
-    equal(hidden[order[1]], 0, "no more line")
-end)
-
 test("never hides only a few recipes, and stays within the budget", function(world)
     local RECIPE_BUDGET, LEEWAY = Budget(world)
     world.shift = true

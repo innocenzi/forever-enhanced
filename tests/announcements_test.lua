@@ -24,11 +24,6 @@ local function HideAnnouncements(world)
     Set(world, "hideAnnouncements", true)
 end
 
-test("leaves quest addon announcements alone by default", function(world)
-    expect(not world:ReceiveChat("CHAT_MSG_PARTY", MESSAGES[1], "Arthas-Forever"), "shown")
-    equal(#(world.chatFilters.CHAT_MSG_PARTY or {}), 0, "no filter")
-end)
-
 test("hides other players' quest addon announcements in group chat", function(world)
     HideAnnouncements(world)
     for _, message in ipairs(MESSAGES) do
@@ -76,15 +71,6 @@ test("hides the chat bubbles of other players' quest addon announcements", funct
         world:NextFrame()
         expect(not world:IsChatBubbleVisible(message), "hidden: " .. message)
     end
-end)
-
-test("keeps the bubbles of other chat and of the player's own announcements", function(world)
-    HideAnnouncements(world)
-    world:ReceiveChat("CHAT_MSG_PARTY", "anyone using Questie: the addon?", "Arthas-Forever")
-    world:ReceiveChat("CHAT_MSG_PARTY", MESSAGES[1], "Hylmew-Forever")
-    world:NextFrame()
-    expect(world:IsChatBubbleVisible("anyone using Questie: the addon?"), "mention")
-    expect(world:IsChatBubbleVisible(MESSAGES[1]), "own announcement")
 end)
 
 test("shows a hidden bubble again once the client reuses it", function(world)

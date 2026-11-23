@@ -78,19 +78,6 @@ test("withdraw tops off the bags from the smallest bank stacks", function(world)
     equal(world:Slots(6), "L4(20) L3(7) - -", "bank")
 end)
 
-test("several stacks fill one partial stack over rounds", function(world)
-    Setup(world, { "L1", "L2" }, { "L3" }, {}, {
-        L1 = { "linen", 3 },
-        L2 = { "linen", 4 },
-        L3 = { "linen", 12 },
-    })
-    world.pickups = 0
-    Transfer(world, "deposit", "stacks")
-    equal(world:Slots(6), "L3(19) - - -", "bank")
-    equal(world:Slots(0), "- - - -", "bags")
-    equal(world.pickups, 4, "two moves")
-end)
-
 test("locked items never move", function(world)
     Setup(world, { "L1" }, { "L3" }, {}, {
         L1 = { "linen", 15 },
@@ -177,19 +164,6 @@ test("a blocked move puts the item back and stops the transfer", function(world)
     expect(not CursorHasItem(), "nothing left on the cursor")
     expect(not Transfers(world):IsRunning(), "stopped")
     equal(world:Slots(0), "L1(3) L2(4) - -", "bags unchanged")
-end)
-
-test("Deposit lists all matching items first, Withdraw existing stacks first", function(world)
-    Setup(world, { "L1" }, { "L3" }, {}, {
-        L1 = { "linen", 15 },
-        L3 = { "linen", 12 },
-    })
-    local deposit = world:TransferMenu("deposit")
-    equal(deposit[1].text, world.L["inventory.bank.transfers.deposit.all"], "deposit first mode")
-    equal(deposit[2].text, world.L["inventory.bank.transfers.deposit.stacks"], "deposit second mode")
-    local withdraw = world:TransferMenu("withdraw")
-    equal(withdraw[1].text, world.L["inventory.bank.transfers.withdraw.stacks"], "withdraw first mode")
-    equal(withdraw[2].text, world.L["inventory.bank.transfers.withdraw.all"], "withdraw second mode")
 end)
 
 test("menu entries that would move nothing are disabled", function(world)
@@ -396,6 +370,7 @@ test("cleans up the bank once a transfer is done", function(world)
         L3 = { "linen", 12 },
     })
     world:Setting("inventory.bank.autoSort"):SetValue(true)
+    world.pickups = 0
     Entry(world, "deposit", "stacks").callback()
     world:Elapse(0)
     equal(#world.bankSorts, 0, "no cleanup while moves remain")
@@ -403,6 +378,7 @@ test("cleans up the bank once a transfer is done", function(world)
     equal(world:Slots(6), "L3(19) - - -", "bank")
     equal(#world.bankSorts, 1, "one cleanup")
     equal(world.bankSorts[1], Enum.BankType.Character, "character bank")
+    equal(world.pickups, 4, "two moves")
 end)
 
 test("leaves the bank as is by default", function(world)

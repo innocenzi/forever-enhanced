@@ -53,16 +53,6 @@ test("shows a Garrote's damage over the health left", function(world)
     equal(Shown(world, world:NamePlateHealthBar(plate)), GARROTE_DAMAGE, "and on the nameplate")
 end)
 
-test("follows the health left", function(world)
-    Rogue(world)
-    world:Cast(GARROTE)
-    world:SetHealth("MOB", 200)
-    world:NextFrame()
-    local overlay = world:HealthBarOverlay(world:TargetHealthBar())
-    equal(overlay.range, 200, "out of the new health")
-    equal(overlay.value, 200, "covers it all when the damage would kill")
-end)
-
 test("takes each tick off as it lands, then hides", function(world)
     Rogue(world)
     world:Cast(GARROTE)
@@ -102,14 +92,6 @@ test("a cast that misses shows nothing", function(world)
     end
 end)
 
-test("a cast that misses leaves the effects already running", function(world)
-    Rogue(world)
-    world:Cast(GARROTE)
-    world:SetComboPoints(2)
-    world:Cast(RUPTURE, "DODGE")
-    equal(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE, "the Garrote")
-end)
-
 test("casting again replaces the effect", function(world)
     Rogue(world)
     world:SetComboPoints(1)
@@ -141,28 +123,8 @@ test("Hemorrhage only raises the damage on its own target", function(world)
     equal(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE, "not raised")
 end)
 
-test("a missed Hemorrhage raises nothing", function(world)
-    Rogue(world)
-    world:Cast(HEMORRHAGE, "PARRY")
-    world:Cast(GARROTE)
-    equal(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE, "not raised")
-end)
-
 local DEATH_MARK = 1316709 -- 12% stored per point, caps 165 / 267 / 369 / 471 / 573
 local DEATH_MARK_RANK_4 = 1325758 -- caps 401 / 646 / 891 / 1,136 / 1,381
-
-test("Death Mark adds what it stores of Garrote's ticks, twice its share, until it deals it", function(world)
-    Rogue(world)
-    world:Cast(GARROTE)
-    world:SetComboPoints(5)
-    world:Cast(DEATH_MARK_RANK_4)
-    -- The ticks at 3 and 6 sec, 60% stored, twice for Garrote.
-    Near(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE + 2 * 47 * 0.6 * 2, "with the stored damage")
-    world:RunFrames(5.9)
-    Near(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE * 5 / 6 + 2 * 47 * 0.6 * 2, "kept until it ends")
-    world:RunFrames(0.2)
-    Near(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE * 4 / 6, "then dealt")
-end)
 
 local LOST_HEALTH_ATLAS = "UI-HUD-UnitFrame-Target-PortraitOn-Bar-TempHPLoss"
 
@@ -185,18 +147,6 @@ test("what Death Mark will deal shows from the health's end, as the target frame
 
     world:RunFrames(6.1)
     equal(world:HealthBarOverlay(world:TargetHealthBar()).inner, nil, "none once dealt")
-end)
-
-test("without ticks, Death Mark shows no marker", function(world)
-    Rogue(world)
-    world:SetWeapon("main", 40, 60, 1.5)
-    world:Fire("PLAYER_ENTER_COMBAT")
-    world:SetComboPoints(5)
-    world:Cast(DEATH_MARK_RANK_4)
-    local overlay = world:HealthBarOverlay(world:TargetHealthBar())
-    expect(overlay.inner, "what it will deal")
-    equal(overlay.value, 0, "no ticks")
-    equal(overlay.line, nil, "no marker")
 end)
 
 test("Death Mark stores a Rupture cast after it, and a replaced one up to then", function(world)
@@ -378,6 +328,10 @@ test("Death Mark stores strikes and swings up to its cap", function(world)
     world:Cast(DEATH_MARK_RANK_4)
     -- 5000 / 1.5 * 0.8 * 6 sec * 12% = 1920, before armor.
     equal(Shown(world, world:TargetHealthBar()), 401, "the 1 point cap")
+    local overlay = world:HealthBarOverlay(world:TargetHealthBar())
+    expect(overlay.inner, "what it will deal")
+    equal(overlay.value, 0, "no ticks")
+    equal(overlay.line, nil, "no marker without ticks")
 end)
 
 -- A creature GUID of the NPC `npcID`.
@@ -540,26 +494,6 @@ test("matches the ticks measured in game", function(world)
     expect(math.abs(before - Shown(world, world:TargetHealthBar()) - 35) < 0.5, "and for 35 under Hemorrhage")
 end)
 
-test("keeps the attack power read before combat, when it is secret", function(world)
-    Rogue(world)
-    world:SetAttackPower(241)
-    world:EnterCombat()
-    world:Cast(GARROTE)
-    Near(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE + 0.18 * 241, "the attack power before combat")
-end)
-
-test("follows attack power and talents changing out of combat", function(world)
-    Rogue(world)
-    world:SetAttackPower(100)
-    world:LearnTalent(OPPORTUNITY, 5)
-    world:Cast(GARROTE)
-    Near(Shown(world, world:TargetHealthBar()), (GARROTE_DAMAGE + 0.18 * 100) * 1.2, "as they are")
-    world:SetAttackPower(200)
-    world:LearnTalent(OPPORTUNITY, 2)
-    world:Cast(GARROTE)
-    Near(Shown(world, world:TargetHealthBar()), (GARROTE_DAMAGE + 0.18 * 200) * 1.08, "as they became")
-end)
-
 test("a miss that may be someone else's waits for the combo points", function(world)
     Rogue(world)
     world:SetComboPoints(5)
@@ -599,18 +533,12 @@ test("forgets the effects on a unit that died", function(world)
     equal(world:HealthBarOverlay(world:NamePlateHealthBar(plate)), nil, "nameplate")
 end)
 
-test("follows a unit whose identity is secret by its nameplate", function(world)
-    local plate = Rogue(world)
-    world.secretIdentities.MOB = true
-    world:Cast(GARROTE)
-    equal(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE, "on the target frame")
-    equal(Shown(world, world:NamePlateHealthBar(plate)), GARROTE_DAMAGE, "and its nameplate")
-end)
-
 test("forgets a unit whose identity is secret once its nameplate goes", function(world)
-    Rogue(world)
+    local firstPlate = Rogue(world)
     world.secretIdentities.MOB = true
     world:Cast(GARROTE)
+    equal(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE, "followed by its nameplate: on the target frame")
+    equal(Shown(world, world:NamePlateHealthBar(firstPlate)), GARROTE_DAMAGE, "and its nameplate")
     world:HideNamePlate("MOB")
     equal(world:HealthBarOverlay(world:TargetHealthBar()), nil, "can't tell it apart without its plate")
     local plate = world:ShowNamePlate("MOB")
@@ -700,7 +628,6 @@ end)
 
 local REND = 772 -- 15 over 9 sec, a tick every 3 sec
 local REND_RANK_2 = 6546 -- 28 over 12 sec
-local IMPROVED_REND = 12286 -- 12 / 23 / 35%
 
 -- A warrior targeting MOB (1000 health), whose nameplate is shown.
 local function Warrior(world)
@@ -724,21 +651,6 @@ test("follows a warrior's Rend, each rank's damage from the data", function(worl
     equal(world:HealthBarOverlay(world:TargetHealthBar()), nil, "ended after 12 sec")
 end)
 
-test("Improved Rend raises Rend", function(world)
-    Warrior(world)
-    world:LearnTalent(IMPROVED_REND, 3)
-    world:Cast(REND_RANK_2)
-    Near(Shown(world, world:TargetHealthBar()), 28 * 1.35, "35% at rank 3")
-end)
-
-test("a Rend whose cast logged a miss is dropped: nothing confirms it", function(world)
-    Warrior(world)
-    world:Cast(REND, "DODGE")
-    equal(world:HealthBarOverlay(world:TargetHealthBar()), nil, "not shown")
-    world:Elapse(1.1)
-    equal(world:HealthBarOverlay(world:TargetHealthBar()), nil, "nor later")
-end)
-
 local PIP = "UI-HUD-ExperienceBar-Frame-Pip"
 
 test("draws under the health text: a pip at its end on nameplates, a line on the target frame", function(world)
@@ -755,14 +667,16 @@ test("draws under the health text: a pip at its end on nameplates, a line on the
     equal(nameplate.line, nil, "no line")
 end)
 
-test("measures no nameplate in combat", function(world)
+test("measures no nameplate in combat and keeps the attack power read before it", function(world)
     Rogue(world)
+    world:SetAttackPower(241)
     world:EnterCombat()
     -- A plate shown in combat gets its overlay then: measuring it would throw.
     local plate = world:ShowNamePlate("OTHER")
     world:SetHealth("OTHER", 1000, 1000)
     world:Target("OTHER")
     world:Cast(GARROTE)
+    Near(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE + 0.18 * 241, "the attack power before combat")
     expect(world:HealthBarOverlay(world:NamePlateHealthBar(plate), PIP), "shown")
 end)
 

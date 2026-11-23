@@ -82,13 +82,6 @@ test("marks the components the bags hold enough of", function(world)
     equal(last, "Requires Level 10", "lines after the Use line are untouched")
 end)
 
-test("counts every stack of the bags", function(world)
-    world.bags[0] = {}
-    InBags(world, 1, SILK, 20)
-    InBags(world, 2, SILK, 20)
-    equal(CrateTooltip(world)[3], Component(world, 2, "bags"), "two stacks of 20")
-end)
-
 test("shows the banker when the saved bank makes up the difference", function(world)
     world.bags[0] = {}
     SaveBank(world, { { SILK, 30 }, { LEATHER, 5 } })

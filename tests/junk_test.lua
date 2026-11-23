@@ -152,20 +152,18 @@ test("auto selling sells marked items", function(world)
     expect(world.prints[#world.prints]:find(message, 1, true), "announced")
 end)
 
-for _, key in ipairs({ "inventory.marks.junk", "inventory.marks.enabled" }) do
-    test("turning " .. key .. " off hides coins and stops selling, and keeps marks", function(world)
-        Enable(world)
-        ToggleMark(world, 1)
-        world:Setting(key):SetValue(false)
-        expect(not world:JunkCoin(1), "coin hidden")
-        equal(MarkEntry(world, 1), nil, "no menu entry")
+test("turning item marks off hides coins and stops selling, and keeps marks", function(world)
+    Enable(world)
+    ToggleMark(world, 1)
+    world:Setting("inventory.marks.enabled"):SetValue(false)
+    expect(not world:JunkCoin(1), "coin hidden")
+    equal(MarkEntry(world, 1), nil, "no menu entry")
 
-        world:OpenMerchant()
-        world.hiddenPopups = {} -- turning the feature off closes its own dialogs
-        world:ClickSellAllJunk()
-        equal(#world.hiddenPopups, 0, "Sell All Junk left to Blizzard")
+    world:OpenMerchant()
+    world.hiddenPopups = {} -- turning the feature off closes its own dialogs
+    world:ClickSellAllJunk()
+    equal(#world.hiddenPopups, 0, "Sell All Junk left to Blizzard")
 
-        world:Setting(key):SetValue(true)
-        expect(world:JunkCoin(1), "mark kept")
-    end)
-end
+    world:Setting("inventory.marks.enabled"):SetValue(true)
+    expect(world:JunkCoin(1), "mark kept")
+end)

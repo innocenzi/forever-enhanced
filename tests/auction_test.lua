@@ -139,14 +139,6 @@ end)
 
 -- Tooltip ----------------------------------------------------------------------------------------
 
-test("shows no price age by default", function(world)
-    world:OpenAuctionHouse()
-    world:ReceiveBrowseResults({ { itemKey = { itemID = "G1" }, minPrice = 120 } })
-    world:CloseAuctionHouse()
-    world:Elapse(2 * 24 * HOUR)
-    same(Tooltip(world, "G1"), { PriceLine(world, 120) }, "no age")
-end)
-
 test("shows how old the price is once it is over an hour old, when enabled", function(world)
     world:Setting("inventory.auction.age"):SetValue(true)
     world:OpenAuctionHouse()

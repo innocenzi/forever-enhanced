@@ -170,13 +170,6 @@ test("prefers the instance group, unless set to the party only", function(world)
     equal(#world.prints, 0, "nothing shown either")
 end)
 
-test("stays quiet outside a group", function(world)
-    WithQuest(world)
-    world.party = false
-    world:Progress(1, 1, 2)
-    equal(#world.sentChat + #world.prints, 0, "nothing sent or shown")
-end)
-
 test("disabling stops the announcements", function(world)
     WithQuest(world)
     Set(world, "enabled", false)

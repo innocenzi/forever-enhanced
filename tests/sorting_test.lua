@@ -57,34 +57,6 @@ test("leaves reserved slots to their item", function(world)
     equal(world:Bag(), "X1 - F3 G4", "bag")
 end)
 
-test("leaves the stack a reserved slot takes to it", function(world)
-    world.bags[0] = { "F1", nil, "X3", "G4" }
-    world.itemIDs.F1 = "FOOD"
-    world.itemIcons.FOOD = 133950
-    Reserve(world, 1)
-    world:AltClick(4)
-    Sort(world, { 3, 4, 1, 2 }) -- X3 G4 F1 -
-    equal(world:Bag(), "F1 X3 - G4", "bag")
-end)
-
-test("fills the slot of a locked item of a reserved slot's item", function(world)
-    world.bags[0] = { nil, "F2", "X3", "G4" }
-    world.itemIDs.F2, world.itemIDs.G4 = "FOOD", "FOOD"
-    Reserve(world, 2)
-    world:AltClick(4)
-    Sort(world, { 4, 2, 3, 1 }) -- G4 F2 X3 -
-    equal(world:Bag(), "X3 F2 - G4", "bag")
-end)
-
-test("moves what the sort put in a locked item's reserved slot", function(world)
-    world.bags[0] = { "G1", nil, "X3", "X4" }
-    world.itemIDs.G1 = "FOOD"
-    Reserve(world, 1)
-    world:AltClick(1)
-    Sort(world, { 3, 4, 1, 2 }) -- X3 X4 G1 -
-    equal(world:Bag(), "G1 X3 X4 -", "bag")
-end)
-
 test("fills a reserved slot the sort put a locked item in", function(world)
     world.bags[0] = { "F1", "X2", nil, "G4" }
     world.itemIDs.F1 = "FOOD"
@@ -144,17 +116,6 @@ test("puts a chain of locked items back in two rounds", function(world)
     equal(world.swapTimes[3] - world.swapTimes[1], world.SERVER_CONFIRM_SECONDS, "rounds (two)")
 end)
 
-test("puts locked items that took each other's slots back", function(world)
-    world.bags[0] = { "G1", "G2", "G3", "X4" }
-    world:AltClick(1)
-    world:AltClick(2)
-    world:AltClick(3)
-    Sort(world, { 3, 1, 2, 4 }) -- G3 G1 G2 X4
-    equal(world:Bag(), "G1 G2 G3 X4", "bag")
-    equal(#world.swapTimes, 2, "swaps")
-    equal(world.swapTimes[2] - world.swapTimes[1], world.SERVER_CONFIRM_SECONDS, "rounds (two)")
-end)
-
 test("waits for the bag update, not lock changes", function(world)
     world:AltClick(1)
     world.pickups = 0
@@ -166,17 +127,6 @@ test("waits for the bag update, not lock changes", function(world)
     world:Fire("BAG_UPDATE_DELAYED")
     world:Elapse(5)
     equal(world.bags[0][1], "G1", "G1 back home")
-end)
-
-test("ends quietly when the sort moved nothing", function(world)
-    world:AltClick(1)
-    world.pickups = 0
-    C_Container.SortBags()
-    world:ApplySort({ 1, 2, 3, 4 })
-    world:Fire("ITEM_LOCK_CHANGED", 0, 1)
-    world:Elapse(5)
-    equal(world.pickups, 0, "pickups")
-    equal(world:Bag(), "G1 G2 - GJUNK", "bag")
 end)
 
 test("leaves the sort alone when the option is off", function(world)

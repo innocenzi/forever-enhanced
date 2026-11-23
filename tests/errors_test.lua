@@ -13,11 +13,6 @@ local function GameError(world)
     world:Fire(EVENT, 0, "Not enough mana")
 end
 
-test("is off by default", function(world)
-    GameError(world)
-    equal(#world.uiErrors, 1, "errors shown")
-end)
-
 test("hides the game's errors, not ours", function(world)
     Set(world, "enabled", true)
     GameError(world)

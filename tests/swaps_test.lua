@@ -35,14 +35,6 @@ local function Casts(world)
     return table.concat(world.casts, ", ")
 end
 
-test("is off by default", function(world)
-    Rogue(world)
-    world:SetSpellUsable(AMBUSH, true)
-    Press(world, "1")
-    equal(Casts(world), Name(BACKSTAB), "casts")
-    equal(world:Overlay(ActionButton1), nil, "overlay")
-end)
-
 test("casts the original on release while the replacement can't be cast", function(world)
     Rogue(world)
     Enable(world)

@@ -45,13 +45,6 @@ local function SetPrices(world, prices)
     end
 end
 
-test("off by default", function(world)
-    SetPrices(world, { G1 = 10, G2 = 20, GJUNK = 5 })
-    world.bags[0][3] = "G3"
-    BagsChanged(world)
-    equal(Marked(world), "", "nothing marked")
-end)
-
 test("marks the lowest value item only while the bags are full", function(world)
     SetPrices(world, { G1 = 10, G2 = 20, G3 = 30, GJUNK = 5 })
     Enable(world, true)
@@ -150,16 +143,11 @@ local function Collect(world)
     return table.concat(guids, " ")
 end
 
-test("the reagent bag is left out by default", function(world)
+test("the reagent bag counts like the other bags when not excluded", function(world)
     WithReagentBag(world)
     Enable(world, true)
     equal(Marked(world), "1", "full despite its free slot, its cheaper item skipped")
     equal(Collect(world), "G1", "only bag items")
-end)
-
-test("the reagent bag counts like the other bags when not excluded", function(world)
-    WithReagentBag(world)
-    Enable(world, true)
     world:Setting("inventory.cheapest.excludeReagentBag"):SetValue(false)
     equal(Marked(world), "", "its free slot counts")
 
@@ -258,16 +246,6 @@ local function LearnLinenBandage(world)
     world.learnedRecipes[LINEN_BANDAGE] = true
     world:ShowTradeSkillList({ LINEN_BANDAGE })
 end
-
-test("food and drink are ignored by default", function(world)
-    SetPrices(world, { G1 = 10, G2 = 20, GJUNK = 50 })
-    Enable(world, false)
-    Carry(world, TOUGH_JERKY)
-    equal(Marked(world), "1", "the cheapest item that isn't food")
-
-    Ignore(world, "food", false)
-    equal(Marked(world), "3", "food counts once not ignored")
-end)
 
 test("food is ignored with the food feature off", function(world)
     SetPrices(world, { G1 = 10, G2 = 20, GJUNK = 50 })

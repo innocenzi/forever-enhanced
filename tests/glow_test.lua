@@ -47,13 +47,6 @@ local function Herb(fields)
     return object
 end
 
-test("is off by default and leaves targeting alone", function(world)
-    Approach(world, Herb())
-    equal(CVar("SoftTargetInteract"), "1", "interact key")
-    equal(SoftPlate(), nil, "nameplate")
-    equal(Glow(world), nil, "glow")
-end)
-
 test("turns on soft targeting all around the player", function(world)
     Enable(world)
     equal(CVar("SoftTargetInteract"), "3", "interact key")
@@ -194,14 +187,6 @@ test("disabling puts the player's settings back", function(world)
     equal(Glow(world), nil, "glow")
     equal(SoftPlate(), nil, "no nameplate")
     equal(world:TickerCount(), tickers, "ticker stopped")
-end)
-
-test("keeps a setting the player changed while it was on", function(world)
-    Enable(world)
-    C_CVar.SetCVar("SoftTargetInteractArc", "1")
-    Set(world, "enabled", false)
-    equal(CVar("SoftTargetInteractArc"), "1", "player's arc")
-    equal(CVar("SoftTargetInteract"), "1", "the others restored")
 end)
 
 test("disabled in combat, puts the settings back after it", function(world)

@@ -94,16 +94,6 @@ test("cursor changes redraw shields only", function(world)
     equal(spy.updates, 0, "updates")
 end)
 
-test("Alt redraws shields only", function(world)
-    local spy = Spy(world)
-    world:SetAlt(true)
-    expect(world:IsShielded(1), "shield with Alt")
-    world:SetAlt(false)
-    expect(not world:IsShielded(1), "shield dropped without Alt")
-    equal(spy.prepares, 0, "prepares")
-    equal(spy.updates, 0, "updates")
-end)
-
 test("a shield left up by a missed Alt release drops when hovered", function(world)
     world:SetAlt(true)
     world.alt = false

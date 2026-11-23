@@ -162,17 +162,6 @@ test("logs other addons' and macros' blocked actions apart from ours", function(
 end)
 
 -- The panel manager shows the blocked message with no event: its stack names the caller.
-test("logs the blocked message of a panel shown in combat, with its stack", function(world)
-    world:EnterCombat()
-    ShowUIPanel(CharacterFrame)
-    ShowUIPanel(CharacterFrame)
-
-    local incidents = Entries(world, "blocked.message")
-    equal(#incidents, 1, "incidents (once per stack)")
-    expect(Contains(incidents[1].text, "[fake stack]"), "stack")
-    equal(#Entries(world, "blocked.message.again"), 1, "repeat counted")
-end)
-
 test("logs one blocked message per burst, whatever its callers", function(world)
     local calls = 0
     world.env.debugstack = function()
@@ -186,6 +175,7 @@ test("logs one blocked message per burst, whatever its callers", function(world)
     ShowUIPanel(CharacterFrame)
     equal(#Entries(world, "blocked.message"), 1, "one incident for the burst")
     expect(Contains(Entries(world, "blocked.message")[1].text, "[caller 1]"), "first caller's stack")
+    equal(Entries(world, "blocked.message.again")[1].count, 2, "repeats counted")
 
     world:Elapse(10)
     ShowUIPanel(CharacterFrame)

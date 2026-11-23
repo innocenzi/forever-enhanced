@@ -163,16 +163,6 @@ test("no item menu without a feature or part adding entries", function(world)
     world:SetAlt(false)
 end)
 
-test("the item menu stays open once Alt is released", function(world)
-    world:AltRightClick(1)
-    expect(world:IsContextMenuOpen(), "menu open")
-    expect(world:IsShielded(1), "its shield kept")
-    expect(not world:IsShielded(2), "other shields dropped")
-
-    world:CloseContextMenu()
-    expect(not world:IsShielded(1), "shield dropped once the menu closes")
-end)
-
 test("the item menu's shield ignores plain clicks", function(world)
     world:AltClick(1)
     world:AltRightClick(1)

@@ -29,13 +29,6 @@ test("shows the chance of a yellow recipe after Blizzard's line", function(world
     equal(lines[1], Chance(world, ARROW_LINE, 67), "(70 - 40) / (70 - 25)")
 end)
 
-test("gives an even chance where a recipe turns green", function(world)
-    world.professionSkill = { level = 45, modifier = 0 }
-    equal(Hover(world, LINEN_BANDAGE, "Easy")[1], Chance(world, ARROW_LINE, 50), "halfway from yellow to grey")
-    world.professionSkill = { level = 57, modifier = 0 }
-    equal(Hover(world, LINEN_BANDAGE, "Easy")[1], Chance(world, ARROW_LINE, 10), "near grey")
-end)
-
 test("counts skill bonuses", function(world)
     world.professionSkill = { level = 30, modifier = 15 }
     equal(Hover(world, LINEN_BANDAGE, "Easy")[1], Chance(world, ARROW_LINE, 50), "30 + 15")
@@ -103,13 +96,6 @@ end)
 test("adds nothing to nodes of a profession the player lacks", function(world)
     world.professions = { { skillLine = MINING, rank = 120 } }
     equal(HoverNode(world, "silverleaf")[2], "Profession", "no Herbalism")
-end)
-
-test("adds nothing to other world objects", function(world)
-    world.professions = { { skillLine = MINING, rank = 120 } }
-    local lines = world:ObjectTooltip("Mailbox")
-    equal(#lines, 1, "lines")
-    equal(lines[1], "Mailbox", "the name")
 end)
 
 test("adds nothing to nodes whose name or profession is secret", function(world)

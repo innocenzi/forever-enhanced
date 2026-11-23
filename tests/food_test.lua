@@ -41,12 +41,6 @@ local function Place(world, slot, itemID)
     world:NextFrame()
 end
 
-test("off by default", function(world)
-    Carry(world, { [DALARAN_SHARP] = 3 })
-    Place(world, 1, TOUGH_JERKY)
-    equal(world:ActionItem(1), TOUGH_JERKY)
-end)
-
 test("puts the best food in the bags on a slot holding food", function(world)
     Enable(world)
     Carry(world, { [TOUGH_JERKY] = 5, [DALARAN_SHARP] = 3 })

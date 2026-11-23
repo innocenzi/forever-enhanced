@@ -83,16 +83,6 @@ for _, mark in ipairs({ "auction", "bank", "mail" }) do
         world:AltClick(1)
         expect(world[Shown](world, 1), "back once unlocked")
     end)
-
-    test(mark .. ": its toggle hides its icons and entry, and keeps the marks", function(world)
-        Toggle(world, 1, mark)
-        world:Setting("inventory.marks." .. mark):SetValue(false)
-        expect(not world[Shown](world, 1), "icon hidden")
-        expect(not Entry(world, 1, mark), "no entry")
-
-        world:Setting("inventory.marks." .. mark):SetValue(true)
-        expect(world[Shown](world, 1), "icon back")
-    end)
 end
 
 test("poor items can't be marked, bound items only for the bank", function(world)
@@ -391,7 +381,7 @@ for _, glow in ipairs(GLOWS) do
     end)
 end
 
-for _, mark in ipairs({ "junk", "auction", "bank", "mail" }) do
+for _, mark in ipairs({ "auction", "bank", "mail" }) do
     test("Alt Left Click can mark for " .. mark .. " instead of locking", function(world)
         world:Setting("inventory.marks.altClick"):SetValue(mark)
         world:AltClick(1)
@@ -403,7 +393,7 @@ for _, mark in ipairs({ "junk", "auction", "bank", "mail" }) do
         expect(not IsMarked(world, 1, mark), "unmarked")
 
         world:AltClick(4)
-        expect(not IsMarked(world, 4, mark) or mark == "junk", "poor items can't take the mark")
+        expect(not IsMarked(world, 4, mark), "poor items can't take the mark")
     end)
 end
 

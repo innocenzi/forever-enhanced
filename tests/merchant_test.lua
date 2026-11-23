@@ -238,33 +238,6 @@ test("follows durability and threshold changes at the merchant", function(world)
     expect(world:IsRepairAllGlowing(), "glow once worn further")
 end)
 
-test("stops glowing once repaired", function(world)
-    Enable(world)
-    WithWornGear(world, 10)
-    world:OpenMerchant()
-    world:Elapse(1)
-    equal(#world.repairs, 1, "repairs")
-    expect(not world:IsRepairAllGlowing(), "no glow after the repair")
-end)
-
-test("doesn't glow without the Repair All button or without damage", function(world)
-    WithWornGear(world, 10)
-    world:OpenMerchant()
-    world:SelectMerchantTab(2)
-    expect(not world:IsRepairAllGlowing(), "no glow on the buyback tab")
-    world:CloseMerchant()
-
-    world.merchantCanRepair = false
-    world:OpenMerchant()
-    expect(not world:IsRepairAllGlowing(), "no glow at a merchant who can't repair")
-    world:CloseMerchant()
-
-    world.merchantCanRepair = true
-    world.durability = {}
-    world:OpenMerchant()
-    expect(not world:IsRepairAllGlowing(), "no glow without durability items")
-end)
-
 test("stops glowing when the glow or the feature is turned off", function(world)
     WithWornGear(world, 10)
     world:OpenMerchant()

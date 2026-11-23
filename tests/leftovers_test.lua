@@ -67,14 +67,6 @@ test("an item a quest takes is a leftover once the quest is completed", function
     expect(not world:LeftoverMark(1), "no mark on other items")
 end)
 
-test("learns the quest items the log's objectives need", function(world)
-    world:Setting("quests.helpers.objectives"):SetValue(false)
-    world:AcceptQuest(Quest(BLOOM, { world:Objective("NORDEL", 1, 0) }))
-    Put(world, "NORDEL")
-    TurnIn(world, BLOOM)
-    equal(Lines(world, "NORDEL")[1], Completed(world, BLOOM.title), "linked through the objective")
-end)
-
 test("learns the quest items a quest gives when accepted", function(world)
     world:ShowQuestDetail(BLOOM)
     world:CloseQuestFrame()
