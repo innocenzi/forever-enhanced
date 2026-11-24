@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.8.0 - 2026-11-24
+
+
+### Features
+- **professions:** ask for a number of crafts when tracking a recipe
+- **map:** offer map pins linked in group chat to group members who use the addon
+
+
+### Fixes
+- **inventory:** put reserved items back in their slot after a cleanup that moves locked items
+
 ## 1.7.0 - 2026-11-23
 
 
