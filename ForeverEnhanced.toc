@@ -154,6 +154,7 @@ modules\combat\dots\armor.lua
 modules\combat\dots\spells.lua
 modules\combat\dots\stats.lua
 modules\combat\dots\tracker.lua
+modules\combat\dots\sharing.lua
 modules\combat\dots\overlays.lua
 modules\combat\swaps\feature.lua
 modules\combat\swaps\locales.lua

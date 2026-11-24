@@ -25,6 +25,9 @@
 -- Out of combat the player's auras are readable again: effects whose aura is
 -- gone are forgotten (the unit died, reset or was cleansed), the others take
 -- the aura's timing.
+--
+-- Whatever changes what the player has yet to deal to a unit is told to
+-- sharing.lua, which sends it to the group.
 
 local _, ns = ...
 
@@ -47,6 +50,9 @@ local MISSES = {
 
 -- How long a cast that may have missed waits for its combo points.
 local CONFIRM_SECONDS = 1
+
+-- How far (seconds) an aura's timing must be from ours for the group to hear of it.
+local TIMING_SLACK = 0.25
 
 local EMPTY = {}
 
@@ -87,6 +93,12 @@ function Tracker:GetUnitKey(unit)
     return plate and plate:GetUnit()
 end
 
+-- Whether a unit key is a nameplate's token, which only means something to
+-- this client, until the plate is removed.
+function Tracker:IsPlateKey(unitKey)
+    return unitKey:match("^nameplate%d+$") ~= nil
+end
+
 local function TickCount(effect)
     return math.floor(effect.duration / effect.tick + 0.5)
 end
@@ -94,6 +106,12 @@ end
 -- How many of the effect's ticks have landed by `now`.
 local function LandedTicks(effect, now)
     return math.floor((now - effect.start) / effect.tick)
+end
+
+-- The first and last of the effect's ticks left at `now` (the first is past the
+-- last when none is).
+function Tracker:GetTicksLeft(effect, now)
+    return LandedTicks(effect, now) + 1, TickCount(effect)
 end
 
 -- How much the effect's tick landing at `time` deals on the unit.
@@ -138,8 +156,10 @@ local function SyncSwings()
             if mark.swingingSince and not swung then
                 mark.swingSeconds = mark.swingSeconds + math.min(now, mark.to) - mark.swingingSince
                 mark.swingingSince = nil
+                DoTs.Sharing:OnUnitChanged(unitKey)
             elseif swung and not mark.swingingSince then
                 mark.swingingSince = now
+                DoTs.Sharing:OnUnitChanged(unitKey)
             end
         end
     end
@@ -180,6 +200,7 @@ local function ApplyMark(cast)
         swingSeconds = 0,
     }
     SyncSwings()
+    DoTs.Sharing:OnUnitChanged(cast.unitKey)
 end
 
 local function ApplyAmplifier(cast)
@@ -191,6 +212,9 @@ local function ApplyAmplifier(cast)
         bonus = amplifier.bonus,
         amplifies = amplifier.amplifies,
     }
+    if effects[cast.unitKey] then
+        DoTs.Sharing:OnUnitChanged(cast.unitKey)
+    end
 end
 
 -- Adds the strike's damage, through the unit's armor, to the marks running on
@@ -201,6 +225,7 @@ local function ApplyStrike(cast)
         if cast.time >= mark.from and cast.time < mark.to then
             damage = damage or (DoTs.Spells:ReadStrike(cast.strike, cast.spellID, cast.points) or 0) * cast.armorPassed
             mark.strikes = mark.strikes + damage
+            DoTs.Sharing:OnUnitChanged(cast.unitKey)
         end
     end
 end
@@ -229,6 +254,7 @@ local function ApplyEffect(cast)
             table.insert(mark.sources, effect)
         end
     end
+    DoTs.Sharing:OnUnitChanged(cast.unitKey)
 end
 
 -- A cast that landed: a spell can be several of these (Hemorrhage amplifies
@@ -365,20 +391,30 @@ local function Reconcile(unit)
     if not unitKey or not (effects[unitKey] or marks[unitKey]) then
         return
     end
+    local changed = false
     for key, effect in pairs(effects[unitKey] or EMPTY) do
         local aura = GetAura(unit, key)
         if aura then
+            local start = aura.expirationTime - aura.duration
+            changed = changed
+                or math.abs(aura.duration - effect.duration) > TIMING_SLACK
+                or math.abs(start - effect.start) > TIMING_SLACK
             effect.duration = aura.duration
-            effect.start = aura.expirationTime - aura.duration
+            effect.start = start
         else
             effect.ended = GetTime()
             effects[unitKey][key] = nil
+            changed = true
         end
     end
     for key in pairs(marks[unitKey] or EMPTY) do
         if not GetAura(unit, key) then
             marks[unitKey][key] = nil
+            changed = true
         end
+    end
+    if changed then
+        DoTs.Sharing:OnUnitChanged(unitKey)
     end
     DoTs.Overlays:Refresh()
 end
@@ -460,7 +496,8 @@ function Tracker:GetRemainingDamage(unitKey)
     local now = GetTime()
     local ticks = 0
     for _, effect in pairs(effects[unitKey] or EMPTY) do
-        for index = LandedTicks(effect, now) + 1, TickCount(effect) do
+        local first, last = self:GetTicksLeft(effect, now)
+        for index = first, last do
             ticks = ticks + TickDamage(unitKey, effect, effect.start + index * effect.tick)
         end
     end
@@ -471,6 +508,51 @@ function Tracker:GetRemainingDamage(unitKey)
         end
     end
     return ticks, stored
+end
+
+-- What the player's effects and marks have yet to deal to the unit, for the
+-- group: the effects running, { perTick, tick, duration, elapsed, amplifiers =
+-- { { bonus, left } } }, and the marks, { damage, left } (elapsed and left:
+-- seconds from now).
+function Tracker:GetSnapshot(unitKey)
+    local now = GetTime()
+    local runningEffects, runningMarks = {}, {}
+    for key, effect in pairs(effects[unitKey] or EMPTY) do
+        local first, last = self:GetTicksLeft(effect, now)
+        if first <= last then
+            local raisedBy = {}
+            for _, amplifier in pairs(amplifiers[unitKey] or EMPTY) do
+                if amplifier.amplifies[key] and now < amplifier.to then
+                    table.insert(raisedBy, { bonus = amplifier.bonus, left = amplifier.to - now })
+                end
+            end
+            table.insert(runningEffects, {
+                perTick = effect.perTick,
+                tick = effect.tick,
+                duration = effect.duration,
+                elapsed = math.max(0, now - effect.start),
+                amplifiers = raisedBy,
+            })
+        end
+    end
+    for _, mark in pairs(marks[unitKey] or EMPTY) do
+        if now < mark.to then
+            table.insert(runningMarks, { damage = StoredDamage(unitKey, mark), left = mark.to - now })
+        end
+    end
+    return runningEffects, runningMarks
+end
+
+-- Calls func(unitKey) for each unit the player has effects or marks on.
+function Tracker:ForEachUnit(func)
+    for unitKey in pairs(effects) do
+        func(unitKey)
+    end
+    for unitKey in pairs(marks) do
+        if not effects[unitKey] then
+            func(unitKey)
+        end
+    end
 end
 
 -- Forgets the player's effects on the unit (it died).

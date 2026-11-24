@@ -9,6 +9,9 @@
 -- data and measurements in game (spells.lua), and drawn over the health bar's
 -- fill without ever reading the health (overlays.lua).
 --
+-- "share": the damage of group members who run the addon adds up with the
+-- player's, for all of them.
+--
 -- Files of this slice:
 --   feature.lua   registration and lifecycle (this file)
 --   locales.lua   strings
@@ -21,12 +24,16 @@
 --   spells.lua    the spells followed and what one cast deals
 --   stats.lua     the player's attack power and talents, read out of combat
 --   tracker.lua   the player's effects on each unit, from their casts
+--   sharing.lua   share: the group's effects on each unit, over addon messages
 --   overlays.lua  the damage to come, drawn on health bars
 
 local _, ns = ...
 
 local DoTs = ns:RegisterFeature("combat", "dots", {
     order = 4,
+    settings = {
+        { key = "share", type = "toggle", default = true },
+    },
     presets = {
         minimal = { enabled = false },
         enhanced = { enabled = true },
@@ -37,10 +44,16 @@ function DoTs:OnEnable()
     self.Stats:Enable()
     self.Tracker:Enable()
     self.Overlays:Enable()
+    self:SyncPart("share", self.Sharing)
 end
 
 function DoTs:OnDisable()
+    self:SyncPart("share", self.Sharing)
     self.Overlays:Disable()
     self.Tracker:Disable()
     self.Stats:Disable()
+end
+
+function DoTs:OnSettingChanged()
+    self:SyncPart("share", self.Sharing)
 end

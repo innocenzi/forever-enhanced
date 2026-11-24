@@ -3194,12 +3194,14 @@ end
 -- clientProgram, wowProjectID, characterName, classFilename }.
 -- world.players[guid] = { name, realm, class } answers GetPlayerInfoByGUID (the
 -- client's cache of players met this session), and world.groupGUIDs[guid] puts
--- one in the group.
+-- one in the group (as being in world.partyMembers does; the player is in theirs).
 --
 -- Sent addon messages go to world.sentAddon ({ prefix, message, chatType,
 -- target } for whispers, { prefix, message, gameAccountID } for Battle.net).
 -- The client allows ADDON_MESSAGE_BURST messages per prefix, then one per
--- second, and returns AddonMessageThrottle past that.
+-- second, and returns AddonMessageThrottle past that. It refuses secret messages,
+-- and all of them (AddOnMessageLockdown) while world.addonLockdown (dungeons,
+-- raids).
 
 local ADDON_MESSAGE_BURST = 10
 
@@ -3214,7 +3216,7 @@ world.addonAllowance = {}
 BNET_CLIENT_WOW = "WoW"
 WOW_PROJECT_ID = 16
 
-Enum.SendAddonMessageResult = { Success = 0, AddonMessageThrottle = 3, ChannelThrottle = 8 }
+Enum.SendAddonMessageResult = { Success = 0, AddonMessageThrottle = 3, ChannelThrottle = 8, AddOnMessageLockdown = 11 }
 
 function GetTime()
     return world.now
@@ -3266,7 +3268,11 @@ end
 
 local function SendAddon(prefix, record)
     assert(world.addonPrefixes[prefix], "unregistered prefix " .. prefix)
+    assert(not issecretvalue(record.message), "secret addon message")
     assert(#record.message <= 255, "addon message too long")
+    if world.addonLockdown then
+        return Enum.SendAddonMessageResult.AddOnMessageLockdown
+    end
     if not SpendAllowance(prefix) then
         return Enum.SendAddonMessageResult.AddonMessageThrottle
     end
@@ -3344,7 +3350,12 @@ C_BattleNet = {
 
 C_PartyInfo = {
     IsGUIDInGroup = function(guid)
-        return world.groupGUIDs[guid] == true
+        for _, member in ipairs(world.party and world.partyMembers or {}) do
+            if member.guid == guid then
+                return true
+            end
+        end
+        return world.groupGUIDs[guid] == true or (world.party and guid == world.player.guid)
     end,
     InviteUnit = function(name)
         table.insert(world.invites, name)

@@ -8,7 +8,8 @@
 -- miss show nothing (or wait for their combo points), casting again replaces
 -- the effect, a spell with a cast time lands on the unit it was cast on, dead
 -- units and recycled plates are left, out of combat auras correct the
--- effects, and everything is undone when disabled.
+-- effects, and everything is undone when disabled. Group members who run the
+-- addon send each other theirs, which add up.
 
 local GARROTE = 8632 -- a tick every 3 sec
 local GARROTE_DAMAGE = 282 -- over 18 sec, before talents and attack power
@@ -740,4 +741,269 @@ test("a miss on the nameplate of the unit cast on drops the cast", function(worl
     world:Target("OTHER")
     world:EndCast(cast, "RESIST", plate:GetUnit())
     equal(world:HealthBarOverlay(world:NamePlateHealthBar(plate)), nil, "resisted")
+end)
+
+-- Sharing with the group. A member's messages are the player's own, as their
+-- client would send them.
+
+local SHARE_PREFIX = "FEDots"
+local ALICE, BOB = "Player-1-Alice", "Player-1-Bob"
+
+-- The player's share messages sent since the last call.
+local function SentShares(world)
+    local messages = {}
+    for _, record in ipairs(world.sentAddon) do
+        if record.prefix == SHARE_PREFIX then
+            table.insert(messages, record.message)
+        end
+    end
+    world.sentAddon = {}
+    return messages
+end
+
+-- A member's message, from `message` the player sent, on MOB or `unitGUID`.
+local function As(world, memberGUID, message, unitGUID)
+    message = message:gsub(world.player.guid:gsub("%p", "%%%0"), memberGUID)
+    return (message:gsub(":MOB:", ":" .. (unitGUID or "MOB") .. ":"))
+end
+
+local function Receive(world, message, chatType)
+    world:ReceiveGroupAddon(SHARE_PREFIX, message, chatType or "PARTY", "Alice-Forever")
+end
+
+-- The player in a party with Alice, as Rogue.
+local function PartyRogue(world)
+    local plate = Rogue(world)
+    world:GuestJoins("Alice")
+    world:NextFrame()
+    SentShares(world)
+    return plate
+end
+
+-- The snapshot the player sends once casting `spellID`, then gone from the
+-- player: only what a member sends is shown.
+local function SnapshotOf(world, spellID)
+    world:Cast(spellID)
+    world:NextFrame()
+    local messages = SentShares(world)
+    equal(#messages, 1, "one message")
+    world:Setting("combat.dots.enabled"):SetValue(false)
+    world:Setting("combat.dots.enabled"):SetValue(true)
+    world:NextFrame()
+    SentShares(world)
+    equal(world:HealthBarOverlay(world:TargetHealthBar()), nil, "nothing of the player's left")
+    return messages[1]
+end
+
+test("sends nothing outside a group", function(world)
+    Rogue(world)
+    world:Cast(GARROTE)
+    world:NextFrame()
+    equal(#SentShares(world), 0, "no message")
+end)
+
+test("a group member's effects show like the player's own", function(world)
+    local plate = PartyRogue(world)
+    local garrote = SnapshotOf(world, GARROTE)
+    Receive(world, As(world, ALICE, garrote))
+    equal(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE, "on the target frame")
+    equal(Shown(world, world:NamePlateHealthBar(plate)), GARROTE_DAMAGE, "and the nameplate")
+    world:RunFrames(3.1)
+    Near(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE * 5 / 6, "each tick taken off as it lands")
+    world:RunFrames(15)
+    equal(world:HealthBarOverlay(world:TargetHealthBar()), nil, "hidden once the last tick landed")
+end)
+
+test("everyone's effects add up", function(world)
+    PartyRogue(world)
+    world:GuestJoins("Bob")
+    local garrote = SnapshotOf(world, GARROTE)
+    world:Cast(GARROTE)
+    Receive(world, As(world, ALICE, garrote))
+    Receive(world, As(world, BOB, garrote), "RAID")
+    Near(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE * 3, "the same spell of three players")
+    Receive(world, As(world, ALICE, garrote))
+    Near(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE * 3, "a member's new snapshot replaces theirs")
+    Receive(world, garrote)
+    Near(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE * 3, "the player's own message isn't counted twice")
+end)
+
+test("a member sees what the caster sees: combo points, Hemorrhage, Death Mark, time passed", function(world)
+    PartyRogue(world)
+    Armed(world)
+    world:SetHealth("MOB", 5000, 5000)
+    world:Cast(HEMORRHAGE)
+    world:Cast(GARROTE)
+    world:SetComboPoints(5)
+    world:Cast(RUPTURE)
+    world:RunFrames(2.5)
+    Mark(world)
+    world:Cast(SINISTER_STRIKE)
+    world:NextFrame()
+    local overlay = world:HealthBarOverlay(world:TargetHealthBar())
+    local ticks, stored = overlay.value, overlay.inner.value
+    local messages = SentShares(world)
+    world:Setting("combat.dots.enabled"):SetValue(false)
+    world:Setting("combat.dots.enabled"):SetValue(true)
+    Receive(world, As(world, ALICE, messages[#messages]))
+    overlay = world:HealthBarOverlay(world:TargetHealthBar())
+    expect(math.abs(overlay.value - ticks) < 0.5, ("ticks: %s, got %s"):format(ticks, overlay.value))
+    expect(math.abs(overlay.inner.value - stored) < 0.5, ("mark: %s, got %s"):format(stored, overlay.inner.value))
+    world:RunFrames(6.1)
+    equal(world:HealthBarOverlay(world:TargetHealthBar()).inner, nil, "the mark gone once dealt")
+end)
+
+test("sends one snapshot a cast, and none for what changes nothing", function(world)
+    PartyRogue(world)
+    Armed(world)
+    world:Cast(SINISTER_STRIKE)
+    world:Cast(HEMORRHAGE)
+    world:SetComboPoints(5)
+    world:Cast(EVISCERATE)
+    world:NextFrame()
+    equal(#SentShares(world), 0, "strikes without a mark, an amplifier without an effect")
+    world:Cast(GARROTE)
+    world:NextFrame()
+    equal(#SentShares(world), 1, "an effect")
+    world:Cast(HEMORRHAGE)
+    world:NextFrame()
+    equal(#SentShares(world), 1, "an amplifier of it")
+    Mark(world)
+    world:NextFrame()
+    equal(#SentShares(world), 1, "a mark")
+    world:Cast(SINISTER_STRIKE)
+    world:NextFrame()
+    equal(#SentShares(world), 1, "a strike it stores")
+    world:SetComboPoints(5)
+    world:Cast(RUPTURE, "DODGE")
+    world:NextFrame()
+    equal(#SentShares(world), 0, "not a miss")
+end)
+
+test("what waits for the client's pace goes out as of then, once per unit", function(world)
+    PartyRogue(world)
+    for _ = 1, 20 do
+        world:Cast(GARROTE)
+        world:NextFrame()
+    end
+    local messages = SentShares(world)
+    expect(#messages <= 8, "a burst at most")
+    world:Elapse(3)
+    messages = SentShares(world)
+    equal(#messages, 1, "then the latest only")
+    local elapsed = tonumber(messages[1]:match(":[%d.]+,[%d.]+,[%d.]+,([%d.]+):$"))
+    expect(elapsed and elapsed > 0, "timed from the cast")
+end)
+
+test("out of combat, the group hears of effects whose aura is gone", function(world)
+    PartyRogue(world)
+    local garrote = SnapshotOf(world, GARROTE)
+    Receive(world, As(world, ALICE, garrote))
+    world:EnterCombat()
+    world:Cast(GARROTE)
+    world:NextFrame()
+    SentShares(world)
+    world:LeaveCombat()
+    world:NextFrame()
+    local messages = SentShares(world)
+    equal(#messages, 1, "a snapshot")
+    Receive(world, As(world, ALICE, messages[1]))
+    equal(world:HealthBarOverlay(world:TargetHealthBar()), nil, "an empty one, removing the member's")
+end)
+
+test("in combat, sends and shows as out of it", function(world)
+    PartyRogue(world)
+    world:EnterCombat()
+    world:Cast(GARROTE)
+    world:NextFrame()
+    local messages = SentShares(world)
+    equal(#messages, 1, "sent")
+    Receive(world, As(world, ALICE, messages[1]))
+    Near(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE * 2, "added")
+end)
+
+test("joining a group asks for its effects and sends the player's, and an ask is answered", function(world)
+    Rogue(world)
+    world:Cast(GARROTE)
+    world:GuestJoins("Alice")
+    world:NextFrame()
+    local messages = SentShares(world)
+    equal(#messages, 2, "both")
+    local ask = messages[1]
+    Receive(world, As(world, ALICE, ask))
+    world:NextFrame()
+    local answer = SentShares(world)
+    equal(#answer, 1, "answered")
+    expect(answer[1]:find(":MOB:", 1, true), "with the snapshot")
+    Receive(world, ask)
+    world:NextFrame()
+    equal(#SentShares(world), 0, "not the player's own ask")
+end)
+
+test("forgets the effects of a member who leaves, and of a unit that died", function(world)
+    PartyRogue(world)
+    world:GuestJoins("Bob")
+    local garrote = SnapshotOf(world, GARROTE)
+    Receive(world, As(world, ALICE, garrote))
+    Receive(world, As(world, BOB, garrote))
+    world:GuestLeaves("Bob")
+    Near(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE, "Alice's only")
+    world:Kill("MOB")
+    world:NextFrame()
+    equal(world:HealthBarOverlay(world:TargetHealthBar()), nil, "dead")
+    equal(ForeverEnhanced:GetFeature("combat", "dots").Sharing:IsTracking(), false, "nothing kept")
+    Receive(world, As(world, ALICE, garrote, "OTHER"))
+    world:LeaveGroup()
+    equal(ForeverEnhanced:GetFeature("combat", "dots").Sharing:IsTracking(), false, "nor once the group is left")
+end)
+
+test("ignores strangers, other channels, secret and malformed messages", function(world)
+    PartyRogue(world)
+    local snapshot = SnapshotOf(world, GARROTE)
+    local garrote = As(world, ALICE, snapshot)
+    Receive(world, As(world, "Player-1-Mallory", snapshot))
+    Receive(world, garrote, "WHISPER")
+    Receive(world, world:Secret(garrote))
+    Receive(world, (garrote:gsub("^1", "2")))
+    Receive(world, ("1U:%s:MOB:nan,3.00,18.00,0.00:"):format(ALICE))
+    Receive(world, ("1U:%s:MOB:5.00,0.00,18.00,0.00:"):format(ALICE))
+    Receive(world, ("1U:%s:MOB:5.00,0.01,9999.00,0.00:"):format(ALICE))
+    Receive(world, ("1U:%s:MOB:5.00,3.00,18.00:"):format(ALICE))
+    Receive(world, ("1U:%s:MOB::5.00"):format(ALICE))
+    Receive(world, "1U")
+    equal(world:HealthBarOverlay(world:TargetHealthBar()), nil, "none shown")
+    Receive(world, garrote)
+    equal(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE, "a proper one is")
+end)
+
+test("shares no unit told apart by its nameplate, and drops what a lockdown refuses", function(world)
+    PartyRogue(world)
+    world.secretIdentities.MOB = true
+    world:Cast(GARROTE)
+    world:NextFrame()
+    equal(#SentShares(world), 0, "a nameplate means nothing to others")
+    world.secretIdentities.MOB = nil
+    world.addonLockdown = true
+    world:Cast(GARROTE)
+    world:Elapse(2)
+    world.addonLockdown = false
+    world:Elapse(2)
+    equal(#SentShares(world), 0, "not sent later")
+    expect(Shown(world, world:TargetHealthBar()) > 0, "the player's own still shown")
+end)
+
+test("sharing turned off sends and shows nothing of others", function(world)
+    PartyRogue(world)
+    local garrote = SnapshotOf(world, GARROTE)
+    Receive(world, As(world, ALICE, garrote))
+    world:Setting("combat.dots.share"):SetValue(false)
+    equal(world:HealthBarOverlay(world:TargetHealthBar()), nil, "gone at once")
+    Receive(world, As(world, ALICE, garrote))
+    world:Cast(GARROTE)
+    world:NextFrame()
+    equal(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE, "the player's own only")
+    equal(#SentShares(world), 0, "not sent")
+    world:Setting("combat.dots.share"):SetValue(true)
+    world:NextFrame()
+    equal(#SentShares(world), 2, "asks, and sends what is running once on again")
 end)

@@ -159,9 +159,9 @@ local function HideOverlay(healthBar)
     end
 end
 
--- The damage the player's effects have yet to deal to the unit, their ticks'
--- and what marks will deal: none on a dead unit (forgetting its effects) or
--- one that can't be told apart.
+-- The damage the player's effects and the group's shared ones have yet to deal
+-- to the unit, their ticks' and what marks will deal: none on a dead unit
+-- (forgetting its effects) or one that can't be told apart.
 local function GetDamage(unit)
     local unitKey = DoTs.Tracker:GetUnitKey(unit)
     if not unitKey then
@@ -169,9 +169,12 @@ local function GetDamage(unit)
     end
     if UnitIsDead(unit) then
         DoTs.Tracker:Forget(unitKey)
+        DoTs.Sharing:Forget(unitKey)
         return 0, 0
     end
-    return DoTs.Tracker:GetRemainingDamage(unitKey)
+    local ticks, stored = DoTs.Tracker:GetRemainingDamage(unitKey)
+    local sharedTicks, sharedStored = DoTs.Sharing:GetRemainingDamage(unitKey)
+    return ticks + sharedTicks, stored + sharedStored
 end
 
 -- Shows the damage to come on the unit over its health bar, or hides the
@@ -217,8 +220,9 @@ function Overlays:Refresh()
         return
     end
     DoTs.Tracker:ForgetEnded()
+    DoTs.Sharing:ForgetEnded()
     UpdateAll()
-    driver:SetShown(DoTs.Tracker:IsTracking())
+    driver:SetShown(DoTs.Tracker:IsTracking() or DoTs.Sharing:IsTracking())
 end
 
 local listener = ns:CreateEventListener({

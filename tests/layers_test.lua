@@ -393,7 +393,11 @@ test("drops the rest of the asks once invited", function(world)
     world:AnswerWho(rows)
     world:ReceiveInvite("Player1")
     world:Elapse(5)
-    equal(#world.sentAddon, 8, "the burst only")
+    local asks = 0
+    for _, record in ipairs(world.sentAddon) do
+        asks = asks + (record.prefix == "LayerSwap" and 1 or 0)
+    end
+    equal(asks, 8, "the burst only")
 end)
 
 test("leaves the invite to the player when not accepting automatically", function(world)
