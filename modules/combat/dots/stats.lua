@@ -27,15 +27,6 @@ local talentRanks = {}
 local weapons = {}
 local critChance = 0
 
-local function Readable(...)
-    for index = 1, select("#", ...) do
-        if issecretvalue((select(index, ...))) then
-            return false
-        end
-    end
-    return true
-end
-
 local function IsDagger(slot)
     local itemID = GetInventoryItemID("player", slot)
     if not itemID then
@@ -49,7 +40,7 @@ local function ReadWeapons()
     local mainLow, mainHigh, offLow, offHigh = UnitDamage("player")
     local mainSpeed, offSpeed = UnitAttackSpeed("player")
     local crit = GetCritChance()
-    if not Readable(mainLow, mainHigh, offLow, offHigh, mainSpeed, offSpeed, crit) then
+    if ns:IsAnySecret(mainLow, mainHigh, offLow, offHigh, mainSpeed, offSpeed, crit) then
         return
     end
     weapons = {}
@@ -67,7 +58,7 @@ local function ReadPower()
         return
     end
     local base, positive, negative = UnitAttackPower("player")
-    if Readable(base, positive, negative) then
+    if not ns:IsAnySecret(base, positive, negative) then
         attackPower = base + positive + negative
     end
     for school = FIRST_SPELL_SCHOOL, LAST_SPELL_SCHOOL do

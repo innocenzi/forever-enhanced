@@ -1,5 +1,4 @@
--- LayerSwap's addon whispers, both ways. Sending is paced like the client
--- allows an addon (a burst, then about one message a second per prefix):
+-- LayerSwap's addon whispers, both ways. Sending is paced (core/pacing.lua):
 -- messages wait in order, and one the client throttles waits for the next
 -- round. A message can be a function, called when it goes out, so a burst
 -- carries what the player knows by then (the layer read meanwhile). Messages
@@ -16,67 +15,42 @@ local Protocol = Layers.Protocol
 local Comm = {}
 Layers.Comm = Comm
 
-local BURST = 8
-local PER_SECOND = 1
-
-local THROTTLED = {
-    [Enum.SendAddonMessageResult.AddonMessageThrottle] = true,
-    [Enum.SendAddonMessageResult.ChannelThrottle] = true,
-}
-
 C_ChatInfo.RegisterAddonMessagePrefix(Protocol.PREFIX)
 
 -- { target, message (a string, or a function returning one), owner, onSent }
 local queue = {}
-local tokens = BURST
-local refilledAt = 0
-local pumpTimer
 
-local function Refill()
-    local now = GetTime()
-    tokens = math.min(BURST, tokens + (now - refilledAt) * PER_SECOND)
-    refilledAt = now
+-- What waits, for the pacer.
+local Outbox = {}
+
+function Outbox:HasNext()
+    return #queue > 0
 end
 
-local Pump
-
-local function SchedulePump()
-    if pumpTimer or #queue == 0 then
-        return
+function Outbox:SendNext()
+    local entry = queue[1]
+    local message = entry.message
+    if type(message) == "function" then
+        message = message()
     end
-    pumpTimer = C_Timer.NewTimer(math.max(0.1, (1 - tokens) / PER_SECOND), function()
-        pumpTimer = nil
-        Pump()
-    end)
+    local result = C_ChatInfo.SendAddonMessage(Protocol.PREFIX, message, "WHISPER", entry.target)
+    if ns:IsMessageThrottled(result) then
+        return false
+    end
+    table.remove(queue, 1)
+    if entry.onSent then
+        entry.onSent(entry.target, result == Enum.SendAddonMessageResult.Success)
+    end
+    return true
 end
 
-function Pump()
-    Refill()
-    while #queue > 0 and tokens >= 1 do
-        local entry = queue[1]
-        local message = entry.message
-        if type(message) == "function" then
-            message = message()
-        end
-        tokens = tokens - 1
-        local result = C_ChatInfo.SendAddonMessage(Protocol.PREFIX, message, "WHISPER", entry.target)
-        if THROTTLED[result] then
-            tokens = 0
-            break
-        end
-        table.remove(queue, 1)
-        if entry.onSent then
-            entry.onSent(entry.target, result == Enum.SendAddonMessageResult.Success)
-        end
-    end
-    SchedulePump()
-end
+local pacer = ns:CreateMessagePacer(Outbox)
 
 -- Whispers `message` to `target` ("Name-Realm" or "Name") after what waits.
 -- onSent(target, delivered) once the client took or refused it.
 function Comm:Send(target, message, owner, onSent)
     table.insert(queue, { target = target, message = message, owner = owner, onSent = onSent })
-    Pump()
+    pacer:Pump()
 end
 
 -- Drops the messages of `owner` still waiting.
@@ -90,7 +64,7 @@ end
 
 local listener = ns:CreateEventListener({
     CHAT_MSG_ADDON = function(_, prefix, text, chatType, sender)
-        if issecretvalue(prefix) or issecretvalue(text) or issecretvalue(sender) then
+        if ns:IsAnySecret(prefix, text, sender) then
             return
         end
         if prefix ~= Protocol.PREFIX or chatType ~= "WHISPER" then
@@ -113,9 +87,6 @@ end
 
 function Comm:Disable()
     listener:Stop()
-    if pumpTimer then
-        pumpTimer:Cancel()
-        pumpTimer = nil
-    end
+    pacer:Cancel()
     queue = {}
 end

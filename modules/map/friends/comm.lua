@@ -1,8 +1,7 @@
 -- Addon messages between friends' clients. A channel is one addon message
--- prefix: the client throttles each prefix on its own, so a channel paces its
--- sending (a burst, then about one per second), and only the latest message
--- to each friend waits in its queue, which keeps it as long as the number of
--- friends at most. Messages from anyone but an online friend are dropped.
+-- prefix, paced (core/pacing.lua), and only the latest message to each friend
+-- waits in its queue, which keeps it as long as the number of friends at most.
+-- Messages from anyone but an online friend are dropped.
 --
 -- The addon's own protocol has a channel of its own (Comm:Send). Every message
 -- starts with the protocol version:
@@ -21,16 +20,9 @@ Friends.Comm = Comm
 
 local PREFIX = "FEFriends"
 local VERSION = "1"
-local BURST = 8
-local PER_SECOND = 1
 
 Comm.WATCH = VERSION .. "W"
 Comm.HIDDEN = VERSION .. "H"
-
-local THROTTLED = {
-    [Enum.SendAddonMessageResult.AddonMessageThrottle] = true,
-    [Enum.SendAddonMessageResult.ChannelThrottle] = true,
-}
 
 local Channel = {}
 Channel.__index = Channel
@@ -46,9 +38,8 @@ function Comm:CreateChannel(prefix, onMessage)
         -- friends with a message waiting, in order, and the message for each
         queue = {},
         pending = {},
-        tokens = BURST,
-        refilledAt = 0,
     }, Channel)
+    channel.pacer = ns:CreateMessagePacer(channel)
     channel.listener = ns:CreateEventListener({
         CHAT_MSG_ADDON = function(_, messagePrefix, text, chatType, sender)
             if messagePrefix ~= prefix or chatType ~= "WHISPER" then
@@ -73,12 +64,6 @@ function Comm:CreateChannel(prefix, onMessage)
     return channel
 end
 
-function Channel:Refill()
-    local now = GetTime()
-    self.tokens = math.min(BURST, self.tokens + (now - self.refilledAt) * PER_SECOND)
-    self.refilledAt = now
-end
-
 -- False when the client throttled the message, to send it again later.
 function Channel:Deliver(guid, message)
     local friend = Roster:Get(guid)
@@ -91,34 +76,21 @@ function Channel:Deliver(guid, message)
     else
         result = C_ChatInfo.SendAddonMessage(self.prefix, message, "WHISPER", friend.name)
     end
-    return not THROTTLED[result]
+    return not ns:IsMessageThrottled(result)
 end
 
-function Channel:SchedulePump()
-    if self.pumpTimer or #self.queue == 0 then
-        return
-    end
-    local wait = math.max(0.1, (1 - self.tokens) / PER_SECOND)
-    self.pumpTimer = C_Timer.NewTimer(wait, function()
-        self.pumpTimer = nil
-        self:Pump()
-    end)
+function Channel:HasNext()
+    return #self.queue > 0
 end
 
-function Channel:Pump()
-    self:Refill()
-    local queue, pending = self.queue, self.pending
-    while #queue > 0 and self.tokens >= 1 do
-        local guid = queue[1]
-        self.tokens = self.tokens - 1
-        if not self:Deliver(guid, pending[guid]) then
-            self.tokens = 0
-            break
-        end
-        table.remove(queue, 1)
-        pending[guid] = nil
+function Channel:SendNext()
+    local guid = self.queue[1]
+    if not self:Deliver(guid, self.pending[guid]) then
+        return false
     end
-    self:SchedulePump()
+    table.remove(self.queue, 1)
+    self.pending[guid] = nil
+    return true
 end
 
 -- Sends `message` to the online friend `guid`, replacing one still waiting.
@@ -127,7 +99,7 @@ function Channel:Send(guid, message)
         table.insert(self.queue, guid)
     end
     self.pending[guid] = message
-    self:Pump()
+    self.pacer:Pump()
 end
 
 -- Starts receiving.
@@ -142,10 +114,7 @@ end
 
 -- Drops the messages still waiting.
 function Channel:Clear()
-    if self.pumpTimer then
-        self.pumpTimer:Cancel()
-        self.pumpTimer = nil
-    end
+    self.pacer:Cancel()
     self.queue = {}
     self.pending = {}
 end

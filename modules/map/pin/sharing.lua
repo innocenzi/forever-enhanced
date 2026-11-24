@@ -87,18 +87,9 @@ local function ParseMessage(text)
     return tonumber(mapID), x, y
 end
 
-local function IsSecret(...)
-    for index = 1, select("#", ...) do
-        if issecretvalue((select(index, ...))) then
-            return true
-        end
-    end
-    return false
-end
-
 local listener = ns:CreateEventListener({
     CHAT_MSG_ADDON = function(_, prefix, text, chatType, sender)
-        if IsSecret(prefix, text, chatType, sender) then
+        if ns:IsAnySecret(prefix, text, chatType, sender) then
             return
         end
         if prefix ~= PREFIX or not RECEIVE_CHANNELS[chatType] then
@@ -122,7 +113,7 @@ local listener = ns:CreateEventListener({
 -- After the player sent a chat message: a map pin linked in group chat goes
 -- to the group's addons too.
 local function OnChatSent(text, chatType)
-    if not Pin:IsPartActive("share") or IsSecret(text, chatType) then
+    if not Pin:IsPartActive("share") or ns:IsAnySecret(text, chatType) then
         return
     end
     local channel = SEND_CHANNELS[chatType]

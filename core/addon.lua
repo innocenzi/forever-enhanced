@@ -183,6 +183,17 @@ function ns:HookSecureFunc(tbl, name, hook)
     end)
 end
 
+-- Whether any of the values is secret: check what events carry (chat and addon
+-- messages) before comparing or parsing it.
+function ns:IsAnySecret(...)
+    for index = 1, select("#", ...) do
+        if issecretvalue((select(index, ...))) then
+            return true
+        end
+    end
+    return false
+end
+
 local bootListener = ns:CreateEventListener({
     ADDON_LOADED = function(listener, loadedName)
         if loadedName ~= addonName then
