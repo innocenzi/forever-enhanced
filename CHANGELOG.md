@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.9.0 - 2026-11-24
+
+
+### Features
+- **combat:** add up the damage over time of group members who use the addon
+
 ## 1.8.0 - 2026-11-24
 
 
