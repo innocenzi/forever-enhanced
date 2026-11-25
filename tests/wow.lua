@@ -338,7 +338,6 @@ for _, name in ipairs({
     "SetHorizTile",
     "SetVertTile",
     "SetRotation",
-    "SetTexCoord",
     "SetJustifyH",
     "SetNormalTexture",
     "SetPushedTexture",
@@ -734,6 +733,11 @@ end
 -- A texture of one color (the overlay's line).
 function Region:SetColorTexture(r, g, b, a)
     self.color = { r, g, b, a }
+end
+
+-- The part of its file a texture shows.
+function Region:SetTexCoord(...)
+    self.texCoord = { ... }
 end
 
 -- Textures draw in a layer and sublevel ("ARTWORK", 0 unless set).
@@ -1756,8 +1760,14 @@ C_Texture = {
         local sizes = {
             ["QuestSharing-Padlock"] = { width = 24, height = 29 },
             ["bankslot-icon-lock"] = { width = 54, height = 54 },
+            ["Skillbar_Fill_Flipbook_Poisons"] = { width = 1712, height = 1020 },
         }
-        return sizes[atlas]
+        local info = sizes[atlas]
+        if info then
+            info.file = "Interface\\" .. atlas
+            info.leftTexCoord, info.rightTexCoord, info.topTexCoord, info.bottomTexCoord = 0, 1, 0, 1
+        end
+        return info
     end,
 }
 
@@ -2638,9 +2648,8 @@ function StatusBar:GetStatusBarTexture()
 end
 
 -- A file or an atlas (a name without path separators, like Blizzard's mana
--- bars give it): kept as given (statusBarAsset).
+-- bars give it).
 function StatusBar:SetStatusBarTexture(texture)
-    self.statusBarAsset = texture
     if type(texture) == "string" and not texture:find("[\\/]") then
         self:GetStatusBarTexture():SetAtlas(texture)
     else
@@ -2650,6 +2659,10 @@ end
 
 function StatusBar:SetStatusBarColor(r, g, b, a)
     self.statusBarColor = { r, g, b, a }
+end
+
+function StatusBar:GetStatusBarColor()
+    return unpack(self.statusBarColor or { 1, 1, 1, 1 })
 end
 
 function StatusBar:SetReverseFill(reverse)
@@ -2757,13 +2770,12 @@ end
 -- What a status bar drawn over the health bar's fill shows, or nil without
 -- one: { value, range (its max), fromLeft, overFill (anchored to the fill's
 -- corners), underText (on the bar's frame level, its fill drawn above the
--- bar's but below the OVERLAY layer of the health text), marker (the size of
--- the texture with `atlas` on it, if any: { width, height }), line (the width
--- of a texture of one color on it, if any; both only when shown), color
+-- bar's but below the OVERLAY layer of the health text), art (the animated
+-- texture on it) and flare (the one at its end), when shown, color
 -- ({ r, g, b, a }), fill (its fill texture), inner (a status bar shown inside
--- it, if any: { value, fromLeft, texture (the file or atlas given), aboveFill
--- (its fill drawn above the outer bar's) }) }, secrets revealed.
-function world:HealthBarOverlay(healthBar, atlas)
+-- it, if any: { value, fromLeft, color, aboveFill (its fill drawn above the
+-- outer bar's) }) }, secrets revealed.
+function world:HealthBarOverlay(healthBar)
     for _, frame in ipairs(self.frames) do
         if frame.parent == healthBar and frame.frameType == "StatusBar" and frame:IsVisible() then
             local fill = healthBar:GetStatusBarTexture()
@@ -2771,13 +2783,13 @@ function world:HealthBarOverlay(healthBar, atlas)
             local bottomRight, bottomRightTo = frame:GetPoint(2)
             local barLayer, barSubLevel = fill:GetDrawLayer()
             local layer, subLevel = frame:GetStatusBarTexture():GetDrawLayer()
-            local marker, line
+            local art, flare
             for _, texture in ipairs(self.textures) do
                 if texture.owner == frame and texture:IsShown() then
-                    if atlas and texture.atlas == atlas then
-                        marker = { width = texture.width, height = texture.height }
-                    elseif texture.color then
-                        line = texture.width
+                    if texture.texCoord then
+                        art = texture
+                    elseif texture.atlas == "Skillbar_Flare_Poisons" then
+                        flare = texture
                     end
                 end
             end
@@ -2788,7 +2800,7 @@ function world:HealthBarOverlay(healthBar, atlas)
                     inner = {
                         value = self:Reveal(child:GetValue()),
                         fromLeft = not child.reverseFill,
-                        texture = child.statusBarAsset,
+                        color = child.statusBarColor,
                         aboveFill = innerLayer == layer and innerSubLevel > subLevel,
                     }
                 end
@@ -2808,8 +2820,8 @@ function world:HealthBarOverlay(healthBar, atlas)
                     and layer == barLayer
                     and subLevel > barSubLevel
                     and layer ~= "OVERLAY",
-                marker = marker,
-                line = line,
+                art = art,
+                flare = flare,
             }
         end
     end

@@ -127,9 +127,7 @@ end)
 local DEATH_MARK = 1316709 -- 12% stored per point, caps 165 / 267 / 369 / 471 / 573
 local DEATH_MARK_RANK_4 = 1325758 -- caps 401 / 646 / 891 / 1,136 / 1,381
 
-local LOST_HEALTH_ATLAS = "UI-HUD-UnitFrame-Target-PortraitOn-Bar-TempHPLoss"
-
-test("what Death Mark will deal shows from the health's end, as the target frame's lost health", function(world)
+test("what Death Mark will deal shows from the health's end, darkened", function(world)
     Rogue(world)
     world:Cast(GARROTE)
     local overlay = world:HealthBarOverlay(world:TargetHealthBar())
@@ -140,14 +138,34 @@ test("what Death Mark will deal shows from the health's end, as the target frame
     overlay = world:HealthBarOverlay(world:TargetHealthBar())
     expect(overlay.fromLeft, "the ticks from the left end")
     equal(overlay.value, GARROTE_DAMAGE, "the ticks' part")
-    equal(overlay.line, 1, "ending at the marker")
     expect(not overlay.inner.fromLeft, "what it will deal from the health's end")
     Near(overlay.inner.value, 2 * 47 * 0.6 * 2, "what it stores")
-    equal(overlay.inner.texture, LOST_HEALTH_ATLAS, "as lost health")
-    expect(overlay.inner.aboveFill, "above the ticks' shade")
+    equal(overlay.inner.color[4], 0.5, "darkened")
+    expect(overlay.inner.aboveFill, "above the ticks' part")
 
     world:RunFrames(6.1)
     equal(world:HealthBarOverlay(world:TargetHealthBar()).inner, nil, "none once dealt")
+end)
+
+test("the ticks' part is animated, in the health bar's color, up to a flare", function(world)
+    local plate = Rogue(world)
+    local healthBar = world:NamePlateHealthBar(plate)
+    healthBar:SetStatusBarColor(0.9, 0.1, 0.2)
+    world:Cast(GARROTE)
+    local overlay = world:HealthBarOverlay(healthBar)
+    equal(overlay.art.tint[1], 0.9, "the nameplate's color")
+    equal(overlay.art.tint[2], 0.1, "its green")
+    equal(overlay.flare.tint[1], 0.9, "the flare's too")
+    equal(#overlay.art.masks, 1, "within its fill")
+    local shown = table.concat(overlay.art.texCoord, " ")
+    world:RunFrames(0.2)
+    expect(table.concat(overlay.art.texCoord, " ") ~= shown, "animated")
+    healthBar:SetStatusBarColor(1, 0.9, 0.1)
+    world:NextFrame()
+    equal(overlay.art.tint[2], 0.9, "follows its color")
+    local target = world:HealthBarOverlay(world:TargetHealthBar())
+    expect(target.art.tint[2] > target.art.tint[1], "the target frame's green")
+    equal(#target.art.masks, 2, "within its fill and the health bar's shape")
 end)
 
 test("Death Mark stores a Rupture cast after it, and a replaced one up to then", function(world)
@@ -332,7 +350,8 @@ test("Death Mark stores strikes and swings up to its cap", function(world)
     local overlay = world:HealthBarOverlay(world:TargetHealthBar())
     expect(overlay.inner, "what it will deal")
     equal(overlay.value, 0, "no ticks")
-    equal(overlay.line, nil, "no marker without ticks")
+    equal(overlay.art, nil, "nothing animated without ticks")
+    equal(overlay.flare, nil, "no flare")
 end)
 
 -- A creature GUID of the NPC `npcID`.
@@ -652,20 +671,14 @@ test("follows a warrior's Rend, each rank's damage from the data", function(worl
     equal(world:HealthBarOverlay(world:TargetHealthBar()), nil, "ended after 12 sec")
 end)
 
-local PIP = "UI-HUD-ExperienceBar-Frame-Pip"
-
-test("draws under the health text: a pip at its end on nameplates, a line on the target frame", function(world)
+test("draws under the health text", function(world)
     local plate = Rogue(world)
     world:Cast(GARROTE)
-    local target = world:HealthBarOverlay(world:TargetHealthBar(), PIP)
-    expect(target.underText, "target frame: above the fill, under the text")
-    equal(target.marker, nil, "target frame: no pip")
-    equal(target.line, 1, "a thin line")
-    local nameplate = world:HealthBarOverlay(world:NamePlateHealthBar(plate), PIP)
-    expect(nameplate.underText, "nameplate: above the fill, under the text")
-    equal(nameplate.marker.width, 10, "nameplate: the experience bar's pip")
-    equal(nameplate.marker.height, 14, "at its size")
-    equal(nameplate.line, nil, "no line")
+    expect(world:HealthBarOverlay(world:TargetHealthBar()).underText, "target frame: above the fill, under the text")
+    expect(
+        world:HealthBarOverlay(world:NamePlateHealthBar(plate)).underText,
+        "nameplate: above the fill, under the text"
+    )
 end)
 
 test("measures no nameplate in combat and keeps the attack power read before it", function(world)
@@ -678,7 +691,7 @@ test("measures no nameplate in combat and keeps the attack power read before it"
     world:Target("OTHER")
     world:Cast(GARROTE)
     Near(Shown(world, world:TargetHealthBar()), GARROTE_DAMAGE + 0.18 * 241, "the attack power before combat")
-    expect(world:HealthBarOverlay(world:NamePlateHealthBar(plate), PIP), "shown")
+    expect(world:HealthBarOverlay(world:NamePlateHealthBar(plate)), "shown")
 end)
 
 local SHADOW_WORD_PAIN = 589 -- 5 per tick, every 3 sec for 18 sec; 20% of shadow spell power per tick

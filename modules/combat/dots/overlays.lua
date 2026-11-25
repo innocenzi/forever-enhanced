@@ -9,22 +9,18 @@
 --
 -- The ticks' damage grows from the bar's left end: it covers as much health
 -- as the ticks will take, the whole fill when they would kill, so the player
--- sees when the health left reaches it. That health shows darkened (its own
--- color and gloss underneath), and a marker shows where it ends: on
--- nameplates the experience bar's rested pip, at its size (their bars are
--- about as tall), centered on the end; on the target frame, whose bar is
--- taller and holds the health text, a thin line.
+-- sees when the health left reaches it. That health shows animated, up to a
+-- flare (tickbar.lua).
 --
 -- What marks will deal (Death Mark) grows from the health's end leftward: the
--- health its hit will remove. It is a second bar over the overlay, filling in
--- reverse with the target frame's lost health art, like that frame's
--- temporary max health loss, and draws above the ticks' shade where they meet.
+-- health its hit will remove, darkened. It is a second bar over the overlay
+-- (markbar.lua), and draws above the ticks' part where they meet.
 --
 -- Like Blizzard's heal prediction, the overlay shares the health bar's frame
 -- level and draws just above its fill, under the health text.
 --
 -- Nameplates can't be measured in combat: nothing in the overlay depends on
--- the bar's size (the pip has a fixed size).
+-- the bar's size.
 --
 -- The fill moves with each health change: while any effect runs, every
 -- overlay follows its unit each frame.
@@ -41,27 +37,24 @@ local DoTs = ns:GetFeature("combat", "dots")
 local Overlays = {}
 DoTs.Overlays = Overlays
 
-local WHITE_TEXTURE = "Interface\\Buttons\\WHITE8X8"
-local SHADE_COLOR = { r = 0, g = 0, b = 0, a = 0.5 }
--- What marks will deal (Death Mark): the target frame's lost health
--- (TargetFrame.xml's TempMaxHealthLoss).
-local MARK_ATLAS = "UI-HUD-UnitFrame-Target-PortraitOn-Bar-TempHPLoss"
--- The experience bar's rested pip (ExpBar.xml's ExhaustionTick).
-local PIP_ATLAS = "UI-HUD-ExperienceBar-Frame-Pip"
-local PIP_WIDTH, PIP_HEIGHT = 10, 14
-local LINE_COLOR = { r = 1, g = 1, b = 1, a = 0.6 }
-local LINE_WIDTH = 1
--- Draw sublevels range from -8 to 7.
-local MAX_SUBLEVEL = 7
+-- How the ticks' part is drawn: `inset`, how far the inside of the health bar's
+-- art is from its edges; `height`, about how tall that inside is; `color`, the
+-- art's, when the bar's own color doesn't tell it (the target frame's art is
+-- green).
+local TARGET_STYLE = {
+    inset = 4,
+    height = 12,
+    color = { r = 0.55, g = 1, b = 0.25 },
+}
+local PLATE_STYLE = {
+    inset = 1,
+    height = 18,
+}
 
 -- Overlays, by the health bar they're on (kept with their pooled unit frame).
 local overlaysByHealthBar = setmetatable({}, { __mode = "k" })
 -- The fill texture each overlay is anchored to.
 local anchoredTo = setmetatable({}, { __mode = "k" })
--- The end marker of each overlay.
-local markers = setmetatable({}, { __mode = "k" })
--- The bar of each overlay showing what marks will deal, from the health's end.
-local markBars = setmetatable({}, { __mode = "k" })
 -- Nameplate token -> the health bar of its unit frame.
 local plateHealthBars = {}
 
@@ -76,64 +69,14 @@ local function GetPlateHealthBar(plate)
     return plate.UnitFrame and plate.UnitFrame.HealthBarsContainer.healthBar
 end
 
--- The experience bar's pip, centered on the fill's end, past the bar's edges
--- like on that bar.
-local function CreatePip(parent, fill)
-    local pip = parent:CreateTexture()
-    pip:SetAtlas(PIP_ATLAS)
-    pip:SetSize(PIP_WIDTH, PIP_HEIGHT)
-    pip:SetPoint("CENTER", fill, "RIGHT")
-    return pip
-end
-
--- A thin line along the fill's end, within the bar's shape.
-local function CreateLine(parent, fill, mask)
-    local line = parent:CreateTexture()
-    line:SetColorTexture(LINE_COLOR.r, LINE_COLOR.g, LINE_COLOR.b, LINE_COLOR.a)
-    line:SetWidth(LINE_WIDTH)
-    line:SetPoint("TOPRIGHT", fill, "TOPRIGHT")
-    line:SetPoint("BOTTOMRIGHT", fill, "BOTTOMRIGHT")
-    if mask then
-        line:AddMaskTexture(mask)
-    end
-    return line
-end
-
-local function CreateMarker(parent, fill, mask, marker)
-    if marker == "pip" then
-        return CreatePip(parent, fill)
-    end
-    return CreateLine(parent, fill, mask)
-end
-
--- What marks will deal on the overlay: a bar over the whole overlay, filling
--- from its right end (the health's).
-local function CreateMarkBar(overlay, mask)
-    local markBar = CreateFrame("StatusBar", nil, overlay)
-    markBar:SetUsingParentLevel(true)
-    markBar:SetAllPoints(overlay)
-    markBar:SetReverseFill(true)
-    markBar:SetStatusBarTexture(MARK_ATLAS)
-    if mask then
-        markBar:GetStatusBarTexture():AddMaskTexture(mask)
-    end
-    markBars[overlay] = markBar
-end
-
--- `mask`: the health bar's shape, if it has one. `marker`: "pip" or "line".
-local function GetOverlay(healthBar, mask, marker)
+-- `mask`: the health bar's shape, if it has one.
+local function GetOverlay(healthBar, mask, style)
     local overlay = overlaysByHealthBar[healthBar]
     if not overlay then
         overlay = CreateFrame("StatusBar", nil, healthBar)
         overlay:SetUsingParentLevel(true)
-        overlay:SetStatusBarTexture(WHITE_TEXTURE)
-        overlay:SetStatusBarColor(SHADE_COLOR.r, SHADE_COLOR.g, SHADE_COLOR.b, SHADE_COLOR.a)
-        local fill = overlay:GetStatusBarTexture()
-        if mask then
-            fill:AddMaskTexture(mask)
-        end
-        markers[overlay] = CreateMarker(overlay, fill, mask, marker)
-        CreateMarkBar(overlay, mask)
+        DoTs.TickBar:SetUp(overlay, healthBar, mask, style)
+        DoTs.MarkBar:Create(overlay, mask)
         overlay:Hide()
         overlaysByHealthBar[healthBar] = overlay
     end
@@ -141,15 +84,14 @@ local function GetOverlay(healthBar, mask, marker)
 end
 
 -- Over the health bar's fill, and just above it in its draw layers: the
--- ticks' shade, what marks will deal over it, the marker on top.
+-- ticks' part, then what marks will deal.
 local function AnchorToFill(overlay, fill)
     overlay:ClearAllPoints()
     overlay:SetPoint("TOPLEFT", fill, "TOPLEFT")
     overlay:SetPoint("BOTTOMRIGHT", fill, "BOTTOMRIGHT")
     local layer, subLevel = fill:GetDrawLayer()
-    overlay:GetStatusBarTexture():SetDrawLayer(layer, math.min(subLevel + 1, MAX_SUBLEVEL))
-    markBars[overlay]:GetStatusBarTexture():SetDrawLayer(layer, math.min(subLevel + 2, MAX_SUBLEVEL))
-    markers[overlay]:SetDrawLayer(layer, math.min(subLevel + 3, MAX_SUBLEVEL))
+    local markSubLevel = DoTs.TickBar:SetDrawLayer(overlay, layer, subLevel + 1)
+    DoTs.MarkBar:SetDrawLayer(overlay, layer, markSubLevel)
 end
 
 local function HideOverlay(healthBar)
@@ -180,13 +122,13 @@ end
 -- Shows the damage to come on the unit over its health bar, or hides the
 -- overlay when there's none: the ticks' from the left end, what marks will
 -- deal from the health's end.
-local function Update(healthBar, mask, unit, marker)
+local function Update(healthBar, mask, unit, style)
     local ticks, stored = GetDamage(unit)
     if ticks <= 0 and stored <= 0 then
         HideOverlay(healthBar)
         return
     end
-    local overlay = GetOverlay(healthBar, mask, marker)
+    local overlay = GetOverlay(healthBar, mask, style)
     -- The bar may have been given another texture since.
     local fill = healthBar:GetStatusBarTexture()
     if anchoredTo[overlay] ~= fill then
@@ -195,22 +137,16 @@ local function Update(healthBar, mask, unit, marker)
     end
     -- The bar's value rather than UnitHealth: it is what its fill shows.
     local health = healthBar:GetValue()
-    overlay:SetMinMaxValues(0, health)
-    overlay:SetValue(ticks)
-    -- An empty bar's fill may not sit at its left end.
-    markers[overlay]:SetShown(ticks > 0)
-    local markBar = markBars[overlay]
-    markBar:SetMinMaxValues(0, health)
-    markBar:SetValue(stored)
-    markBar:SetShown(stored > 0)
+    DoTs.TickBar:Update(overlay, health, ticks)
+    DoTs.MarkBar:Update(overlay, health, stored)
     overlay:Show()
 end
 
 local function UpdateAll()
     local healthBar, mask = GetTargetHealthBar()
-    Update(healthBar, mask, "target", "line")
+    Update(healthBar, mask, "target", TARGET_STYLE)
     for unit, plateHealthBar in pairs(plateHealthBars) do
-        Update(plateHealthBar, nil, unit, "pip")
+        Update(plateHealthBar, nil, unit, PLATE_STYLE)
     end
 end
 

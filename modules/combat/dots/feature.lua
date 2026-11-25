@@ -25,6 +25,8 @@
 --   stats.lua     the player's attack power and talents, read out of combat
 --   tracker.lua   the player's effects on each unit, from their casts
 --   sharing.lua   share: the group's effects on each unit, over addon messages
+--   tickbar.lua   what the ticks will deal, drawn on an overlay
+--   markbar.lua   what marks will deal, drawn on an overlay
 --   overlays.lua  the damage to come, drawn on health bars
 
 local _, ns = ...
