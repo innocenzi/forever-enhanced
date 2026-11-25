@@ -1,5 +1,5 @@
 {
-  "version": "1.9.0",
+  "version": "1.9.1",
   "scripts": {
     "changelog": "bun run tools/changelog.ts",
     "cheapest": "bun run tools/cheapest.ts",

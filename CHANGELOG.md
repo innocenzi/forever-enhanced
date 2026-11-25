@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.9.1 - 2026-11-25
+
+
+### Features
+- **combat:** animate the health damage over time will take, and darken what Death Mark will deal
+
 ## 1.9.0 - 2026-11-24
 
 
