@@ -4,6 +4,7 @@
 -- up out of combat only (see Secure frames in tests/wow.lua).
 
 local BACKSTAB, BACKSTAB_RANK_2, AMBUSH, SINISTER_STRIKE, GARROTE = 53, 2589, 8676, 1752, 703
+local GARROTE_RANK_2 = 8632
 local STEALTH_BAR = 1
 local AMBUSH_ICON = 132282
 
@@ -66,22 +67,36 @@ test("shows and casts the replacement while it can be cast", function(world)
     equal(world:SwapShown(ActionButton1), nil, "replacement hidden once it can't be cast")
 end)
 
-test("tints the replacement blue while short of energy", function(world)
+test("hides the replacement while short of energy", function(world)
     Rogue(world)
     Enable(world)
     world:SetSpellUsable(AMBUSH, true)
     world:NextFrame()
-    equal(select(3, world:SwapShown(ActionButton1)), "white", "enough energy")
+    equal(world:SwapShown(ActionButton1), AMBUSH_ICON, "enough energy")
 
     world:SetShortOfPower(AMBUSH, true)
     world:NextFrame()
-    local icon, _, tint = world:SwapShown(ActionButton1)
-    equal(icon, AMBUSH_ICON, "still shown")
-    equal(tint, "blue", "short of energy")
+    equal(world:SwapShown(ActionButton1), nil, "short of energy")
 
     world:SetShortOfPower(AMBUSH, false)
     world:NextFrame()
-    equal(select(3, world:SwapShown(ActionButton1)), "white", "energy back")
+    equal(world:SwapShown(ActionButton1), AMBUSH_ICON, "energy back")
+end)
+
+test("goes by the rank the key casts, not the swap's", function(world)
+    Rogue(world)
+    world:PlaceSpell(1, SINISTER_STRIKE)
+    Enable(world)
+    world:SetSpellUsable(GARROTE, true)
+    world:NextFrame()
+    expect(world:SwapShown(ActionButton1), "the known rank can be cast")
+
+    world:LearnCostlyRank(GARROTE_RANK_2)
+    world:NextFrame()
+    equal(world:SwapShown(ActionButton1), nil, "the highest rank costs too much")
+    Press(world, "1")
+    equal(Casts(world), Name(SINISTER_STRIKE), "casts")
+    equal(#world.uiErrors, 0, "the refusal muted")
 end)
 
 test("still shows the original's own errors", function(world)
@@ -412,6 +427,7 @@ test("hides a replacement on its own cooldown, and casts the original meanwhile"
 
     world:SetCooldown(KICK, 10)
     world:NextFrame()
+    world:Elapse(0.5)
     equal(world:SwapShown(ActionButton1), nil, "hidden on cooldown")
     world:PressKey("1")
     equal(Casts(world), Name(SINISTER_STRIKE), "the original")
@@ -419,12 +435,57 @@ test("hides a replacement on its own cooldown, and casts the original meanwhile"
 
     world:Elapse(10)
     equal(world:SwapShown(ActionButton1), KICK_ICON, "back once ready")
-    world:PressKey("1")
-    world:NextFrame()
-    equal(world:SwapShown(ActionButton1), KICK_ICON, "kept through the global cooldown")
 end)
 
-test("shows the replacement's cooldown over the original's", function(world)
+test("hides the replacement on the global cooldown", function(world)
+    Rogue(world)
+    Enable(world)
+    world:EnterCombat()
+    world:SetSpellUsable(AMBUSH, true)
+    world:NextFrame()
+    equal(world:SwapShown(ActionButton1), AMBUSH_ICON, "shown")
+
+    world:PressKey("1")
+    world:Elapse(0.5)
+    equal(world:SwapShown(ActionButton1), nil, "hidden on the global cooldown")
+    world:SetSpellUsable(AMBUSH, false)
+    world:NextFrame()
+    world:SetSpellUsable(AMBUSH, true)
+    world:NextFrame()
+    equal(world:SwapShown(ActionButton1), nil, "not shown by becoming usable during it")
+
+    world:Elapse(2)
+    equal(world:SwapShown(ActionButton1), AMBUSH_ICON, "back once it ends")
+end)
+
+test("a cast the server refuses doesn't blink the replacement", function(world)
+    Rogue(world)
+    Enable(world)
+    world:EnterCombat()
+    world:SetSpellUsable(AMBUSH, true)
+    world:NextFrame()
+    for _ = 1, 3 do
+        world:PressKey("1")
+        world:Elapse(0.1)
+        equal(world:SwapShown(ActionButton1), AMBUSH_ICON, "kept while the server answers")
+        world:RefuseCast()
+        world:Elapse(0.1)
+        equal(world:SwapShown(ActionButton1), AMBUSH_ICON, "kept once refused")
+    end
+end)
+
+test("a replacement off the global cooldown stays shown through it", function(world)
+    Rogue(world)
+    world.env.ForeverEnhancedCharacterDB.combat =
+        { swaps = { swaps = { { original = BACKSTAB, replacement = EVASION } } } }
+    Enable(world)
+    world:NextFrame()
+    world:PressKey("1")
+    world:NextFrame()
+    expect(world:SwapShown(ActionButton1), "shown")
+end)
+
+test("covers the original's cooldown", function(world)
     Mage(world)
     local editor = OpenEditor(world)
     Drop(world, editor, 1, "original", SINISTER_STRIKE)
@@ -432,20 +493,7 @@ test("shows the replacement's cooldown over the original's", function(world)
     world:SetCooldown(SINISTER_STRIKE, 10)
     world:NextFrame()
     equal(world:SwapShown(ActionButton1), KICK_ICON, "shown")
-    local covers, left = world:SwapCooldown(ActionButton1)
-    expect(covers, "the original's cooldown covered")
-    equal(left, nil, "Kick has none")
-
-    world:PressKey("1")
-    world:NextFrame()
-    equal(world:SwapShown(ActionButton1), KICK_ICON, "kept through the global cooldown")
-    covers, left = world:SwapCooldown(ActionButton1)
-    expect(covers, "still covered")
-    expect(left and left > 0 and left <= 1.5, "the global cooldown shown")
-
-    world:Elapse(2)
-    covers, left = world:SwapCooldown(ActionButton1)
-    equal(left, nil, "cleared once it ends")
+    expect(world:SwapCoversCooldown(ActionButton1), "the original's cooldown covered")
 end)
 
 test("the editor closes with the settings panel", function(world)

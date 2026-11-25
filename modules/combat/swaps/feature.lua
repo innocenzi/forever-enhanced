@@ -11,14 +11,19 @@
 -- is held (about 0.1 s, measured); the key down can't try it too, since a
 -- refused cast uses up its key event. Nothing refuses a spell off the global
 -- cooldown after the other, so with one in a swap the key may cast both: the
--- editor warns about them.
+-- editor warns about them. The original is also tried while the replacement
+-- can be cast when energy comes back between key down and key up, or when the
+-- server refuses the replacement before key up (both measured). Pressing on the
+-- global cooldown may too (reported, not measured; not by holding the key across
+-- its end: the replacement queued on key down goes off): the replacement isn't
+-- shown then.
 --
 -- Files of this slice:
 --   feature.lua   registration, the character's swaps and lifecycle (this file)
 --   locales.lua   strings
 --   buttons.lua   Blizzard's action buttons: pages, slots, and standing in for them
 --   overlays.lua  our secure buttons over them, their keys and their pages
---   display.lua   the replacement's icon and glow while it can be cast
+--   display.lua   the replacement's icon and glow while pressing the key casts it
 --   quiet.lua     mutes the error of the cast that is meant to fail
 --   editor.lua    the window where the player edits their swaps
 
@@ -61,7 +66,9 @@ function Swaps:GetList()
     return CopyList(self:GetCharacterStore().swaps or DEFAULTS[class] or {})
 end
 
--- The swaps on while active, by original spell name (see Resolve).
+-- The swaps on while active, by original spell name (see Resolve). What a spell
+-- can do is asked by its name, as it's cast: both mean the highest rank known,
+-- whose cost may not be that of the rank the player put in the swap.
 local active = {}
 
 -- Whether the spell doesn't trigger the global cooldown: in a swap, the key
@@ -127,18 +134,28 @@ end
 
 -- A cooldown of its own, not the global cooldown. Both fields stay readable
 -- when the client hides cooldowns from addons in combat.
-local function OnCooldown(spellID)
-    local cooldown = C_Spell.GetSpellCooldown(spellID)
+local function OnCooldown(spellName)
+    local cooldown = C_Spell.GetSpellCooldown(spellName)
     return cooldown ~= nil and cooldown.isActive and not cooldown.isOnGCD
 end
 
+-- Whether the swap's replacement can be cast but for a cooldown: false while
+-- short of power.
+function Swaps:IsReplacementUsable(swap)
+    return (C_Spell.IsSpellUsable(swap.replacementName))
+end
+
 -- Whether the swap's replacement can be cast now (the test the game's own
--- cast passes), and whether it only lacks power.
+-- cast passes), or after the global cooldown.
 function Swaps:CanCastReplacement(swap)
-    if OnCooldown(swap.replacement) then
-        return false, false
-    end
-    return C_Spell.IsSpellUsable(swap.replacement)
+    return not OnCooldown(swap.replacementName) and self:IsReplacementUsable(swap)
+end
+
+-- Whether the replacement is on a cooldown: its own or the global one (whose
+-- `isOnGCD` the client only vouches for during SPELL_UPDATE_COOLDOWN).
+function Swaps:IsReplacementOnCooldown(swap)
+    local cooldown = C_Spell.GetSpellCooldown(swap.replacementName)
+    return cooldown ~= nil and cooldown.isActive
 end
 
 function Swaps:OnAction(key)

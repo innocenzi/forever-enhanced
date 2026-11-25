@@ -7580,8 +7580,9 @@ end
 -- Spells (world.spells, by ID, ranks pointing to their `base`) are cast by name
 -- (the client casts the highest rank). A cast fails with UI_ERROR_MESSAGE when
 -- the spell isn't usable (world.unusableSpells, world.noPowerSpells, by base
--- ID) or during the global cooldown (GLOBAL_COOLDOWN seconds after a cast);
--- spells marked `offGlobalCooldown` neither wait for it nor start it.
+-- ID; world.noPowerRanks, by rank) or during the global cooldown
+-- (GLOBAL_COOLDOWN seconds after a cast); spells marked `offGlobalCooldown`
+-- neither wait for it nor start it.
 -- Like the client, a refused cast reports its error at once. world.casts lists
 -- the names cast; world.uiErrors the errors UIErrorsFrame showed.
 
@@ -7603,6 +7604,8 @@ world.gcdUntil = -math.huge
 world.lockActionBars = true
 world.unusableSpells = { [8676] = true, [703] = true }
 world.noPowerSpells = {}
+world.noPowerRanks = {}
+world.highestRanks = {} -- spell (base) -> the highest rank known, when not the base
 world.cooldowns = {} -- spell (base) -> when its own cooldown ends
 
 local SPELL_NAMES = {
@@ -7701,7 +7704,22 @@ world.spellBook = {
     { name = "Hidden", icon = 134400, hidden = true, spells = { { spellID = 1752 } } },
 }
 
-local function BaseSpell(spellID)
+-- Like the client, a name means the highest rank known.
+local function SpellByName(name)
+    for spellID, spell in pairs(world.spells) do
+        if not spell.base and SPELL_NAMES[TEST_LOCALE][spellID] == name then
+            return world.highestRanks[spellID] or spellID
+        end
+    end
+end
+
+-- `identifier`: a spell ID or name.
+local function SpellRank(identifier)
+    return type(identifier) == "string" and SpellByName(identifier) or identifier
+end
+
+local function BaseSpell(identifier)
+    local spellID = SpellRank(identifier)
     local spell = world.spells[spellID]
     return spell and (spell.base or spellID)
 end
@@ -7878,22 +7896,6 @@ templates.SecureHandlerStateTemplate = function(frame)
     end
 end
 
--- Cooldown frames: `ends` is when the swipe they show ends, nil when cleared.
-templates.CooldownFrameTemplate = function(frame)
-    frame.SetDrawBling = NoOp
-    frame.SetDrawEdge = NoOp
-    function frame:SetCooldownFromDurationObject(duration, clearIfZero)
-        if duration.ends > world.now or clearIfZero == false then
-            self.ends = duration.ends
-        else
-            self.ends = nil
-        end
-    end
-    function frame:Clear()
-        self.ends = nil
-    end
-end
-
 -- ActionButtonSpellAlertMixin: `ProcStartAnim.playing` tells whether the glow played.
 templates.ActionButtonSpellAlertTemplate = function(frame)
     frame.ProcStartAnim = {
@@ -8033,14 +8035,6 @@ end
 
 -- Spells and action slots ------------------------------------------------------------
 
-local function SpellByName(name)
-    for spellID in pairs(world.spells) do
-        if C_Spell.GetSpellName(spellID) == name then
-            return spellID
-        end
-    end
-end
-
 C_Spell = {
     GetSpellDescription = function(spellID)
         return SPELL_DESCRIPTIONS[TEST_LOCALE][spellID] or ""
@@ -8059,7 +8053,7 @@ C_Spell = {
     end,
     IsSpellUsable = function(spellID)
         local base = BaseSpell(spellID)
-        if world.noPowerSpells[base] then
+        if world.noPowerSpells[base] or world.noPowerRanks[SpellRank(spellID)] then
             return false, true
         end
         return not world.unusableSpells[base], false
@@ -8081,16 +8075,6 @@ C_Spell = {
         end
         local onGCD = world.now < world.gcdUntil and not world.spells[base].offGlobalCooldown
         return { isActive = onGCD, isOnGCD = onGCD }
-    end,
-    -- The client's LuaDurationObject, opaque to addons: `ends` is when the
-    -- spell's cooldown ends (the global cooldown too unless ignored).
-    GetSpellCooldownDuration = function(spellID, ignoreGCD)
-        local base = BaseSpell(spellID)
-        if not base then
-            return nil
-        end
-        local gcd = ignoreGCD and -math.huge or world.gcdUntil
-        return { ends = math.max(world.cooldowns[base] or -math.huge, gcd) }
     end,
 }
 
@@ -8221,6 +8205,13 @@ function CastSpellByName(name)
             world:Fire("SPELL_UPDATE_COOLDOWN")
         end
     end
+end
+
+-- The server refuses the cast just made (not behind the target): measured, the
+-- global cooldown it started is cleared about 0.1 s after.
+function world:RefuseCast()
+    self.gcdUntil = -math.huge
+    self:Fire("SPELL_UPDATE_COOLDOWN")
 end
 
 function GetActionInfo(slot)
@@ -8414,6 +8405,13 @@ function world:SetShortOfPower(spellID, short)
     self:Fire("UNIT_POWER_FREQUENT", "player", "ENERGY")
 end
 
+-- Learns `rank` of a spell, which costs more than the player has.
+function world:LearnCostlyRank(rank)
+    self.highestRanks[BaseSpell(rank)] = rank
+    self.noPowerRanks[rank] = true
+    self:Fire("SPELLS_CHANGED")
+end
+
 -- One click of a frame (the mouse, or a click binding), with its pre and post
 -- clicks, then the errors of the casts it made.
 local function ClickFrame(frame, button, down)
@@ -8521,25 +8519,22 @@ function world:ClickButton(button)
     ClickFrame(target, "LeftButton", false)
 end
 
--- The replacement shown on the button: its icon, whether its glow played and
--- its tint (see SetVertexColor), or nil.
+-- The replacement shown on the button: its icon and whether its glow played, or
+-- nil.
 function world:SwapShown(button)
     for _, frame in ipairs(self.frames) do
         if frame.parent == button and frame.Glow and frame:IsShown() then
-            return frame.Icon.texture, frame.Glow.ProcStartAnim.playing, frame.Icon.tint
+            return frame.Icon.texture, frame.Glow.ProcStartAnim.playing
         end
     end
 end
 
--- The replacement shown on the button: whether it covers the button's cooldown
--- swipe (which like the client's uses the button's frame level), and the
--- seconds left on its own swipe (nil when none: like the client's, a cooldown
--- frame stops drawing once its time is up).
-function world:SwapCooldown(button)
+-- Whether the replacement shown on the button covers the button's cooldown
+-- swipe (which like the client's uses the button's frame level).
+function world:SwapCoversCooldown(button)
     for _, frame in ipairs(self.frames) do
         if frame.parent == button and frame.Glow and frame:IsShown() then
-            local ends = frame.Cooldown.ends
-            return frame:GetFrameLevel() > button:GetFrameLevel(), ends and ends > self.now and ends - self.now or nil
+            return frame:GetFrameLevel() > button:GetFrameLevel()
         end
     end
 end

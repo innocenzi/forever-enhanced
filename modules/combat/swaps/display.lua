@@ -1,11 +1,8 @@
--- While a replacement can be cast (or only lacks power), the buttons showing
--- its original show its icon and a proc glow: our own frames over Blizzard's
--- buttons, following Swaps:CanCastReplacement, so it also works in combat.
--- The button's cooldown swipe is the original's: our icon covers it and
--- carries the replacement's swipe instead (the global cooldown: a replacement
--- on a cooldown of its own isn't shown). Cooldown times are secret in combat
--- and a cooldown frame takes secret times only from Blizzard's code, but the
--- spell's duration object isn't secret.
+-- While a replacement can be cast, the buttons showing its original show its
+-- icon and a proc glow: our own frames over Blizzard's buttons, which also work
+-- in combat. Not while short of power nor on a cooldown, the global one
+-- included: a key pressed then may cast the original (see feature.lua). Our
+-- icon covers the button's cooldown swipe, which is the original's.
 
 local _, ns = ...
 
@@ -15,8 +12,20 @@ local Buttons = Swaps.Buttons
 local Display = {}
 Swaps.Display = Display
 
+-- Cooldown times are secret in combat and the end of the global cooldown has no
+-- event of its own: look again this often (seconds) while one hides a
+-- replacement.
+local COOLDOWN_CHECK_INTERVAL = 0.05
+
+-- How long (seconds) a cooldown must last to hide a replacement already shown:
+-- a cast the server refuses (not behind the target) starts the global cooldown,
+-- cleared by its answer, and would blink it (measured: about 0.1 s, 0.22 s for
+-- a press and its release refused one after the other).
+local COOLDOWN_GRACE = 0.35
+
 local visuals = setmetatable({}, { __mode = "k" }) -- Blizzard button -> our frame
 local scheduled = false
+local cooldownTimer -- while a cooldown hides a replacement, or is about to
 
 local function GetVisual(button)
     local visual = visuals[button]
@@ -28,11 +37,6 @@ local function GetVisual(button)
     visual:SetFrameLevel(Buttons:GetCooldownLevel(button) + 1)
     visual.Icon = visual:CreateTexture(nil, "ARTWORK")
     visual.Icon:SetAllPoints()
-    -- Drawn like the button's own swipe.
-    visual.Cooldown = CreateFrame("Cooldown", nil, visual, "CooldownFrameTemplate")
-    visual.Cooldown:SetAllPoints()
-    visual.Cooldown:SetDrawBling(false)
-    visual.Cooldown:SetDrawEdge(false)
     visual.Glow = CreateFrame("Frame", nil, visual, "ActionButtonSpellAlertTemplate")
     local width, height = button:GetSize()
     visual.Glow:SetSize(width * 1.4, height * 1.4)
@@ -42,16 +46,10 @@ local function GetVisual(button)
     return visual
 end
 
--- Tinted like Blizzard's icons (UpdateUsable): blue while short of energy.
-local function Show(button, swap, usable)
+local function Show(button, swap, onCooldown)
     local visual = GetVisual(button)
+    visual.cooldownSince = onCooldown and (visual.cooldownSince or GetTime()) or nil
     visual.Icon:SetTexture(C_Spell.GetSpellTexture(swap.replacement))
-    visual.Cooldown:SetCooldownFromDurationObject(C_Spell.GetSpellCooldownDuration(swap.replacement))
-    if usable then
-        visual.Icon:SetVertexColor(1, 1, 1)
-    else
-        visual.Icon:SetVertexColor(0.5, 0.5, 1)
-    end
     if not visual:IsShown() then
         visual:Show()
         visual.Glow:Show()
@@ -68,27 +66,50 @@ local function Hide(button)
     end
 end
 
+-- Whether the replacement on the button stays shown on a cooldown.
+local function IsInGrace(button)
+    local visual = visuals[button]
+    if not visual or not visual:IsShown() then
+        return false
+    end
+    return not visual.cooldownSince or GetTime() - visual.cooldownSince < COOLDOWN_GRACE
+end
+
+local ScheduleUpdate
+
+local function CheckCooldownSoon()
+    if cooldownTimer or not Swaps:IsActive() then
+        return
+    end
+    cooldownTimer = C_Timer.NewTimer(COOLDOWN_CHECK_INTERVAL, function()
+        cooldownTimer = nil
+        ScheduleUpdate()
+    end)
+end
+
 local function Update()
     scheduled = false
+    local anyOnCooldown = false
     for _, entry in ipairs(Buttons:Enumerate()) do
         local button = entry.button
         local swap = Buttons:GetShownSwap(button)
-        -- Short of energy still counts, as Blizzard's buttons only dim then.
-        local usable, noPower
-        if swap then
-            usable, noPower = Swaps:CanCastReplacement(swap)
-        end
-        if usable or noPower then
-            Show(button, swap, usable)
+        local usable = swap ~= nil and Swaps:IsReplacementUsable(swap)
+        local onCooldown = usable and Swaps:IsReplacementOnCooldown(swap)
+        if usable and (not onCooldown or IsInGrace(button)) then
+            Show(button, swap, onCooldown)
         else
             Hide(button)
         end
+        anyOnCooldown = anyOnCooldown or onCooldown
+    end
+    if anyOnCooldown then
+        CheckCooldownSoon()
     end
 end
 
 -- Blizzard's buttons update their `action` on the same events: look once
 -- they did, once a frame.
-local function ScheduleUpdate()
+function ScheduleUpdate()
     if not scheduled then
         scheduled = true
         C_Timer.After(0, Update)
@@ -97,7 +118,6 @@ end
 
 local listener = ns:CreateEventListener({
     SPELL_UPDATE_USABLE = ScheduleUpdate,
-    -- A replacement on its own cooldown is hidden (Swaps:CanCastReplacement).
     SPELL_UPDATE_COOLDOWN = ScheduleUpdate,
     ACTION_USABLE_CHANGED = ScheduleUpdate,
     UNIT_AURA = function(_, unit)
@@ -132,6 +152,10 @@ end
 
 function Display:Disable()
     listener:Stop()
+    if cooldownTimer then
+        cooldownTimer:Cancel()
+        cooldownTimer = nil
+    end
     for button in pairs(visuals) do
         Hide(button)
     end
