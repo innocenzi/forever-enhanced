@@ -1,7 +1,7 @@
 -- What the ticks will deal, drawn on an overlay's fill (overlays.lua), as if that
 -- part of the health were alive: the animated art of Forever's Poisons skill bar,
--- drained of its green and tinted with the health bar's color, up to the flare of
--- that skill bar's end.
+-- drained of its green and tinted with the health bar's color, brightening toward
+-- its end with that skill bar's flare.
 --
 -- A bar squeezes its texture to its own width, which here is the health left. So
 -- the art isn't the overlay's texture: it lies on the health bar, at its own
@@ -29,14 +29,11 @@ local PROPORTION = 856 / 34
 local FLARE_ATLAS = "Skillbar_Flare_Poisons"
 local FLARE_WIDTH = 13
 local FLARE_ALPHA = 0.6
--- A pale line along the flare's end.
-local LINE_WIDTH = 1
-local LINE_ALPHA = 0.45
 -- Draw sublevels range from -8 to 7.
 local MAX_SUBLEVEL = 7
 
 -- What each overlay is drawn with: { healthBar, color, info (the atlas's), art,
--- flare, textures (the art, the flare and its line, from the lowest up) }.
+-- flare }.
 local drawings = setmetatable({}, { __mode = "k" })
 
 local function CreateArt(overlay, healthBar, style, info)
@@ -49,29 +46,18 @@ local function CreateArt(overlay, healthBar, style, info)
     return art
 end
 
--- A texture adding its light along the fill's end.
-local function CreateEnd(overlay, width, inset)
-    local texture = overlay:CreateTexture()
-    texture:SetBlendMode("ADD")
-    texture:SetWidth(width)
-    local fill = overlay:GetStatusBarTexture()
-    texture:SetPoint("TOPRIGHT", fill, "TOPRIGHT", 0, -inset)
-    texture:SetPoint("BOTTOMRIGHT", fill, "BOTTOMRIGHT", 0, inset)
-    return texture
-end
-
+-- Adds its light along the fill's end.
 local function CreateFlare(overlay, inset)
-    local flare = CreateEnd(overlay, FLARE_WIDTH, inset)
+    local flare = overlay:CreateTexture()
     flare:SetAtlas(FLARE_ATLAS)
     flare:SetDesaturated(true)
+    flare:SetBlendMode("ADD")
     flare:SetAlpha(FLARE_ALPHA)
+    flare:SetWidth(FLARE_WIDTH)
+    local fill = overlay:GetStatusBarTexture()
+    flare:SetPoint("TOPRIGHT", fill, "TOPRIGHT", 0, -inset)
+    flare:SetPoint("BOTTOMRIGHT", fill, "BOTTOMRIGHT", 0, inset)
     return flare
-end
-
-local function CreateLine(overlay, inset)
-    local line = CreateEnd(overlay, LINE_WIDTH, inset)
-    line:SetColorTexture(1, 1, 1, LINE_ALPHA)
-    return line
 end
 
 -- `mask`: the health bar's shape, if it has one. `style`: see overlays.lua.
@@ -86,11 +72,10 @@ function TickBar:SetUp(overlay, healthBar, mask, style)
     local info = C_Texture.GetAtlasInfo(ART_ATLAS)
     local art = CreateArt(overlay, healthBar, style, info)
     local flare = CreateFlare(overlay, style.inset)
-    local line = CreateLine(overlay, style.inset)
     art:AddMaskTexture(fillMask)
     flare:AddMaskTexture(fillMask)
     if mask then
-        for _, texture in ipairs({ fill, art, flare, line }) do
+        for _, texture in ipairs({ fill, art, flare }) do
             texture:AddMaskTexture(mask)
         end
     end
@@ -100,19 +85,17 @@ function TickBar:SetUp(overlay, healthBar, mask, style)
         info = info,
         art = art,
         flare = flare,
-        textures = { art, flare, line },
     }
 end
 
 -- Draws the overlay's fill and its art in `layer`, from `subLevel` up. Returns
 -- the sublevel above them.
 function TickBar:SetDrawLayer(overlay, layer, subLevel)
-    local textures = drawings[overlay].textures
+    local drawing = drawings[overlay]
     overlay:GetStatusBarTexture():SetDrawLayer(layer, math.min(subLevel, MAX_SUBLEVEL))
-    for above, texture in ipairs(textures) do
-        texture:SetDrawLayer(layer, math.min(subLevel + above, MAX_SUBLEVEL))
-    end
-    return subLevel + #textures + 1
+    drawing.art:SetDrawLayer(layer, math.min(subLevel + 1, MAX_SUBLEVEL))
+    drawing.flare:SetDrawLayer(layer, math.min(subLevel + 2, MAX_SUBLEVEL))
+    return subLevel + 3
 end
 
 -- Shows the animation's current frame, the same on every overlay.
@@ -149,7 +132,6 @@ function TickBar:Update(overlay, health, ticks)
         Tint(drawing)
     end
     -- An empty bar's fill may not sit at its left end.
-    for _, texture in ipairs(drawing.textures) do
-        texture:SetShown(ticks > 0)
-    end
+    drawing.art:SetShown(ticks > 0)
+    drawing.flare:SetShown(ticks > 0)
 end

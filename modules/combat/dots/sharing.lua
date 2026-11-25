@@ -302,9 +302,10 @@ local function SharedTickDamage(effect, time)
 end
 
 -- The damage group members' effects and marks have yet to deal to the unit:
--- the effects' ticks, and what the marks will deal.
+-- the effects' ticks, what the marks will deal, and the seconds until the next
+-- mark with damage to deal does (math.huge without one).
 function Sharing:GetRemainingDamage(unitKey)
-    local ticks, stored = 0, 0
+    local ticks, stored, left = 0, 0, math.huge
     local now = GetTime()
     for _, snapshot in pairs(shared[unitKey] or EMPTY) do
         for _, effect in ipairs(snapshot.effects) do
@@ -314,12 +315,13 @@ function Sharing:GetRemainingDamage(unitKey)
             end
         end
         for _, mark in ipairs(snapshot.marks) do
-            if now < mark.to then
+            if now < mark.to and mark.damage > 0 then
                 stored = stored + mark.damage
+                left = math.min(left, mark.to - now)
             end
         end
     end
-    return ticks, stored
+    return ticks, stored, left
 end
 
 -- Forgets the group's effects on the unit (it died).

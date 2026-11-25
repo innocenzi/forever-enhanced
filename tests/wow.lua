@@ -2773,8 +2773,9 @@ end
 -- bar's but below the OVERLAY layer of the health text), art (the animated
 -- texture on it) and flare (the one at its end), when shown, color
 -- ({ r, g, b, a }), fill (its fill texture), inner (a status bar shown inside
--- it, if any: { value, fromLeft, color, aboveFill (its fill drawn above the
--- outer bar's) }) }, secrets revealed.
+-- it, if any: { value, fromLeft, color, fill, marker and flash (the textures on
+-- it, the lowest first), aboveFill (the marker drawn above the outer bar's
+-- fill) }) }, secrets revealed.
 function world:HealthBarOverlay(healthBar)
     for _, frame in ipairs(self.frames) do
         if frame.parent == healthBar and frame.frameType == "StatusBar" and frame:IsVisible() then
@@ -2796,11 +2797,23 @@ function world:HealthBarOverlay(healthBar)
             local inner
             for _, child in ipairs(self.frames) do
                 if child.parent == frame and child.frameType == "StatusBar" and child:IsVisible() then
-                    local innerLayer, innerSubLevel = child:GetStatusBarTexture():GetDrawLayer()
+                    local textures = {}
+                    for _, texture in ipairs(self.textures) do
+                        if texture.owner == child and texture ~= child:GetStatusBarTexture() then
+                            table.insert(textures, texture)
+                        end
+                    end
+                    table.sort(textures, function(a, b)
+                        return select(2, a:GetDrawLayer()) < select(2, b:GetDrawLayer())
+                    end)
+                    local innerLayer, innerSubLevel = textures[1]:GetDrawLayer()
                     inner = {
                         value = self:Reveal(child:GetValue()),
                         fromLeft = not child.reverseFill,
                         color = child.statusBarColor,
+                        fill = child:GetStatusBarTexture(),
+                        marker = textures[1],
+                        flash = textures[2],
                         aboveFill = innerLayer == layer and innerSubLevel > subLevel,
                     }
                 end

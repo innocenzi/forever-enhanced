@@ -491,7 +491,8 @@ local listener = ns:CreateEventListener({
 })
 
 -- The damage the player's effects and marks on the unit have yet to deal: the
--- effects' ticks, and what the marks will deal.
+-- effects' ticks, what the marks will deal, and the seconds until the next mark
+-- with damage to deal does (math.huge without one).
 function Tracker:GetRemainingDamage(unitKey)
     local now = GetTime()
     local ticks = 0
@@ -501,13 +502,15 @@ function Tracker:GetRemainingDamage(unitKey)
             ticks = ticks + TickDamage(unitKey, effect, effect.start + index * effect.tick)
         end
     end
-    local stored = 0
+    local stored, left = 0, math.huge
     for _, mark in pairs(marks[unitKey] or EMPTY) do
-        if now < mark.to then
-            stored = stored + StoredDamage(unitKey, mark)
+        local damage = now < mark.to and StoredDamage(unitKey, mark) or 0
+        if damage > 0 then
+            stored = stored + damage
+            left = math.min(left, mark.to - now)
         end
     end
-    return ticks, stored
+    return ticks, stored, left
 end
 
 -- What the player's effects and marks have yet to deal to the unit, for the

@@ -9,18 +9,18 @@
 --
 -- The ticks' damage grows from the bar's left end: it covers as much health
 -- as the ticks will take, the whole fill when they would kill, so the player
--- sees when the health left reaches it. That health shows animated, up to a
--- flare (tickbar.lua).
+-- sees when the health left reaches it. That health shows animated
+-- (tickbar.lua).
 --
--- What marks will deal (Death Mark) grows from the health's end leftward: the
--- health its hit will remove, darkened. It is a second bar over the overlay
--- (markbar.lua), and draws above the ticks' part where they meet.
+-- What marks will deal (Death Mark) counts from the health's end leftward: a
+-- flashing marker shows where their hit will leave the health. It stands on a
+-- second bar over the overlay (markbar.lua), and draws above the ticks' part.
 --
 -- Like Blizzard's heal prediction, the overlay shares the health bar's frame
 -- level and draws just above its fill, under the health text.
 --
 -- Nameplates can't be measured in combat: nothing in the overlay depends on
--- the bar's size.
+-- the bar's size (the pip has a fixed size).
 --
 -- The fill moves with each health change: while any effect runs, every
 -- overlay follows its unit each frame.
@@ -37,16 +37,19 @@ local DoTs = ns:GetFeature("combat", "dots")
 local Overlays = {}
 DoTs.Overlays = Overlays
 
--- How the ticks' part is drawn: `inset`, how far the inside of the health bar's
--- art is from its edges; `height`, about how tall that inside is; `color`, the
--- art's, when the bar's own color doesn't tell it (the target frame's art is
--- green).
+-- How an overlay is drawn: `marker`, what shows where marks will leave the health
+-- (the experience bar's "pip", or a "line" on the target frame, taller and holding
+-- the health text); `inset`, how far the inside of the health bar's art is from
+-- its edges; `height`, about how tall that inside is; `color`, the art's, when the
+-- bar's own color doesn't tell it (the target frame's art is green).
 local TARGET_STYLE = {
+    marker = "line",
     inset = 4,
     height = 12,
     color = { r = 0.55, g = 1, b = 0.25 },
 }
 local PLATE_STYLE = {
+    marker = "pip",
     inset = 1,
     height = 18,
 }
@@ -76,7 +79,7 @@ local function GetOverlay(healthBar, mask, style)
         overlay = CreateFrame("StatusBar", nil, healthBar)
         overlay:SetUsingParentLevel(true)
         DoTs.TickBar:SetUp(overlay, healthBar, mask, style)
-        DoTs.MarkBar:Create(overlay, mask)
+        DoTs.MarkBar:Create(overlay, mask, style)
         overlay:Hide()
         overlaysByHealthBar[healthBar] = overlay
     end
@@ -84,7 +87,7 @@ local function GetOverlay(healthBar, mask, style)
 end
 
 -- Over the health bar's fill, and just above it in its draw layers: the
--- ticks' part, then what marks will deal.
+-- ticks' part, then the marker.
 local function AnchorToFill(overlay, fill)
     overlay:ClearAllPoints()
     overlay:SetPoint("TOPLEFT", fill, "TOPLEFT")
@@ -102,28 +105,29 @@ local function HideOverlay(healthBar)
 end
 
 -- The damage the player's effects and the group's shared ones have yet to deal
--- to the unit, their ticks' and what marks will deal: none on a dead unit
--- (forgetting its effects) or one that can't be told apart.
+-- to the unit, their ticks' and what marks will deal, and the seconds until the
+-- next mark does: none on a dead unit (forgetting its effects) or one that can't
+-- be told apart.
 local function GetDamage(unit)
     local unitKey = DoTs.Tracker:GetUnitKey(unit)
     if not unitKey then
-        return 0, 0
+        return 0, 0, math.huge
     end
     if UnitIsDead(unit) then
         DoTs.Tracker:Forget(unitKey)
         DoTs.Sharing:Forget(unitKey)
-        return 0, 0
+        return 0, 0, math.huge
     end
-    local ticks, stored = DoTs.Tracker:GetRemainingDamage(unitKey)
-    local sharedTicks, sharedStored = DoTs.Sharing:GetRemainingDamage(unitKey)
-    return ticks + sharedTicks, stored + sharedStored
+    local ticks, stored, left = DoTs.Tracker:GetRemainingDamage(unitKey)
+    local sharedTicks, sharedStored, sharedLeft = DoTs.Sharing:GetRemainingDamage(unitKey)
+    return ticks + sharedTicks, stored + sharedStored, math.min(left, sharedLeft)
 end
 
 -- Shows the damage to come on the unit over its health bar, or hides the
 -- overlay when there's none: the ticks' from the left end, what marks will
 -- deal from the health's end.
 local function Update(healthBar, mask, unit, style)
-    local ticks, stored = GetDamage(unit)
+    local ticks, stored, left = GetDamage(unit)
     if ticks <= 0 and stored <= 0 then
         HideOverlay(healthBar)
         return
@@ -138,7 +142,7 @@ local function Update(healthBar, mask, unit, style)
     -- The bar's value rather than UnitHealth: it is what its fill shows.
     local health = healthBar:GetValue()
     DoTs.TickBar:Update(overlay, health, ticks)
-    DoTs.MarkBar:Update(overlay, health, stored)
+    DoTs.MarkBar:Update(overlay, health, stored, left)
     overlay:Show()
 end
 

@@ -127,8 +127,8 @@ end)
 local DEATH_MARK = 1316709 -- 12% stored per point, caps 165 / 267 / 369 / 471 / 573
 local DEATH_MARK_RANK_4 = 1325758 -- caps 401 / 646 / 891 / 1,136 / 1,381
 
-test("what Death Mark will deal shows from the health's end, darkened", function(world)
-    Rogue(world)
+test("a marker shows where Death Mark's hit will leave the health", function(world)
+    local plate = Rogue(world)
     world:Cast(GARROTE)
     local overlay = world:HealthBarOverlay(world:TargetHealthBar())
     equal(overlay.inner, nil, "the ticks alone: no mark bar")
@@ -140,14 +140,49 @@ test("what Death Mark will deal shows from the health's end, darkened", function
     equal(overlay.value, GARROTE_DAMAGE, "the ticks' part")
     expect(not overlay.inner.fromLeft, "what it will deal from the health's end")
     Near(overlay.inner.value, 2 * 47 * 0.6 * 2, "what it stores")
-    equal(overlay.inner.color[4], 0.5, "darkened")
-    expect(overlay.inner.aboveFill, "above the ticks' part")
+    equal(overlay.inner.color[4], 0, "that health untouched")
+    expect(overlay.inner.aboveFill, "the marker above the ticks' part")
+    equal(overlay.inner.marker.width, 1, "target frame: a thin line")
+    local nameplate = world:HealthBarOverlay(world:NamePlateHealthBar(plate)).inner
+    equal(nameplate.marker.atlas, "UI-HUD-ExperienceBar-Frame-Pip", "nameplate: the experience bar's pip")
+    local _, relativeTo, relativePoint = nameplate.marker:GetPoint(1)
+    equal(relativeTo, nameplate.fill, "on what it will deal")
+    equal(relativePoint, "LEFT", "at its start")
 
     world:RunFrames(6.1)
     equal(world:HealthBarOverlay(world:TargetHealthBar()).inner, nil, "none once dealt")
 end)
 
-test("the ticks' part is animated, in the health bar's color, up to a flare", function(world)
+test("Death Mark's marker flashes just before its hit", function(world)
+    local plate = Rogue(world)
+    world:Cast(GARROTE)
+    world:SetComboPoints(5)
+    world:Cast(DEATH_MARK_RANK_4)
+    local inner = world:HealthBarOverlay(world:NamePlateHealthBar(plate)).inner
+    local flash = inner.flash
+    equal(flash.atlas, "UI-HUD-ExperienceBar-Frame-Pip-Mouseover", "the pip's highlight")
+
+    -- How many times it peaks in `seconds`.
+    local function CountFlashes(seconds)
+        local count, before, rising = 0, flash:GetAlpha(), false
+        for _ = 1, seconds * 30 do
+            world:RunFrames(1 / 30)
+            local alpha = flash:GetAlpha()
+            expect(alpha >= 0 and alpha <= 1, "within its range")
+            equal(inner.marker:GetAlpha(), 1, "the marker always shown")
+            if rising and alpha < before then
+                count = count + 1
+            end
+            rising, before = alpha > before, alpha
+        end
+        return count
+    end
+    equal(CountFlashes(4), 0, "steady at first")
+    equal(flash:GetAlpha(), 0, "unlit")
+    equal(CountFlashes(1.8), 4, "flashes before the hit, a last one on it")
+end)
+
+test("the ticks' part is animated, in the health bar's color, brighter at its end", function(world)
     local plate = Rogue(world)
     local healthBar = world:NamePlateHealthBar(plate)
     healthBar:SetStatusBarColor(0.9, 0.1, 0.2)
