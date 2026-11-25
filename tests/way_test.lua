@@ -238,7 +238,7 @@ end)
 
 test("ignores shared map pins it can't follow or that aren't from the group", function(world)
     world:Setting("map.pin.autoAccept"):SetValue(true)
-    ReceivePin(world, "1P:2:5200:4100", "PARTY", "Hylmew-Forever")
+    ReceivePin(world, "1P:2:5200:4100", "PARTY", "Hylmew Fortbras-Forever")
     ReceivePin(world, "1P:2:5200:4100", "WHISPER")
     ReceivePin(world, "1P:3:5200:4100")
     ReceivePin(world, "1P:2:52000:4100")

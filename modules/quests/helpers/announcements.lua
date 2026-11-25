@@ -63,13 +63,9 @@ local function GetAnnouncement(message)
     return nil
 end
 
-local function IsFromOtherPlayer(author)
-    return Ambiguate(author, "none") ~= UnitName("player")
-end
-
 -- Chat filter: returning true hides the message.
 local function HideAnnouncement(_, _, message, author)
-    return GetAnnouncement(message) ~= nil and IsFromOtherPlayer(author)
+    return GetAnnouncement(message) ~= nil and not ns:IsFromPlayer(author)
 end
 
 -- Bubbles ---------------------------------------------------------------------
@@ -165,7 +161,7 @@ watcher:SetScript("OnUpdate", UpdateBubbles)
 
 local function OnGroupChat(_, message, author)
     local announcement = GetAnnouncement(message)
-    if announcement and IsFromOtherPlayer(author) then
+    if announcement and not ns:IsFromPlayer(author) then
         table.insert(pending, { text = StripCodes(announcement), expires = GetTime() + BUBBLE_WAIT_SECONDS })
         watcher:Show()
     end

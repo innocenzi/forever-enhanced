@@ -95,7 +95,7 @@ local listener = ns:CreateEventListener({
         if prefix ~= PREFIX or not RECEIVE_CHANNELS[chatType] then
             return
         end
-        if Ambiguate(sender, "none") == UnitName("player") then
+        if ns:IsFromPlayer(sender) then
             return
         end
         local mapID, x, y = ParseMessage(text)

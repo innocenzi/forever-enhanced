@@ -107,6 +107,7 @@ local world = {
     player = {
         guid = "Player-1-00000001",
         name = "Hylmew",
+        surname = "Fortbras",
         class = "MAGE",
         realm = "Forever",
         faction = "Horde",
@@ -2354,7 +2355,7 @@ function UnitName(unit)
         end
         return nil
     end
-    return world.player.name
+    return world.player.name, world.player.surname
 end
 
 -- Base, positive and negative buffs: secret in combat, like Forever's.

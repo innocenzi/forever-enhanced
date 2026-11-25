@@ -194,6 +194,20 @@ function ns:IsAnySecret(...)
     return false
 end
 
+-- Whether a chat or addon message's sender ("First Surname", with "-Realm" for
+-- addon messages) is the player: the client gives the player's own group
+-- messages back too. UnitName gives the surname apart.
+function ns:IsFromPlayer(sender)
+    local name, surname = UnitName("player")
+    if self:IsAnySecret(sender, name, surname) then
+        return false
+    end
+    if surname and surname ~= "" then
+        name = name .. " " .. surname
+    end
+    return (sender:match("^([^%-]+)") or sender) == name
+end
+
 local bootListener = ns:CreateEventListener({
     ADDON_LOADED = function(listener, loadedName)
         if loadedName ~= addonName then
