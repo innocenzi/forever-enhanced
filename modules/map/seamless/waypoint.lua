@@ -1,8 +1,8 @@
 -- The map pin from the seamless view and quests.lua's continent pins, as Blizzard's map
 -- handles it: placed with Ctrl Click or a click with the map's pin button on, on the
 -- deepest map that takes one; and a click on it removes it in that mode, shares it in chat
--- (Shift Click), or turns its tracking on or off. Every change goes through
--- ns:ShieldObjectiveTracker, and none in combat (feature.lua, TAINT).
+-- (Shift Click) or with the group (Alt Click, map.pin's), or turns its tracking on or off.
+-- Every change goes through ns:ShieldObjectiveTracker, and none in combat (feature.lua, TAINT).
 
 local _, ns = ...
 
@@ -72,7 +72,7 @@ function Waypoint:PlaceAt(u, v)
 end
 
 -- A click on the map pin, as on Blizzard's: removed (in pin mode), shared in chat (Shift
--- Click), or its tracking turned on or off.
+-- Click) or with the group (Alt Click), or its tracking turned on or off.
 function Waypoint:Click()
     if self:IsPinMode() then
         if not CanChange() then
@@ -86,6 +86,11 @@ function Waypoint:Click()
     elseif IsModifiedClick("CHATLINK") then
         ChatFrameUtil.InsertLink(C_Map.GetUserWaypointHyperlink())
         PlaySound(SOUNDKIT.UI_MAP_WAYPOINT_CHAT_SHARE)
+    elseif IsAltKeyDown() then
+        local pin = ns:GetFeature("map", "pin")
+        if pin:CanShare() then
+            pin:Share()
+        end
     elseif not IsModifierKeyDown() and CanChange() then
         local tracked = not C_SuperTrack.IsSuperTrackingUserWaypoint()
         ns:ShieldObjectiveTracker(function()

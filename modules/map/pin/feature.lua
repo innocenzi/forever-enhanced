@@ -8,9 +8,9 @@
 -- "arrival": removes the map pin once the player gets within "range" of it,
 -- tracked or not, with Blizzard's "destination reached" message ("announce").
 --
--- "share": a map pin the player links in group chat is offered to the group
--- members who run the addon too, and theirs to the player: a dialog to follow
--- it, or followed at once ("autoAccept").
+-- "share": Alt Click on the map pin sends it to the group members who run the
+-- addon too, and theirs are offered to the player: a dialog to follow it, or
+-- followed at once ("autoAccept").
 --
 -- Files of this slice:
 --   feature.lua   registration, schema, lifecycle and placing the pin (this file)
@@ -18,7 +18,8 @@
 --   parser.lua    reads "[zone] x y [description]" and finds zones by name
 --   commands.lua  the slash commands and their registration
 --   arrival.lua   distance to the pin, checked on a ticker while a pin exists
---   sharing.lua   share: pins linked in group chat, sent and offered over addon messages
+--   sharing.lua   share: pins sent and offered over addon messages, the API the seamless map uses
+--   mapbutton.lua share: Alt Click on Blizzard's map pin, and the hint in its tooltip
 
 local _, ns = ...
 

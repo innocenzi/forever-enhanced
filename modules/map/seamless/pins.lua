@@ -457,6 +457,8 @@ function Pins:Hover(x, y)
         GameTooltip_SetTitle(GameTooltip, MAP_PIN_SHARING)
         GameTooltip_AddNormalLine(GameTooltip, MAP_PIN_SHARING_TOOLTIP)
         GameTooltip_AddColoredLine(GameTooltip, MAP_PIN_REMOVE, GREEN_FONT_COLOR)
+        -- (and map.pin's Alt Click, sharing it with the group)
+        ns:GetFeature("map", "pin"):AddShareHint(GameTooltip)
         GameTooltip:Show()
         shown = true
     elseif entry and entry.kind == "corpse" then

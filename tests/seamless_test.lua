@@ -993,6 +993,24 @@ test(
     end
 )
 
+test("Alt Click on the map pin on the view shares it with the group, as on Blizzard's map", function(world)
+    Setup(world)
+    world.party = true
+    C_Map.SetUserWaypoint(UiMapPoint.CreateFromCoordinates(5, 0.9, 0.5))
+    Open(world, 1)
+    PointAt(world, 0.69, 0.6)
+    world:NextFrame()
+    equal(world.tooltipLines[#world.tooltipLines], world.L["map.pin.shareHint"], "the hint in its tooltip")
+    world.alt = true
+    world:MapClick()
+    world.alt = nil
+    local sent = world.sentAddon[#world.sentAddon]
+    equal(sent and sent.prefix, "FEPin", "sent")
+    equal(sent.message, "1P:5:9000:5000", "the pin")
+    expect(not C_SuperTrack.IsSuperTrackingUserWaypoint(), "not tracked")
+    equal(#world.forbidden, 0, "nothing blocked")
+end)
+
 test(
     "a click on a quest's marker watches it, with Blizzard's sound; Shift Click links it, or unwatches it",
     function(world)

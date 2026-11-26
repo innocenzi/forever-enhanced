@@ -1,7 +1,8 @@
--- The "share" part. Blizzard's map pin goes to chat as a link (Shift Click on
--- it): when the player sends one to group chat, an addon message carries it
--- to the group, and group members who run the addon are offered to follow it
--- (a dialog, like a group invite), or follow it at once ("autoAccept").
+-- The "share" part. Alt Click on the map pin, on Blizzard's map (mapbutton.lua)
+-- or the seamless view (map.seamless, through Pin:Share), sends it to the
+-- group in an addon message, nothing in chat; group members who run the addon
+-- are offered to follow it (a dialog, like a group invite), or follow it at
+-- once ("autoAccept"). The pin's tooltip says so while the player is in a group.
 -- Following a pin places it and tracks it. In combat, the game refuses a pin
 -- change from our code while Blizzard's map is open: an accepted pin waits
 -- for the end of combat.
@@ -11,6 +12,7 @@
 
 local _, ns = ...
 
+local L = ns.L
 local Pin = ns:GetFeature("map", "pin")
 
 local Sharing = {}
@@ -23,14 +25,6 @@ local DIALOG = "FOREVER_ENHANCED_SHARED_PIN"
 local DIALOG_SECONDS = 60
 local SCALE = 10000
 
--- Chat type of the message the link went in -> addon message channel.
-local SEND_CHANNELS = {
-    PARTY = "PARTY",
-    RAID = "RAID",
-    RAID_WARNING = "RAID",
-    INSTANCE_CHAT = "INSTANCE_CHAT",
-}
-
 local RECEIVE_CHANNELS = {
     PARTY = true,
     RAID = true,
@@ -41,8 +35,6 @@ C_ChatInfo.RegisterAddonMessagePrefix(PREFIX)
 
 -- An accepted pin waiting for the end of combat: { mapID, x, y }.
 local waiting
--- The chat hook stays once installed (hooks can't be removed).
-local hooked = false
 
 local function Follow(mapID, x, y)
     if InCombatLockdown() then
@@ -70,7 +62,7 @@ local function Offer(sender, mapID, x, y)
         return
     end
     local info = C_Map.GetMapInfo(mapID)
-    StaticPopupDialogs[DIALOG].text = ns.L["map.pin.sharedPrompt"]
+    StaticPopupDialogs[DIALOG].text = L["map.pin.sharedPrompt"]
     StaticPopup_Show(DIALOG, Ambiguate(sender, "none"), info and info.name or "", { mapID = mapID, x = x, y = y })
 end
 
@@ -110,31 +102,55 @@ local listener = ns:CreateEventListener({
     end,
 })
 
--- After the player sent a chat message: a map pin linked in group chat goes
--- to the group's addons too.
-local function OnChatSent(text, chatType)
-    if not Pin:IsPartActive("share") or ns:IsAnySecret(text, chatType) then
+-- The addon message channel of the player's group, or nil outside one.
+local function GetGroupChannel()
+    if IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then
+        return "INSTANCE_CHAT"
+    elseif IsInRaid() then
+        return "RAID"
+    elseif IsInGroup() then
+        return "PARTY"
+    end
+    return nil
+end
+
+-- Whether Alt Click on the map pin shares it: the player has one, and a group.
+function Pin:CanShare()
+    return self:IsPartActive("share") and C_Map.HasUserWaypoint() and GetGroupChannel() ~= nil
+end
+
+-- Alt Click on the map pin: sent to the group's addons.
+function Pin:Share()
+    if not self:CanShare() then
         return
     end
-    local channel = SEND_CHANNELS[chatType]
-    if not channel or not IsInGroup() then
+    local point = C_Map.GetUserWaypoint()
+    local x = math.floor(point.position.x * SCALE + 0.5)
+    local y = math.floor(point.position.y * SCALE + 0.5)
+    local message = ("%sP:%d:%d:%d"):format(VERSION, point.uiMapID, x, y)
+    local result = C_ChatInfo.SendAddonMessage(PREFIX, message, GetGroupChannel())
+    if result ~= Enum.SendAddonMessageResult.Success then
+        ns:Error(L["map.pin.shareFailed"])
         return
     end
-    local mapID, x, y = text:match("|Hworldmap:(%d+):(%d+):(%d+)")
-    if mapID then
-        C_ChatInfo.SendAddonMessage(PREFIX, ("%sP:%s:%s:%s"):format(VERSION, mapID, x, y), channel)
+    PlaySound(SOUNDKIT.UI_MAP_WAYPOINT_CHAT_SHARE)
+    ns:Print(L["map.pin.shared"])
+end
+
+-- The map pin's tooltip: how to share it, while Alt Click would.
+function Pin:AddShareHint(tooltip)
+    if self:CanShare() then
+        GameTooltip_AddColoredLine(tooltip, L["map.pin.shareHint"], GREEN_FONT_COLOR)
     end
 end
 
 function Sharing:Enable()
-    if not hooked then
-        hooked = true
-        ns:HookSecureFunc(C_ChatInfo, "SendChatMessage", OnChatSent)
-    end
+    Pin.MapButton:Enable()
     listener:Start()
 end
 
 function Sharing:Disable()
+    Pin.MapButton:Disable()
     listener:Stop()
     waiting = nil
     StaticPopup_Hide(DIALOG)

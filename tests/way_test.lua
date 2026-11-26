@@ -169,44 +169,97 @@ local function SharedPins(world)
     return sent
 end
 
-local function LinkPin(world, chatType, text)
-    world:Chat("/way 45 63")
-    C_ChatInfo.SendChatMessage((text or "here: %s"):format(C_Map.GetUserWaypointHyperlink()), chatType)
-end
-
 local function ReceivePin(world, message, chatType, sender)
     world:ReceiveGroupAddon(SHARE_PREFIX, message, chatType or "PARTY", sender or "Arthas-Forever")
 end
 
-test("a map pin linked in group chat goes to the group's addons", function(world)
+-- The player's pin at 45, 63 on Elwynn Forest, the map open on it, the mouse over the pin.
+local function HoverPin(world)
+    world:Chat("/way 45 63")
+    world:OpenMap(1)
+    world:NextFrame()
+    return world:HoverMapPin()
+end
+
+local function AltClick(world)
+    world.alt = true
+    world:NextFrame()
+    world:MapClick()
+    world.alt = nil
+    world:NextFrame()
+end
+
+test("Alt Click on the map pin sends it to the group's addons, without tracking it", function(world)
     world.party = true
-    LinkPin(world, "PARTY")
+    HoverPin(world)
+    local tracked = C_SuperTrack.IsSuperTrackingUserWaypoint()
+    AltClick(world)
     local sent = SharedPins(world)
     equal(#sent, 1, "messages")
     equal(sent[1].message, "1P:1:4500:6300", "message")
     equal(sent[1].chatType, "PARTY", "channel")
+    equal(C_SuperTrack.IsSuperTrackingUserWaypoint(), tracked, "tracking left alone")
+    equal(LastPrint(world), world.L["map.pin.shared"], "said so")
+    expect(tContains(world.sounds, SOUNDKIT.UI_MAP_WAYPOINT_CHAT_SHARE), "with Blizzard's sound")
+    equal(#world.sentChat, 0, "nothing in chat")
 
-    LinkPin(world, "RAID_WARNING")
-    equal(SharedPins(world)[2].chatType, "RAID", "raid warnings go to the raid")
-    LinkPin(world, "INSTANCE_CHAT")
-    equal(SharedPins(world)[3].chatType, "INSTANCE_CHAT", "instance chat")
+    world:MapClick()
+    equal(#SharedPins(world), 1, "a click without Alt doesn't share")
+    equal(C_SuperTrack.IsSuperTrackingUserWaypoint(), not tracked, "it tracks, as Blizzard's")
+
+    world.party, world.instanceGroup = false, true
+    AltClick(world)
+    equal(SharedPins(world)[2].chatType, "INSTANCE_CHAT", "instance groups")
 end)
 
-test("sends nothing for other chat or with sharing off", function(world)
+test("shows how to share the map pin in its tooltip while in a group", function(world)
+    HoverPin(world)
+    expect(not tContains(world.tooltipLines, world.L["map.pin.shareHint"]), "no hint alone")
     world.party = true
-    LinkPin(world, "WHISPER")
-    LinkPin(world, "SAY")
-    C_ChatInfo.SendChatMessage("no link here", "PARTY")
-    equal(#SharedPins(world), 0, "other chat")
+    world:HoverMapPin()
+    equal(world.tooltip, MAP_PIN_SHARING, "Blizzard's tooltip")
+    equal(world.tooltipLines[#world.tooltipLines], world.L["map.pin.shareHint"], "the hint, last")
+
+    local pin = world:MapFrameUnderMouse("LeftButton", true)
+    world.alt = true
+    world:NextFrame()
+    local standIn = world:MapFrameUnderMouse("LeftButton", true)
+    expect(standIn ~= pin, "with Alt, a frame of ours takes the mouse")
+    standIn:RunScript("OnEnter")
+    equal(world.tooltip, MAP_PIN_SHARING, "the pin's tooltip")
+    equal(world.tooltipLines[#world.tooltipLines], world.L["map.pin.shareHint"], "with the hint")
+    world:NextFrame()
+    world:NextFrame()
+    equal(world:MapFrameUnderMouse("LeftButton", true), standIn, "kept while Alt is held")
+    world.alt = nil
+    world:NextFrame()
+    equal(world:MapFrameUnderMouse("LeftButton", true), pin, "the pin's again without Alt")
 
     world:Setting("map.pin.share"):SetValue(false)
-    LinkPin(world, "PARTY")
-    equal(#SharedPins(world), 0, "sharing off")
+    world:HoverMapPin()
+    expect(not tContains(world.tooltipLines, world.L["map.pin.shareHint"]), "no hint with sharing off")
+end)
 
-    world:Setting("map.pin.share"):SetValue(true)
-    world.party = false
-    LinkPin(world, "PARTY")
+test("Alt Click on the map pin stays Blizzard's alone, with sharing off or out of a group", function(world)
+    HoverPin(world)
+    AltClick(world)
     equal(#SharedPins(world), 0, "not in a group")
+    expect(C_SuperTrack.IsSuperTrackingUserWaypoint() ~= nil, "Blizzard's click")
+
+    world.party = true
+    world:Setting("map.pin.share"):SetValue(false)
+    AltClick(world)
+    equal(#SharedPins(world), 0, "sharing off")
+    equal(#world.prints, 0, "nothing said")
+end)
+
+test("says so when the map pin can't be shared", function(world)
+    world.party = true
+    world.addonLockdown = true
+    HoverPin(world)
+    AltClick(world)
+    equal(world.errors[#world.errors], world.L["map.pin.shareFailed"], "error")
+    equal(#world.prints, 0, "nothing said")
 end)
 
 test("offers a group member's map pin, followed and tracked once accepted", function(world)

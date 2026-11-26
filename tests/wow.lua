@@ -567,10 +567,10 @@ function Region:IsMouseClickEnabled()
     return self.mouseEnabled == true and not self.mouseClickDisabled
 end
 
--- Whether the mouse is over this frame and no frame above it takes the mouse (the map's
--- frames: see world:MapFrameUnderMouse).
+-- Whether the mouse is over this frame and no frame above it takes the mouse's motion (the
+-- map's frames: see world:MapFrameUnderMouse).
 function Region:IsMouseMotionFocus()
-    return world:MapFrameUnderMouse("LeftButton") == self
+    return world:MapFrameUnderMouse("LeftButton", true) == self
 end
 
 function Region:SetClipsChildren(clips)
@@ -3848,11 +3848,48 @@ WorldMapFrame.AddGlobalPinMouseActionHandler = NoOp
 
 -- Blizzard's map pin (Blizzard_SharedMapDataProviders/WaypointLocationDataProvider.lua):
 -- on the map it was placed on (not on its parents, unlike the game), put up again as it
--- changes.
+-- changes. Its tooltip as the mouse comes on it, and a left click (Alt or not; Shift Click
+-- and pin mode aren't modelled) turning its tracking on or off, as WaypointLocationPinMixin.
 WaypointLocationPinMixin = CreateFromMixins(MapCanvasPinMixin)
+
+function WaypointLocationPinMixin:OnMouseEnter()
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT", -16, -4)
+    GameTooltip_SetTitle(GameTooltip, MAP_PIN_SHARING)
+    GameTooltip_AddNormalLine(GameTooltip, MAP_PIN_SHARING_TOOLTIP)
+    GameTooltip_AddColoredLine(GameTooltip, MAP_PIN_REMOVE, GREEN_FONT_COLOR)
+    GameTooltip:Show()
+end
+
+function WaypointLocationPinMixin:OnMouseLeave()
+    GameTooltip:Hide()
+end
+
+-- (the canvas's OnPinMouseUp, then the pin's OnClick and OnMouseClickAction)
+local function OnWaypointPinMouseUp(_, button, upInside)
+    if button == "LeftButton" and upInside then
+        world.superTrackingWaypoint = not world.superTrackingWaypoint
+    end
+end
 
 templates.WaypointLocationPinTemplate = function(frame)
     Mixin(frame, WaypointLocationPinMixin)
+    frame:EnableMouse(true)
+    frame:SetScript("OnEnter", frame.OnMouseEnter)
+    frame:SetScript("OnLeave", frame.OnMouseLeave)
+    frame:SetScript("OnMouseUp", OnWaypointPinMouseUp)
+end
+
+-- Puts the mouse on Blizzard's map pin, on the open map: the pin gets a rect around it
+-- (pins have none here otherwise), and its OnEnter runs.
+function world:HoverMapPin()
+    local pin = assert(WorldMapFrame:EnumeratePinsByTemplate("WaypointLocationPinTemplate")(), "no map pin")
+    pin:SetSize(30, 30)
+    pin:SetFrameLevel(2000) -- (over the canvas, as its pin frame levels)
+    pin:ClearAllPoints()
+    pin:SetPoint("CENTER", UIParent, "BOTTOMLEFT", 500, 400)
+    self.mouse = { x = 500, y = 400 }
+    pin:RunScript("OnEnter")
+    return pin
 end
 
 do
@@ -7413,9 +7450,12 @@ end
 -- WorldMapFrame's descendants. Like the client: a visible frame taking that input
 -- (EnableMouse for clicks, not passing the button through; EnableMouseWheel for the
 -- wheel) whose rect holds the mouse, the topmost (frame level, then the latest
--- created). Frames without a rect (pins have none here) are skipped, and scales
--- aren't applied (GetScreenRect); nil with none (the mouse off the map).
-local function MapFrameUnderMouse(button)
+-- created). Frames without a rect (pins have none here, but Blizzard's map pin under
+-- world:HoverMapPin) are skipped, and scales aren't applied (GetScreenRect); nil with none
+-- (the mouse off the map). With `motion`, the frame getting the mouse's motion (OnEnter)
+-- instead of the click: frames with clicks off count. Turning a frame's motion off isn't
+-- modelled (measured: it still took the mouse from Blizzard's map pin under it).
+local function MapFrameUnderMouse(button, motion)
     local best
     for _, frame in ipairs(world.frames) do
         local ancestor = frame.parent
@@ -7424,7 +7464,9 @@ local function MapFrameUnderMouse(button)
         end
         local takes
         if button then
-            takes = frame.mouseEnabled and not (frame.passThroughButtons and frame.passThroughButtons[button])
+            takes = frame.mouseEnabled
+                and not (frame.passThroughButtons and frame.passThroughButtons[button])
+                and not (not motion and frame.mouseClickDisabled)
         else
             takes = frame.mouseWheelEnabled
         end
@@ -7462,9 +7504,9 @@ local function DeliverMouse(frame, script, ...)
 end
 
 -- The frame the mouse is over on the world map, for a click of `button` or, without
--- one, for the wheel.
-function world:MapFrameUnderMouse(button)
-    return MapFrameUnderMouse(button)
+-- one, for the wheel (or its motion, with `motion`).
+function world:MapFrameUnderMouse(button, motion)
+    return MapFrameUnderMouse(button, motion)
 end
 
 -- A mouse button going down where the mouse is: the frame under it gets OnMouseDown,
@@ -7490,7 +7532,7 @@ function world:MouseUp(button)
     button = button or "LeftButton"
     local frame = self.mouseDownFrames[button] or InputFrameUnderMouse(button, "MouseUp")
     self.mouseDownFrames[button] = nil
-    DeliverMouse(frame, "OnMouseUp", button)
+    DeliverMouse(frame, "OnMouseUp", button, MapFrameUnderMouse(button) == frame)
 end
 
 local function AssertBlizzardMapUnderMouse(helper)
@@ -7529,7 +7571,7 @@ function world:MapClick(button)
     button = button or "LeftButton"
     local frame = InputFrameUnderMouse(button, "MapClick")
     DeliverMouse(frame, "OnMouseDown", button)
-    DeliverMouse(frame, "OnMouseUp", button)
+    DeliverMouse(frame, "OnMouseUp", button, true)
 end
 
 -- Clicks a map pin of ours whose OnMouseUp handles the click (pins have no rect here, so

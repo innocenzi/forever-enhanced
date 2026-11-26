@@ -212,6 +212,7 @@ modules\map\pin\parser.lua
 modules\map\pin\commands.lua
 modules\map\pin\arrival.lua
 modules\map\pin\sharing.lua
+modules\map\pin\mapbutton.lua
 modules\map\exploration\feature.lua
 modules\map\exploration\locales.lua
 modules\map\exploration\data.lua
