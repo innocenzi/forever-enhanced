@@ -3,7 +3,7 @@
 ## Notes: Lightweight improvements for a better experience while keeping the default UI familiar.
 ## Notes-frFR: Améliorations légères de l’interface pour une meilleure expérience de jeu, tout en gardant l’interface par défaut.
 ## Author: Hylmew
-## Version: 1.9.1
+## Version: 1.9.2
 ## Category: User Interface
 ## Category-frFR: Interface utilisateur
 ## IconTexture: Interface\AddOns\ForeverEnhanced\media\icon
@@ -195,6 +195,10 @@ modules\interface\macros\labels.lua
 
 # Map
 modules\map\module.lua
+modules\map\levels\feature.lua
+modules\map\levels\locales.lua
+modules\map\levels\ranges.lua
+modules\map\levels\label.lua
 modules\map\seamless\feature.lua
 modules\map\seamless\locales.lua
 modules\map\seamless\data.lua

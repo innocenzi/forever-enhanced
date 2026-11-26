@@ -4225,6 +4225,51 @@ function scroll:GetNormalizedCursorPosition()
     return self:NormalizeUIPosition(self:GetCursorPosition())
 end
 
+function WorldMapFrame:GetNormalizedCursorPosition()
+    return self.ScrollContainer:GetNormalizedCursorPosition()
+end
+
+function WorldMapFrame:IsCanvasMouseFocus()
+    return self.ScrollContainer:IsMouseMotionFocus()
+end
+
+-- Blizzard's area label (Blizzard_SharedMapDataProviders/AreaLabelDataProvider.lua): a frame
+-- of its provider's over the canvas, naming the map under the cursor while the canvas has the
+-- mouse, with its level range when the client has one (C_Map.GetMapLevels), as
+-- AreaLabelFrameMixin:OnUpdate, every frame. A higher priority label (a map pin's, the area
+-- poi's: world.mapPoiLabel) shows instead. Without the range's colour, the area names on a
+-- zone and the battle pet levels.
+AREA_NAME_FONT_COLOR = CreateColor(1, 0.9294, 0.7607)
+AreaLabelDataProviderMixin = CreateFromMixins(MapCanvasDataProviderMixin)
+AreaLabelDataProviderMixin.OnSetAreaLabel = NoOp
+AreaLabelDataProviderMixin.OnClearAreaLabel = NoOp
+
+do
+    local provider = CreateFromMixins(AreaLabelDataProviderMixin)
+    local label = CreateFrame("Frame", nil, scroll)
+    label:SetScale(0.695)
+    label.Name = label:CreateFontString(nil, "OVERLAY", "WorldMapTextFont")
+    label.Description = label:CreateFontString(nil, "OVERLAY", "SubZoneTextFont")
+    label:SetScript("OnUpdate", function(self)
+        local name
+        local map = WorldMapFrame
+        if map:IsCanvasMouseFocus() then
+            local mapID = map:GetMapID()
+            local info = C_Map.GetMapInfoAtPosition(mapID, map:GetNormalizedCursorPosition())
+            if info and info.mapID ~= mapID then
+                name = info.name
+                local low, high = C_Map.GetMapLevels(info.mapID)
+                if low > 0 and high > 0 then
+                    name = name .. " (" .. low .. "-" .. high .. ")"
+                end
+            end
+        end
+        self.Name:SetText(world.mapPoiLabel or name or "")
+    end)
+    provider.Label = label
+    WorldMapFrame:AddDataProvider(provider)
+end
+
 function scroll:WouldCursorPositionBeClick(button, x, y)
     local info = self.mouseButtonInfo[button]
     if info and info.down then
@@ -4581,6 +4626,9 @@ end
 -- The child map of uiMapID at (x, y) on it (the smallest), or uiMapID itself.
 C_Map.GetMapInfoAtPosition = function(uiMapID, x, y)
     local top = MAPS[uiMapID].rect
+    if not top then
+        return GetMapInfo(uiMapID) -- (a dungeon: no child maps)
+    end
     local u, v = top[1] + x * (top[2] - top[1]), top[3] + y * (top[4] - top[3])
     local best, bestArea
     for childID, map in pairs(MAPS) do

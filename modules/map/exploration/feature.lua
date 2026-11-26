@@ -17,7 +17,7 @@
 local _, ns = ...
 
 local Exploration = ns:RegisterFeature("map", "exploration", {
-    order = 3,
+    order = 4,
     presets = {
         minimal = { enabled = false },
         enhanced = { enabled = true },

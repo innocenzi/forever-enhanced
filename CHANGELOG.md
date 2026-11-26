@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.9.2 - 2026-11-26
+
+
+### Features
+- **combat:** mark where Death Mark will leave the health, flashing just before it hits
+- **inventory:** fill in the mail recipient when attaching items marked for mail
+- **map:** share the map pin with the group by Alt Clicking it
+
+
+### Fixes
+- **combat:** show a swap's replacement only when its key would cast it
+- **core:** stop offering your own shared map pins and hiding your own quest announcements
+
 ## 1.9.1 - 2026-11-25
 
 

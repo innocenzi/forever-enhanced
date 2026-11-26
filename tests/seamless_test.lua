@@ -1143,6 +1143,22 @@ test("names the map under the cursor with its level range, or the area of a zone
     equal(Label(world), "", "nothing off the view")
 end)
 
+test("names the map under the cursor with map.levels' range while it's on", function(world)
+    ForeverEnhanced:GetFeature("map", "levels").RANGES[5] = { 10, 20 }
+    world.player.level = 15
+    Setup(world)
+    Open(world, 1)
+    PointAt(world, 0.69, 0.6)
+    world:RunFrames(0.1)
+    equal(
+        Label(world),
+        "Westfall" .. RGBTableToColorCode(QuestDifficultyColors.difficult) .. " (10-20)" .. FONT_COLOR_CODE_CLOSE
+    )
+    world:Setting("map.levels.enabled"):SetValue(false)
+    world:RunFrames(0.1)
+    equal(Label(world), "Westfall", "turned off")
+end)
+
 test("shows the corpse on the view", function(world)
     local Geometry = Seamless().Geometry
     local continent = Geometry:Continents()[1]

@@ -33,6 +33,7 @@ local _, ns = ...
 local Seamless = ns:GetFeature("map", "seamless")
 local Geometry, Art, Arrow = Seamless.Geometry, Seamless.Art, Seamless.Arrow
 local Waypoint, Quests, Pins = Seamless.Waypoint, Seamless.Quests, Seamless.Pins
+local Levels = ns:GetFeature("map", "levels")
 
 local View = {}
 Seamless.View = View
@@ -584,27 +585,11 @@ local function UpdateCursor()
     end
 end
 
--- The name of `mapID`, with its level range coloured against the player's level, as
--- Blizzard's area label (AreaLabelFrameMixin:OnUpdate).
+-- The name of `mapID`, with its level range (map.levels': the client's, or its own while on),
+-- as Blizzard's area label.
 local function MapLabel(mapID)
     local info = C_Map.GetMapInfo(mapID)
-    local name = info and info.name
-    local low, high = C_Map.GetMapLevels(mapID)
-    if name and low and high and low > 0 and high > 0 then
-        local level = UnitLevel("player")
-        local color
-        if level < low then
-            color = GetQuestDifficultyColor(low)
-        elseif level > high then
-            -- (Blizzard's: zones entirely below the player's level aren't yellow)
-            color = GetQuestDifficultyColor(high - 2)
-        else
-            color = QuestDifficultyColors["difficult"]
-        end
-        local range = low ~= high and low .. "-" .. high or tostring(high)
-        name = name .. RGBTableToColorCode(color) .. " (" .. range .. ")" .. FONT_COLOR_CODE_CLOSE
-    end
-    return name
+    return info and info.name and Levels:WithRange(info.name, mapID)
 end
 
 -- The zone label: what's under the cursor, as Blizzard's map names it: the map a click goes

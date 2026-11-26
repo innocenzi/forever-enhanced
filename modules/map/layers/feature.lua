@@ -25,7 +25,7 @@
 local _, ns = ...
 
 local Layers = ns:RegisterFeature("map", "layers", {
-    order = 5,
+    order = 6,
     settings = {
         { key = "accept", type = "toggle", default = true },
         { key = "host", type = "toggle", default = false },
