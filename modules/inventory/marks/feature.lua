@@ -13,7 +13,8 @@
 --   "mail":    Mark for mail, asking who to send the item to (shown in its
 --              tooltip), the mail icon in bags and bank; marked bag items glow
 --              while the mailbox is open ("mailGlow") or while trading with
---              their recipient ("mailTradeGlow").
+--              their recipient ("mailTradeGlow"); attaching them on the Send
+--              Mail tab fills in their recipient ("mailTo").
 -- Junk excludes the other marks; auction house, bank and mail combine, the
 -- item showing the icon of its next stop (the window open for one of its
 -- marks, otherwise bank, then mail, then auction house; no bank icon in the
@@ -30,7 +31,7 @@
 --   feature.lua  registration, schema and lifecycle (this file)
 --   locales.lua  strings
 --   store.lua    each item ID's destinations and public API
---   mail.lua     mail: recipient dialog and tooltip line
+--   mail.lua     mail: recipient dialog, tooltip line and To box
 --   junk.lua     adds items marked as junk to the junk Sell All Junk sells
 --   buttons.lua  icons, Alt Left Click and the marks' item menu entries
 --   notes.lua    notes: store, dialog, menu entry and tooltip line
@@ -59,6 +60,7 @@ local Marks = ns:RegisterFeature("inventory", "marks", {
         { key = "mail", type = "toggle", default = true },
         { key = "mailGlow", type = "toggle", default = true, requires = { mail = true } },
         { key = "mailTradeGlow", type = "toggle", default = true, requires = { mail = true } },
+        { key = "mailTo", type = "toggle", default = true, requires = { mail = true } },
         { key = "notes", type = "toggle", default = true },
         { key = "wowhead", type = "toggle", default = false },
         {
@@ -76,6 +78,7 @@ local Marks = ns:RegisterFeature("inventory", "marks", {
             bankGlow = true,
             mailGlow = true,
             mailTradeGlow = true,
+            mailTo = true,
             notes = true,
             wowhead = false,
         },
@@ -86,6 +89,7 @@ local Marks = ns:RegisterFeature("inventory", "marks", {
             bankGlow = true,
             mailGlow = true,
             mailTradeGlow = true,
+            mailTo = true,
             notes = true,
             wowhead = true,
         },
@@ -122,6 +126,7 @@ function Marks:SyncParts()
     end
     self:SyncPart("notes", self.Notes)
     self:SyncPart("wowhead", self.Wowhead)
+    self.Mail:SyncAutofill()
 end
 
 function Marks:OnEnable()

@@ -83,6 +83,7 @@ local world = {
     buyback = {},
     counts = { B2 = 20 },
     itemIDs = {},
+    mailAttachments = {},
     maxStacks = {},
     itemFamilies = {},
     bagFamilies = {},
@@ -5252,6 +5253,23 @@ end
 BankPanel.GenerateItemSlotsForSelectedTab = NoOp
 BankPanel.RefreshAllItemsForSelectedTab = NoOp
 
+-- The Send Mail tab: its To box, and its attachments, world.mailAttachments
+-- (item IDs by attachment index, with gaps like the client's).
+ATTACHMENTS_MAX_SEND = 12
+SendMailNameEditBox = CreateFrame("EditBox")
+
+function HasSendMailItem(index)
+    return world.mailAttachments[index] ~= nil
+end
+
+-- name, itemID, texture, count, quality: the name is the item ID.
+function GetSendMailItem(index)
+    local itemID = world.mailAttachments[index]
+    if itemID then
+        return itemID, itemID, nil, 1, 1
+    end
+end
+
 for _, name in ipairs({ "MerchantFrame", "MailFrame", "TradeFrame" }) do
     _G[name] = CreateFrame("Frame")
     _G[name].shown = false
@@ -6825,6 +6843,37 @@ function world:CloseMailbox()
     self:Fire("MAIL_CLOSED")
     MailFrame:Hide()
     self:NextFrame()
+end
+
+-- The player attaches the item in bag slot `slot` to the mail (the first free
+-- attachment), or removes attachment `index`: either fires MAIL_SEND_INFO_UPDATE.
+function world:AttachToMail(slot)
+    local index = 1
+    while self.mailAttachments[index] do
+        index = index + 1
+    end
+    self.mailAttachments[index] = ItemID(assert(self.bags[0][slot], "an item to attach"))
+    self:Fire("MAIL_SEND_INFO_UPDATE")
+end
+
+function world:RemoveMailAttachment(index)
+    self.mailAttachments[index] = nil
+    self:Fire("MAIL_SEND_INFO_UPDATE")
+end
+
+-- The player types `text` in the To box.
+function world:TypeMailRecipient(text)
+    SendMailNameEditBox.text = text
+    SendMailNameEditBox:RunScript("OnTextChanged", true)
+end
+
+-- The mail goes out: its attachments leave, then Blizzard clears the To box
+-- (SendMailFrame_Reset, on MAIL_SEND_SUCCESS).
+function world:SendMail()
+    self.mailAttachments = {}
+    self:Fire("MAIL_SEND_INFO_UPDATE")
+    SendMailNameEditBox:SetText("")
+    self:Fire("MAIL_SEND_SUCCESS")
 end
 
 -- Trading with `name` (of `realm`, nil for the player's): like the mailbox,

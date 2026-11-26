@@ -226,6 +226,92 @@ test("mail: the trade glow follows its setting, and shows the mail icon", functi
     world:CloseTrade()
 end)
 
+-- Marks the item in `slot` for mail to `recipient`.
+local function MarkForMail(world, slot, recipient)
+    Entry(world, slot, "mail").select()
+    world:TypeInDialog(recipient)
+    world:ClickDialogButton(1)
+end
+
+local function To()
+    return SendMailNameEditBox:GetText()
+end
+
+test("mail: attaching marked items fills in their recipient", function(world)
+    MarkForMail(world, 1, "Alt")
+    world:OpenMailbox()
+
+    world:AttachToMail(2)
+    equal(To(), "", "an unmarked item fills in nothing")
+    world:AttachToMail(1)
+    equal(To(), "Alt", "a marked one fills in its recipient")
+    world:RemoveMailAttachment(2)
+    equal(To(), "", "cleared once it's removed")
+    world:AttachToMail(1)
+    equal(To(), "Alt", "back once attached again")
+
+    world:SendMail()
+    equal(To(), "", "the next mail starts empty")
+    world:AttachToMail(1)
+    equal(To(), "Alt", "and fills in again")
+end)
+
+test("mail: a name the player typed stays", function(world)
+    MarkForMail(world, 1, "Alt")
+    world:OpenMailbox()
+
+    world:TypeMailRecipient("Someone")
+    world:AttachToMail(1)
+    equal(To(), "Someone", "typed before attaching")
+    world:RemoveMailAttachment(1)
+    equal(To(), "Someone", "kept once removed")
+
+    world:TypeMailRecipient("")
+    world:AttachToMail(1)
+    equal(To(), "Alt", "filled in once the box is empty")
+    world:TypeMailRecipient("Other")
+    world:RemoveMailAttachment(1)
+    equal(To(), "Other", "typed over ours, kept once removed")
+end)
+
+test("mail: items for different players fill in nothing", function(world)
+    MarkForMail(world, 1, "Alt")
+    MarkForMail(world, 2, "Other")
+    world:OpenMailbox()
+
+    world:AttachToMail(1)
+    equal(To(), "Alt", "one recipient")
+    world:AttachToMail(2)
+    equal(To(), "", "two recipients: cleared")
+    world:RemoveMailAttachment(1)
+    equal(To(), "Other", "one recipient left")
+
+    Entry(world, 1, "mail").select() -- unmarks
+    MarkForMail(world, 1, "other")
+    world:AttachToMail(1)
+    equal(To(), "other", "the same recipient whatever the case, as the first attachment spells it")
+end)
+
+test("mail: filling in the recipient follows its setting and the mail mark", function(world)
+    MarkForMail(world, 1, "Alt")
+    world:OpenMailbox()
+
+    world:Setting("inventory.marks.mailTo"):SetValue(false)
+    world:AttachToMail(1)
+    equal(To(), "", "its toggle off: nothing")
+    world:RemoveMailAttachment(1)
+
+    world:Setting("inventory.marks.mailTo"):SetValue(true)
+    world:Setting("inventory.marks.mail"):SetValue(false)
+    world:AttachToMail(1)
+    equal(To(), "", "the mail mark off: nothing")
+    world:RemoveMailAttachment(1)
+
+    world:Setting("inventory.marks.mail"):SetValue(true)
+    world:AttachToMail(1)
+    equal(To(), "Alt", "both on")
+end)
+
 test("an item marked for auction house, bank and mail shows its next stop", function(world)
     Toggle(world, 1, "auction")
     Toggle(world, 1, "mail")
