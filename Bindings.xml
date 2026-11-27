@@ -2,4 +2,6 @@
     <Binding name="FOREVERENHANCED_SWAPLAYER" header="FOREVERENHANCED" category="ADDONS">
         ForeverEnhanced:GetFeature("map", "layers"):OnBinding()
     </Binding>
+    <!-- Clicks the secure button of professions.fishing, which casts Fishing. -->
+    <Binding name="CLICK ForeverEnhancedFishingButton:LeftButton" category="ADDONS" />
 </Bindings>

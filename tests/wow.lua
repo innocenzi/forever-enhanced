@@ -1494,7 +1494,15 @@ function ItemLocationMixin:IsValid()
 end
 
 function ItemLocationMixin:HasAnyLocation()
+    return self:IsBagAndSlot() or self:IsEquipmentSlot()
+end
+
+function ItemLocationMixin:IsBagAndSlot()
     return self.bagID ~= nil and self.slot ~= nil
+end
+
+function ItemLocationMixin:IsEquipmentSlot()
+    return self.equipmentSlotIndex ~= nil
 end
 
 function ItemLocationMixin:GetBagAndSlot()
@@ -1507,9 +1515,16 @@ function ItemLocation:CreateFromBagAndSlot(bagID, slot)
     return setmetatable({ bagID = bagID, slot = slot }, ItemLocationMixin)
 end
 
+-- Equipped items: world.equipped (see below).
+function ItemLocation:CreateFromEquipmentSlot(equipmentSlotIndex)
+    return setmetatable({ equipmentSlotIndex = equipmentSlotIndex }, ItemLocationMixin)
+end
+
 -- Bank bag slots: slot N of Characterbanktab holds the bag of bank tab N.
 local function ItemAt(location)
-    if location.bagID == Enum.BagIndex.Characterbanktab then
+    if location.equipmentSlotIndex then
+        return world.equipped[location.equipmentSlotIndex]
+    elseif location.bagID == Enum.BagIndex.Characterbanktab then
         return world.bankBags[location.slot]
     end
     local bag = world.bags[location.bagID]
@@ -2320,6 +2335,8 @@ local function UnitGUIDOf(unit)
         return world.target
     elseif unit == "mouseover" then
         return world.mouseover
+    elseif unit == "softinteract" then
+        return world.softInteract and world.softInteract.guid
     end
     local partyIndex = unit:match("^party(%d)$")
     if partyIndex then
@@ -7766,6 +7783,7 @@ local SPELL_NAMES = {
         [772] = "Rend",
         [589] = "Shadow Word: Pain",
         [172] = "Corruption",
+        [7620] = "Fishing",
     },
     frFR = {
         [53] = "Attaque sournoise",
@@ -7784,9 +7802,13 @@ local SPELL_NAMES = {
         [772] = "Pourfendre",
         [589] = "Mot de l’ombre : Douleur",
         [172] = "Corruption",
+        [7620] = "Pêche",
     },
 }
 world.spells = {
+    -- Channeled, with a fishing pole in the main hand.
+    [7620] = { icon = 136245, channel = true, pole = true },
+    [18248] = { base = 7620 },
     [53] = { icon = 132090 },
     [2589] = { base = 53 },
     [8676] = { icon = 132282 },
@@ -8132,24 +8154,66 @@ function GetBindingKey(command)
     return unpack(keys)
 end
 
-function SetOverrideBindingClick(owner, priority, key, name, button)
-    AssertAllowed("SetOverrideBindingClick")
+-- The player's bindings (world.bindings), set like the Keybindings page does:
+-- SetBinding(key) unbinds the key; world.savedBindings counts SaveBindings calls.
+world.savedBindings = 0
+KEY_UNBOUND_ERROR = "|cffff0000Action %s is Now Unbound!|r"
+NOT_BOUND = "Not Bound"
+
+function SetBinding(key, command)
+    AssertAllowed("SetBinding")
+    world.bindings[key] = command
+    world:Fire("UPDATE_BINDINGS")
+    return true
+end
+
+function GetBindingAction(key)
+    return world.bindings[key] or ""
+end
+
+function GetCurrentBindingSet()
+    return 2 -- Enum.BindingSet.Character
+end
+
+function SaveBindings(which)
+    assert(which == 1 or which == 2, "unknown binding set")
+    world.savedBindings = world.savedBindings + 1
+end
+
+-- Like Blizzard's (BindingUtil.lua): the BINDING_NAME_ global, or the command.
+function GetBindingName(command)
+    return _G["BINDING_NAME_" .. command] or command
+end
+
+-- Replaces the owner's override of `key` by `override` (nil: none).
+local function SetOverride(owner, key, override)
     for i = #world.overrides, 1, -1 do
-        local override = world.overrides[i]
-        if override.owner == owner and override.key == key then
+        local existing = world.overrides[i]
+        if existing.owner == owner and existing.key == key then
             table.remove(world.overrides, i)
         end
     end
-    if name then
-        table.insert(world.overrides, {
-            owner = owner,
-            priority = priority,
-            key = key,
-            name = name,
-            button = button or "LeftButton",
-        })
+    if override then
+        table.insert(world.overrides, override)
     end
     world:Fire("UPDATE_BINDINGS")
+end
+
+function SetOverrideBindingClick(owner, priority, key, name, button)
+    AssertAllowed("SetOverrideBindingClick")
+    SetOverride(owner, key, name and {
+        owner = owner,
+        priority = priority,
+        key = key,
+        name = name,
+        button = button or "LeftButton",
+    })
+end
+
+-- To a binding command ("INTERACTTARGET").
+function SetOverrideBinding(owner, priority, key, command)
+    AssertAllowed("SetOverrideBinding")
+    SetOverride(owner, key, command and { owner = owner, priority = priority, key = key, command = command })
 end
 
 function ClearOverrideBindings(owner)
@@ -8330,10 +8394,41 @@ local function DeliverErrors()
     end
 end
 
+-- Whether the main hand holds a fishing pole.
+local function HoldsPole()
+    local guid = world.equipped[INVSLOT_MAINHAND]
+    return guid ~= nil and world.weaponSubclasses[guid] == Enum.ItemWeaponSubclass.Fishingpole
+end
+
+local REQUIRES_POLE = "Requires Fishing Pole"
+
+-- A channeled spell: the server starts the channel (world.channel) a moment
+-- after the cast, stopping the one running.
+local function StartChannel(spellID)
+    C_Timer.NewTimer(SERVER_CONFIRM_SECONDS, function()
+        world:StopChannel()
+        castCount = castCount + 1
+        world.channel = { castGUID = "Cast-3-0-0-0-" .. spellID .. "-" .. castCount, spellID = spellID }
+        world:Fire("UNIT_SPELLCAST_CHANNEL_START", "player", world.channel.castGUID, spellID)
+    end)
+end
+
+-- The channel ends (a fish caught or got away, the player moved).
+function world:StopChannel()
+    local channel = self.channel
+    if channel then
+        self.channel = nil
+        self:Fire("UNIT_SPELLCAST_CHANNEL_STOP", "player", channel.castGUID, channel.spellID)
+    end
+end
+
 function CastSpellByName(name)
     local spellID = assert(SpellByName(name), "unknown spell " .. tostring(name))
     local usable = C_Spell.IsSpellUsable(spellID)
-    if not usable then
+    local spell = world.spells[BaseSpell(spellID)]
+    if spell.pole and not HoldsPole() then
+        ReportError(REQUIRES_POLE)
+    elseif not usable then
         ReportError(CAST_REFUSED:format(name))
     elseif (world.now < world.gcdUntil and not OffGlobalCooldown(spellID)) or OnOwnCooldown(spellID) then
         ReportError(CAST_ON_COOLDOWN)
@@ -8343,6 +8438,9 @@ function CastSpellByName(name)
             world.gcdUntil = world.now + GLOBAL_COOLDOWN
             -- The global cooldown starts.
             world:Fire("SPELL_UPDATE_COOLDOWN")
+        end
+        if spell.channel then
+            StartChannel(spellID)
         end
     end
 end
@@ -8552,9 +8650,37 @@ function world:LearnCostlyRank(rank)
     self:Fire("SPELLS_CHANGED")
 end
 
+-- The clicks a frame takes ("AnyUp", "LeftButtonDown"...) from keys: without
+-- any registered, every click (the cosmetic default).
+function Region:RegisterForClicks(...)
+    self.registeredClicks = { ... }
+end
+
+local function TakesClick(frame, button, down)
+    if not frame.registeredClicks then
+        return true
+    end
+    local suffix = down and "Down" or "Up"
+    for _, click in ipairs(frame.registeredClicks) do
+        if click == "Any" .. suffix or click == button .. suffix then
+            return true
+        end
+    end
+    return false
+end
+
+-- Binding commands the game runs itself, on key down: world.interactions
+-- lists those run (INTERACTTARGET acts on the soft interact object, else on
+-- the target; INTERACTMOUSEOVER on the mouseover).
+world.interactions = {}
+local GAME_COMMANDS = { INTERACTTARGET = true, INTERACTMOUSEOVER = true }
+
 -- One click of a frame (the mouse, or a click binding), with its pre and post
 -- clicks, then the errors of the casts it made.
 local function ClickFrame(frame, button, down)
+    if not TakesClick(frame, button, down) then
+        return
+    end
     world.hardware = world.hardware + 1
     frame:RunScript("PreClick", button, down)
     frame:RunScript("OnClick", button, down)
@@ -8567,7 +8693,10 @@ end
 -- binding command otherwise (nil when unbound).
 local function KeyTarget(key)
     local override = OverrideFor(key)
-    return override and "CLICK " .. override.name or world.bindings[key]
+    if override then
+        return override.command or "CLICK " .. override.name
+    end
+    return world.bindings[key]
 end
 
 -- A key going down or up. An override click binding clicks its frame; a
@@ -8590,8 +8719,20 @@ local function RunKey(key, down)
         end
     end
     local override = OverrideFor(key)
-    if override then
+    if override and override.name then
         ClickFrame(assert(_G[override.name], "no frame " .. override.name), override.button, down)
+        return
+    end
+    -- A click binding (Bindings.xml's CLICK bindings, set by the player).
+    local clicked, clickButton = (target or ""):match("^CLICK ([^:]+):(.+)$")
+    if clicked then
+        ClickFrame(assert(_G[clicked], "no frame " .. clicked), clickButton, down)
+        return
+    end
+    if target and GAME_COMMANDS[target] then
+        if down then
+            table.insert(world.interactions, target)
+        end
         return
     end
     local command = target and world.bindingCommands[target]
@@ -8789,6 +8930,77 @@ function GetInventoryItemTexture(unit, slot)
     local guid = world.equipped[slot]
     return guid and ItemIcon(guid)
 end
+
+-- Equipping a weapon from the bags (C_Item.EquipItemByName, by link or item
+-- ID): the server swaps it in a moment later, then PLAYER_EQUIPMENT_CHANGED
+-- fires for each hand that changed. The weapon taken off takes the bag slot
+-- of the one put on; a two-handed weapon (world.twoHanded[guid]) going on, or
+-- coming off for an off hand, puts the other hand's in the first free
+-- backpack slot. world.equips lists the calls ({ guid, slot }).
+world.twoHanded = {}
+world.equips = {}
+-- world.itemLevels[guid] (default 1), world.unusableItems[itemID] (C_PlayerInfo.CanUseItem).
+world.itemLevels = {}
+world.unusableItems = {}
+
+local function FindBagItem(item)
+    for bagID = Enum.BagIndex.Backpack, NUM_TOTAL_EQUIPPED_BAG_SLOTS do
+        for slot = 1, BAG_SIZE do
+            local guid = world.bags[bagID] and world.bags[bagID][slot]
+            if guid and (ItemLink(guid) == item or ItemID(guid) == item) then
+                return bagID, slot
+            end
+        end
+    end
+end
+
+local function FreeBackpackSlot()
+    for slot = 1, BAG_SIZE do
+        if not world.bags[0][slot] then
+            return slot
+        end
+    end
+end
+
+function C_Item.EquipItemByName(item, slot)
+    local bagID, bagSlot = FindBagItem(item)
+    assert(bagID, "no such item in the bags: " .. tostring(item))
+    assert(slot == INVSLOT_MAINHAND or slot == INVSLOT_OFFHAND, "only weapons are modelled")
+    local guid = world.bags[bagID][bagSlot]
+    table.insert(world.equips, { guid = guid, slot = slot })
+    C_Timer.NewTimer(SERVER_CONFIRM_SECONDS, function()
+        if world.bags[bagID][bagSlot] ~= guid then
+            return
+        end
+        local changed = { [slot] = true }
+        world.bags[bagID][bagSlot] = world.equipped[slot]
+        world.equipped[slot] = guid
+        local otherSlot = slot == INVSLOT_MAINHAND and INVSLOT_OFFHAND or INVSLOT_MAINHAND
+        local other = world.equipped[otherSlot]
+        if other and (world.twoHanded[guid] or world.twoHanded[other]) then
+            world.bags[0][assert(FreeBackpackSlot(), "no free bag slot")] = other
+            world.equipped[otherSlot] = nil
+            changed[otherSlot] = true
+        end
+        for _, hand in ipairs({ INVSLOT_MAINHAND, INVSLOT_OFFHAND }) do
+            if changed[hand] then
+                world:Fire("PLAYER_EQUIPMENT_CHANGED", hand, world.equipped[hand] ~= nil)
+            end
+        end
+        world:Fire("BAG_UPDATE_DELAYED")
+    end)
+end
+
+function C_Item.GetCurrentItemLevel(location)
+    local guid = C_Item.GetItemGUID(location)
+    return guid and (world.itemLevels[guid] or 1)
+end
+
+C_PlayerInfo = {
+    CanUseItem = function(itemID)
+        return not world.unusableItems[itemID]
+    end,
+}
 
 -- Items are named after their item IDs.
 function C_Item.GetItemNameByID(itemID)

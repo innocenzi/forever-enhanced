@@ -22,4 +22,15 @@
             </OnLoad>
         </Scripts>
     </Frame>
+
+    <!-- Key binding row (the `binding` schema type): see BindingControlMixin in settings.lua. -->
+    <Frame name="ForeverEnhancedSettingsBindingControlTemplate" inherits="SettingsListElementTemplate" virtual="true">
+        <Size x="280" y="26"/>
+        <Scripts>
+            <OnLoad>
+                Mixin(self, SettingsControlMixin, ForeverEnhanced.SettingsPanel.BindingControlMixin)
+                self:OnLoad()
+            </OnLoad>
+        </Scripts>
+    </Frame>
 </Ui>

@@ -138,6 +138,11 @@ modules\professions\plans\picker.lua
 modules\professions\plans\tracker.lua
 modules\professions\plans\tracking.lua
 modules\professions\plans\withdrawal.lua
+modules\professions\fishing\feature.lua
+modules\professions\fishing\locales.lua
+modules\professions\fishing\gear.lua
+modules\professions\fishing\session.lua
+modules\professions\fishing\button.lua
 
 # Combat
 modules\combat\module.lua

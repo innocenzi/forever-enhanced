@@ -129,10 +129,13 @@ local function InitializeFeature(savedFeatures, feature)
 
     ApplyDefault(featureDb, "enabled", feature.enabledByDefault)
     for _, entry in ipairs(feature.settings) do
-        ResolveDefault(featureDb, feature, entry)
-        knownKeys[entry.key] = true
-        entries[entry.key] = entry
-        ApplyDefault(featureDb, entry.key, entry.default, entry)
+        -- A key binding is the game's to save (core/settings.lua), and presets can't set it.
+        if entry.type ~= "binding" then
+            ResolveDefault(featureDb, feature, entry)
+            knownKeys[entry.key] = true
+            entries[entry.key] = entry
+            ApplyDefault(featureDb, entry.key, entry.default, entry)
+        end
     end
 
     KeepOnly(featureDb, knownKeys)

@@ -3,6 +3,7 @@ local _, ns = ...
 ns:RegisterLocale("enUS", {
     ["core.enable"] = "Enable",
     ["core.general"] = "General",
+    ["core.binding.listening"] = "Press a key",
     ["core.language"] = "Language",
     ["core.language.tooltip"] = "Sets the language of Forever Enhanced. Applies after reloading the interface.",
     ["core.language.auto"] = "Game language",
@@ -23,6 +24,7 @@ ns:RegisterLocale("enUS", {
 ns:RegisterLocale("frFR", {
     ["core.enable"] = "Activer",
     ["core.general"] = "Général",
+    ["core.binding.listening"] = "Appuyez sur une touche",
     ["core.language"] = "Langue",
     ["core.language.tooltip"] = "Définit la langue de Forever Enhanced. S’applique après un rechargement de l’interface.",
     ["core.language.auto"] = "Langue du jeu",

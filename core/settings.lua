@@ -45,6 +45,7 @@ local TEMPLATES = {
     slider = "ForeverEnhancedSettingsSliderControlTemplate",
     text = "ForeverEnhancedSettingsTextControlTemplate",
     checkboxWithButton = "ForeverEnhancedSettingsCheckboxWithButtonControlTemplate",
+    binding = "ForeverEnhancedSettingsBindingControlTemplate",
 }
 local TEXT_MAX_LETTERS = 200
 
@@ -164,6 +165,175 @@ function TextControlMixin:EvaluateState()
     self:DisplayEnabled(enabled)
 end
 
+-- Key binding row: our own button, built like the Keybindings page's (whose
+-- rows and listener are Blizzard's: driving them from here would taint them).
+-- Left Click, then a key (with its modifiers) or a mouse button other than
+-- the left and right ones binds it; Escape, Left or Right Click cancels.
+-- Right Click clears the key. The setting's value is the key ("" for none).
+local BindingControlMixin = {}
+SettingsPanel.BindingControlMixin = BindingControlMixin
+
+function BindingControlMixin:OnLoad()
+    SettingsControlMixin.OnLoad(self)
+
+    local button = CreateFrame("Button", nil, self, "UIMenuButtonStretchTemplate")
+    button:SetSize(200, 22)
+    button:SetPoint("LEFT", self, "CENTER", -80, 0)
+    button:SetNormalFontObject(GameFontHighlightSmall)
+    button:SetHighlightFontObject(GameFontHighlightSmall)
+    button:SetDisabledFontObject(GameFontDisableSmall)
+    local selected = button:CreateTexture(nil, "OVERLAY")
+    selected:SetTexture("Interface\\Buttons\\UI-Silver-Button-Select")
+    selected:SetBlendMode("ADD")
+    selected:SetSize(200, 20)
+    selected:SetPoint("CENTER", 0, -3)
+    selected:Hide()
+    self.Selected = selected
+    button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    button:EnableKeyboard(false)
+    button:SetScript("OnClick", function(_, mouseButton)
+        self:OnButtonClick(mouseButton)
+    end)
+    button:SetScript("OnKeyDown", function(_, key)
+        self:OnKeyDown(key)
+    end)
+    button:SetScript("OnHide", function()
+        self:StopListening()
+    end)
+    button:SetScript("OnEnter", function()
+        self.Tooltip:OnEnter()
+    end)
+    button:SetScript("OnLeave", function()
+        self.Tooltip:OnLeave()
+    end)
+    self.Button = button
+end
+
+function BindingControlMixin:Init(initializer)
+    SettingsControlMixin.Init(self, initializer)
+    self:StopListening()
+    self:EvaluateState()
+end
+
+function BindingControlMixin:Release()
+    self:StopListening()
+    SettingsControlMixin.Release(self)
+end
+
+function BindingControlMixin:ShowValue()
+    local text
+    if self.listening then
+        text = L["core.binding.listening"]
+    else
+        local key = self.data and self:GetSetting():GetValue() or ""
+        text = key ~= "" and GetBindingText(key) or GRAY_FONT_COLOR:WrapTextInColorCode(NOT_BOUND)
+    end
+    self.Button:SetText(text)
+end
+
+-- The setting changed elsewhere (e.g. the Defaults button).
+function BindingControlMixin:SetValue()
+    self:ShowValue()
+end
+
+function BindingControlMixin:StartListening()
+    self.listening = true
+    self.Button:EnableKeyboard(true)
+    self.Button:RegisterForClicks("AnyUp")
+    self.Selected:Show()
+    self:ShowValue()
+end
+
+function BindingControlMixin:StopListening()
+    self.listening = false
+    self.Button:EnableKeyboard(false)
+    self.Button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    self.Selected:Hide()
+    self:ShowValue()
+end
+
+-- Bindings can't change in combat.
+function BindingControlMixin:Bind(key)
+    self:StopListening()
+    if not InCombatLockdown() then
+        self:GetSetting():SetValue(CreateKeyChordStringUsingMetaKeyState(key))
+    end
+end
+
+function BindingControlMixin:OnButtonClick(mouseButton)
+    if self.listening then
+        if mouseButton == "LeftButton" or mouseButton == "RightButton" then
+            self:StopListening()
+        else
+            self:Bind(GetConvertedKeyOrButton(mouseButton))
+        end
+    elseif not InCombatLockdown() then
+        if mouseButton == "RightButton" then
+            self:GetSetting():SetValue("")
+        else
+            self:StartListening()
+        end
+    end
+end
+
+function BindingControlMixin:OnKeyDown(key)
+    if not self.listening then
+        return
+    end
+    if key == "ESCAPE" then
+        self:StopListening()
+    elseif not IsKeyPressIgnoredForBinding(key) then
+        self:Bind(key)
+    end
+end
+
+function BindingControlMixin:EvaluateState()
+    SettingsListElementMixin.EvaluateState(self)
+    local enabled = self:IsEnabled()
+    if not enabled then
+        self:StopListening()
+    end
+    self.Button:SetEnabled(enabled)
+    self:DisplayEnabled(enabled)
+end
+
+-- A binding's setting: a proxy over the game's key bindings, the value being
+-- the binding's first key ("" for none). Setting a key replaces that first
+-- key (any other stays), takes the key from the action it was bound to (the
+-- game's warning says which), and saves the bindings like the Keybindings
+-- page. Nothing changes in combat, when the game refuses it.
+local function RegisterBindingSetting(category, path, entry, label)
+    local function GetKey()
+        return GetBindingKey(entry.binding) or ""
+    end
+    local function SetKey(key)
+        local old = GetBindingKey(entry.binding)
+        if InCombatLockdown() or (old or "") == key then
+            return
+        end
+        local replaced = key ~= "" and GetBindingAction(key) or ""
+        if old then
+            SetBinding(old)
+        end
+        if key ~= "" then
+            SetBinding(key, entry.binding)
+        end
+        SaveBindings(GetCurrentBindingSet())
+        if replaced ~= "" and replaced ~= entry.binding then
+            ns:Warning(KEY_UNBOUND_ERROR:format(GetBindingName(replaced)))
+        end
+    end
+    return Settings.RegisterProxySetting(
+        category,
+        VARIABLE_PREFIX .. path,
+        Settings.VarType.String,
+        label,
+        "",
+        GetKey,
+        SetKey
+    )
+end
+
 -- A multiselect's selection ({ [option] = boolean }) as the bit mask Blizzard's
 -- checkbox dropdowns read and write: option n is bit n - 1.
 local function SelectionToMask(entry, selection)
@@ -263,6 +433,17 @@ local controls = {
         varType = Settings.VarType.String,
         create = function(category, setting, tooltip)
             return AddControl(category, "text", setting, nil, tooltip)
+        end,
+    },
+    -- { key, type = "binding", binding = command } (a binding of Bindings.xml,
+    -- e.g. "CLICK <button>:LeftButton"): the key bound to it, saved by the game,
+    -- not in the feature's settings (see RegisterBindingSetting).
+    binding = {
+        register = function(category, path, entry, label)
+            return RegisterBindingSetting(category, path, entry, label)
+        end,
+        create = function(category, setting, tooltip)
+            return AddControl(category, "binding", setting, nil, tooltip)
         end,
     },
 }
@@ -390,7 +571,10 @@ local function AddSchemaEntry(category, feature, entry, parentInitializer)
     local control = assert(controls[entry.type], "unknown setting type: " .. tostring(entry.type))
     local labelKey = feature:GetLocaleKey(entry.key)
     local setting
-    if control.mask then
+    if control.register then
+        setting = control.register(category, labelKey, entry, L[labelKey])
+        settingsByPath[labelKey] = setting
+    elseif control.mask then
         setting = RegisterMaskSetting(category, labelKey, entry, feature.db, L[labelKey])
     else
         setting =

@@ -20,6 +20,7 @@ local TEST_FILES = {
     "tests/reagents_test.lua",
     "tests/skillups_test.lua",
     "tests/plans_test.lua",
+    "tests/fishing_test.lua",
     "tests/bank_test.lua",
     "tests/bank_transfers_test.lua",
     "tests/merchant_test.lua",
