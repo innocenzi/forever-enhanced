@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { defineConfig } from "bumpp";
@@ -26,13 +25,16 @@ async function updateTocVersion(repoRoot: string, version: string): Promise<void
 }
 
 export default defineConfig({
-    all: true,
+    // Not `all`: bumpp then refuses to start on a dirty working tree (untracked files included),
+    // and commits only the files it updated, so unfinished work never lands in a release commit.
+    all: false,
     commit: "chore: release v%s",
-    execute: async ({ options, state }) => {
+    execute: async (operation) => {
+        const { options, state } = operation;
         await updateTocVersion(options.cwd, state.newVersion);
         await generateChangelog(options.cwd, state.newVersion);
-        // `all` commits with `git commit --all`, which skips untracked files.
-        execFileSync("git", ["add", "CHANGELOG.md"], { cwd: options.cwd });
+        const written = [...tocFiles, "CHANGELOG.md"].map((file) => path.join(options.cwd, file));
+        operation.update({ updatedFiles: [...state.updatedFiles, ...written] });
     },
     files: ["package.json"],
     noGitCheck: false,
