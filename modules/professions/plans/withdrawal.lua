@@ -1,12 +1,12 @@
--- The withdrawal: when the bank opens, with "withdraw", the bank feature brings
--- the bags up to what the counted recipes still need (Bank:WithdrawUpTo). Once
+-- The withdrawal: when the bank opens, with "withdraw", Bank transfers brings
+-- the bags up to what the counted recipes still need (Transfers:WithdrawUpTo). Once
 -- it's done, with "announce", chat lists what came from the bank and what is
 -- still missing, when something came out.
 
 local _, ns = ...
 
 local Plans = ns:GetFeature("professions", "plans")
-local Bank = ns:GetFeature("inventory", "bank")
+local Transfers = ns:GetFeature("inventory", "transfers")
 
 local Withdrawal = {}
 Plans.Withdrawal = Withdrawal
@@ -64,7 +64,7 @@ local listener = ns:CreateEventListener({
         for itemID in pairs(totals) do
             before[itemID] = C_Item.GetItemCount(itemID)
         end
-        Bank:WithdrawUpTo(totals, function()
+        Transfers:WithdrawUpTo(totals, function()
             Announce(totals, before)
         end)
     end,

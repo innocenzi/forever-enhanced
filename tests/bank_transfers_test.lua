@@ -3,7 +3,7 @@
 -- bank (tabs 6 and 7, of 4 and 2 slots), opens the bank, then uses the menus.
 
 local function Transfers(world)
-    return world.ns:GetFeature("inventory", "bank").Transfers
+    return world.ns:GetFeature("inventory", "transfers").Runner
 end
 
 -- Fills the bags and the bank; items: { guid = { itemID, count } }
@@ -24,10 +24,7 @@ end
 
 -- The entry of a mode in the Deposit or Withdraw menu, if listed.
 local function Entry(world, direction, mode)
-    return world:MenuEntry(
-        world:TransferMenu(direction),
-        world.L["inventory.bank.transfers." .. direction .. "." .. mode]
-    )
+    return world:MenuEntry(world:TransferMenu(direction), world.L["inventory.transfers." .. direction .. "." .. mode])
 end
 
 -- Picks a mode in the Deposit or Withdraw menu and lets the transfer finish.
@@ -193,10 +190,10 @@ test("a button with nothing to move is disabled, its tooltip saying so", functio
     local deposit, withdraw = world:TransferButton("deposit"), world:TransferButton("withdraw")
     expect(not deposit:IsEnabled() and not withdraw:IsEnabled(), "nothing to move either way")
     local text, lines = world:TransferTooltip("deposit")
-    equal(text, world.L["inventory.bank.transfers.deposit.tooltip"], "tooltip on a disabled button")
-    equal(lines[1], world.L["inventory.bank.transfers.deposit.nothing"], "deposit says why")
+    equal(text, world.L["inventory.transfers.deposit.tooltip"], "tooltip on a disabled button")
+    equal(lines[1], world.L["inventory.transfers.deposit.nothing"], "deposit says why")
     lines = select(2, world:TransferTooltip("withdraw"))
-    equal(lines[1], world.L["inventory.bank.transfers.withdraw.nothing"], "withdraw says why")
+    equal(lines[1], world.L["inventory.transfers.withdraw.nothing"], "withdraw says why")
 
     MarkForBank(world, 1)
     world:NextFrame()
@@ -251,7 +248,7 @@ test("marked items are only offered by Deposit, while the bank mark is on", func
         L1 = { "linen", 15 },
         L3 = { "linen", 12 },
     })
-    local marked = world.L["inventory.bank.transfers.deposit.marked"]
+    local marked = world.L["inventory.transfers.deposit.marked"]
     equal(world:TransferMenu("deposit")[3].text, marked, "third deposit entry")
     expect(not world:MenuEntry(world:TransferMenu("withdraw"), marked), "not in withdraw")
 
@@ -266,24 +263,13 @@ test("turning transfers off hides the buttons and stops a transfer", function(wo
     })
     expect(world:TransferButton("deposit").shown, "shown")
     Entry(world, "deposit", "stacks").callback()
-    world:Setting("inventory.bank.transfers"):SetValue(false)
+    world:Setting("inventory.transfers.enabled"):SetValue(false)
     expect(not Transfers(world):IsRunning(), "stopped")
     expect(not world:TransferButton("deposit").shown, "deposit hidden")
     expect(not world:TransferButton("withdraw").shown, "withdraw hidden")
 
-    world:Setting("inventory.bank.transfers"):SetValue(true)
+    world:Setting("inventory.transfers.enabled"):SetValue(true)
     expect(world:TransferButton("withdraw").shown, "back")
-end)
-
-test("turning the bank feature off hides the buttons too", function(world)
-    Setup(world, { "L1" }, { "L3" }, {}, {
-        L1 = { "linen", 15 },
-        L3 = { "linen", 12 },
-    })
-    world:Setting("inventory.bank.enabled"):SetValue(false)
-    expect(not world:TransferButton("deposit").shown, "hidden")
-    world:Setting("inventory.bank.enabled"):SetValue(true)
-    expect(world:TransferButton("deposit").shown, "back")
 end)
 
 test("opening the bank refills the bags' partial stacks", function(world)
@@ -298,7 +284,7 @@ test("opening the bank refills the bags' partial stacks", function(world)
     equal(world:Slots(0), "L1(15) W1(5) - -", "bags untouched by default")
     world:CloseBank()
 
-    world:Setting("inventory.bank.autoRefill"):SetValue(true)
+    world:Setting("inventory.transfers.autoRefill"):SetValue(true)
     world:OpenBank()
     world:Elapse(5)
     equal(world:Slots(0), "L1(20) W1(5) - -", "bags")
@@ -314,7 +300,7 @@ test("opening the bank deposits the items marked for the bank", function(world)
     })
     world:OpenBags()
     MarkForBank(world, 2)
-    world:Setting("inventory.bank.autoDeposit"):SetValue(true)
+    world:Setting("inventory.transfers.autoDeposit"):SetValue(true)
     world:OpenBank()
     world:Elapse(5)
     equal(world:Slots(0), "L1(15) - P1(3) -", "only the marked item leaves")
@@ -330,8 +316,8 @@ test("the automatic refill leaves the items marked for the bank", function(world
     })
     world:OpenBags()
     MarkForBank(world, 2)
-    world:Setting("inventory.bank.autoRefill"):SetValue(true)
-    world:Setting("inventory.bank.autoDeposit"):SetValue(true)
+    world:Setting("inventory.transfers.autoRefill"):SetValue(true)
+    world:Setting("inventory.transfers.autoDeposit"):SetValue(true)
     world:OpenBank()
     world:Elapse(5)
     equal(world:Slots(0), "L1(20) - - -", "linen refilled, wool deposited")
@@ -344,20 +330,20 @@ test("the automatic deposit waits for the bank mark", function(world)
     })
     world:OpenBags()
     MarkForBank(world, 1)
-    world:Setting("inventory.bank.autoDeposit"):SetValue(true)
+    world:Setting("inventory.transfers.autoDeposit"):SetValue(true)
     world:Setting("inventory.marks.bank"):SetValue(false)
     world:OpenBank()
     world:Elapse(5)
     equal(world:Slots(0), "W1(5) - - -", "bags")
 end)
 
-test("the automatic transfers need the Deposit and Withdraw buttons", function(world)
+test("the automatic transfers stop with Bank transfers", function(world)
     Stock(world, { "L1" }, { "L3" }, {}, {
         L1 = { "linen", 15 },
         L3 = { "linen", 12 },
     })
-    world:Setting("inventory.bank.autoRefill"):SetValue(true)
-    world:Setting("inventory.bank.transfers"):SetValue(false)
+    world:Setting("inventory.transfers.autoRefill"):SetValue(true)
+    world:Setting("inventory.transfers.enabled"):SetValue(false)
     world:OpenBank()
     world:Elapse(5)
     equal(world:Slots(0), "L1(15) - - -", "bags")
@@ -369,7 +355,7 @@ test("cleans up the bank once a transfer is done", function(world)
         L2 = { "linen", 4 },
         L3 = { "linen", 12 },
     })
-    world:Setting("inventory.bank.autoSort"):SetValue(true)
+    world:Setting("inventory.transfers.autoSort"):SetValue(true)
     world.pickups = 0
     Entry(world, "deposit", "stacks").callback()
     world:Elapse(0)
@@ -396,8 +382,8 @@ test("cleans up the bank after the automatic transfers", function(world)
         L3 = { "linen", 12 },
         L4 = { "linen", 20 },
     })
-    world:Setting("inventory.bank.autoRefill"):SetValue(true)
-    world:Setting("inventory.bank.autoSort"):SetValue(true)
+    world:Setting("inventory.transfers.autoRefill"):SetValue(true)
+    world:Setting("inventory.transfers.autoSort"):SetValue(true)
     world:OpenBank()
     world:Elapse(5)
     equal(world:Slots(0), "L1(20) - - -", "bags refilled")
@@ -409,8 +395,8 @@ test("no cleanup when the automatic transfers move nothing", function(world)
         L1 = { "linen", 15 },
         W1 = { "wool", 5 },
     })
-    world:Setting("inventory.bank.autoRefill"):SetValue(true)
-    world:Setting("inventory.bank.autoSort"):SetValue(true)
+    world:Setting("inventory.transfers.autoRefill"):SetValue(true)
+    world:Setting("inventory.transfers.autoSort"):SetValue(true)
     world:OpenBank()
     world:Elapse(5)
     equal(#world.bankSorts, 0, "no cleanup")
@@ -422,7 +408,7 @@ test("no cleanup when the bank closes during a transfer", function(world)
         L2 = { "linen", 4 },
         L3 = { "linen", 12 },
     })
-    world:Setting("inventory.bank.autoSort"):SetValue(true)
+    world:Setting("inventory.transfers.autoSort"):SetValue(true)
     Entry(world, "deposit", "stacks").callback()
     world:Elapse(0)
     world:CloseBank()
@@ -435,16 +421,16 @@ test("no cleanup when a move is blocked", function(world)
         L1 = { "linen", 15 },
         L3 = { "linen", 12 },
     })
-    world:Setting("inventory.bank.autoSort"):SetValue(true)
+    world:Setting("inventory.transfers.autoSort"):SetValue(true)
     world.blockDrops = true
     Transfer(world, "deposit", "stacks")
     equal(#world.bankSorts, 0, "no cleanup")
 end)
 
--- Bank:WithdrawUpTo, for other features (Tracked recipes).
+-- Transfers:WithdrawUpTo, for other features (Tracked recipes).
 local function WithdrawUpTo(world, totals)
     local finished = false
-    local started = world.ns:GetFeature("inventory", "bank"):WithdrawUpTo(totals, function()
+    local started = world.ns:GetFeature("inventory", "transfers"):WithdrawUpTo(totals, function()
         finished = true
     end)
     world:Elapse(5)
@@ -469,7 +455,7 @@ test("withdrawing up to a total waits for its moves to show before counting agai
     })
     world.lateMoves = true
     local finished = false
-    world.ns:GetFeature("inventory", "bank"):WithdrawUpTo({ linen = 16 }, function()
+    world.ns:GetFeature("inventory", "transfers"):WithdrawUpTo({ linen = 16 }, function()
         finished = true
     end)
     world:Elapse(world.SERVER_CONFIRM_SECONDS / 2)
@@ -513,18 +499,34 @@ test("withdrawing up to a total takes what the bank has", function(world)
     equal(world:Slots(0), "L3(2) - - -", "bags")
 end)
 
-test("withdrawing up to a total needs the open bank and the bank feature, not its buttons", function(world)
+test("withdrawing up to a total needs the open bank, not Bank transfers", function(world)
     Stock(world, {}, { "L3" }, {}, {
         L3 = { "linen", 12 },
     })
     expect(not WithdrawUpTo(world, { linen = 1 }), "bank closed")
-    world:OpenBank()
+    world:Setting("inventory.transfers.enabled"):SetValue(false)
     world:Setting("inventory.bank.enabled"):SetValue(false)
-    expect(not WithdrawUpTo(world, { linen = 1 }), "feature off")
-    world:Setting("inventory.bank.enabled"):SetValue(true)
-    world:Setting("inventory.bank.transfers"):SetValue(false)
-    expect(WithdrawUpTo(world, { linen = 1 }), "buttons off")
+    world:OpenBank()
+    expect(WithdrawUpTo(world, { linen = 1 }), "both bank features off")
     equal(world:Slots(0), "L3' - - -", "bags")
+end)
+
+test("closing the bank stops a withdrawal while Bank transfers is off", function(world)
+    Stock(world, {}, { "L3", "L4" }, {}, {
+        L3 = { "linen", 12 },
+        L4 = { "linen", 12 },
+    })
+    world:Setting("inventory.transfers.enabled"):SetValue(false)
+    world:OpenBank()
+    local finished = false
+    world.ns:GetFeature("inventory", "transfers"):WithdrawUpTo({ linen = 16 }, function()
+        finished = true
+    end)
+    expect(Transfers(world):IsRunning(), "running")
+    world:CloseBank()
+    expect(not Transfers(world):IsRunning(), "stopped")
+    world:Elapse(5)
+    expect(not finished, "never finished")
 end)
 
 test("withdrawing up to a total joins the automatic transfers, which leave its items alone", function(world)
@@ -534,7 +536,7 @@ test("withdrawing up to a total joins the automatic transfers, which leave its i
         L3 = { "linen", 12 },
         W3 = { "wool", 20 },
     })
-    world:Setting("inventory.bank.autoRefill"):SetValue(true)
+    world:Setting("inventory.transfers.autoRefill"):SetValue(true)
     world:OpenBank()
     local _, finished = WithdrawUpTo(world, { wool = 8 })
     expect(finished, "finished")

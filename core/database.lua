@@ -183,6 +183,28 @@ local function SavedFeatures(savedModules, moduleId)
     return type(moduleDb) == "table" and type(moduleDb.features) == "table" and moduleDb.features or nil
 end
 
+-- A part of `features[from]` (its toggle `part`, nested `keys`) that became the
+-- feature `features[to]`: on only if the part was in effect (both toggles on,
+-- a missing one counting as on), its nested settings follow. The old keys go
+-- either way; a new feature already saved keeps its own values.
+local function MovePartToFeature(features, from, part, to, keys)
+    local old = features[from]
+    if type(old) ~= "table" or old[part] == nil then
+        return
+    end
+    if features[to] == nil then
+        local new = { enabled = old.enabled ~= false and old[part] ~= false }
+        for _, key in ipairs(keys) do
+            new[key] = old[key]
+        end
+        features[to] = new
+    end
+    old[part] = nil
+    for _, key in ipairs(keys) do
+        old[key] = nil
+    end
+end
+
 -- Brings settings and account stores saved by earlier versions up to date,
 -- before the schemas apply.
 local function Migrate(savedModules, stores)
@@ -257,6 +279,20 @@ local function Migrate(savedModules, stores)
     if type(reagents) == "table" and reagents.professions ~= nil then
         reagents.onlyMine = reagents.professions == "mine"
         reagents.professions = nil
+    end
+
+    -- The bank's two parts became features: Bank transfers takes the transfer
+    -- settings, on only if its part was in effect, and the bank feature, now
+    -- Saved bank, stays on only if its saved bank part was on.
+    if inventory then
+        MovePartToFeature(inventory, "bank", "transfers", "transfers", { "autoRefill", "autoDeposit", "autoSort" })
+    end
+    local bank = inventory and inventory.bank
+    if type(bank) == "table" and bank.savedBank ~= nil then
+        if bank.savedBank == false then
+            bank.enabled = false
+        end
+        bank.savedBank = nil
     end
 end
 

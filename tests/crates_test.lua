@@ -98,11 +98,8 @@ end)
 test("ignores the bank while the saved bank is off", function(world)
     world.bags[0] = {}
     SaveBank(world, { { WOOL, 20 } })
-    world:Setting("inventory.bank.savedBank"):SetValue(false)
-    equal(CrateTooltip(world)[2], Component(world, 1, "missing"), "saved bank off")
-    world:Setting("inventory.bank.savedBank"):SetValue(true)
     world:Setting("inventory.bank.enabled"):SetValue(false)
-    equal(CrateTooltip(world)[2], Component(world, 1, "missing"), "bank feature off")
+    equal(CrateTooltip(world)[2], Component(world, 1, "missing"), "saved bank off")
 end)
 
 test("leaves a line whose count differs from the data unmarked", function(world)

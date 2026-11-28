@@ -237,22 +237,14 @@ test("turning the feature off hides everything and stops saving", function(world
     expect(world:BankSideTab().shown, "tab back")
 end)
 
-test("turning the saved bank off hides it and stops saving, but keeps the deposit buttons", function(world)
-    OpenSavedBank(world)
-    world:Setting("inventory.bank.savedBank"):SetValue(false)
-    expect(not world:IsSavedBankShown(), "view hidden")
-    expect(not world:BankSideTab().shown, "tab hidden")
-
+test("turning the saved bank off keeps the Deposit and Withdraw buttons", function(world)
+    world:Setting("inventory.bank.enabled"):SetValue(false)
     world:OpenBank()
     world:NextFrame()
     expect(world:TransferButton("deposit").shown, "deposit button")
     world:CloseBank()
     equal(Saved(world, PLAYER), nil, "nothing saved while off")
     equal(#world:ItemTooltip({ id = "B2" }), 0, "no bank count")
-
-    world:Setting("inventory.bank.savedBank"):SetValue(true)
-    world:OpenBags()
-    expect(world:BankSideTab().shown, "tab back")
 end)
 
 -- Bank count in tooltips. B1 (5) and B3 (7) are the same item, linen.

@@ -9,7 +9,7 @@
 -- Reagent slots come from Blizzard_ProfessionsTemplates (load-on-demand), from
 -- frame pools created on the first recipe shown. ProfessionsReagentSlotMixin is
 -- copied into each slot when it is created, so its Update is hooked as soon as
--- the templates load, whether or not the part runs: a slot created before the
+-- the templates load, whether or not the feature runs: a slot created before the
 -- hook never gets it, and pools keep their slots for the session. Slots another
 -- addon created earlier get no mark. Update runs on every fill (also when items finish loading), reagent
 -- change and bag update, and rewrites the name first. Slots are reused across
@@ -100,7 +100,7 @@ local function SetNameLine(slot, decoration, line)
 end
 
 local function UpdateSlot(slot)
-    local style = Bank:IsPartActive("savedBank") and not slot:IsLoading() and Bank:GetSetting("reagentMark") or "none"
+    local style = Bank:IsActive() and not slot:IsLoading() and Bank:GetSetting("reagentMark") or "none"
     local inBank = style ~= "none" and GetBankSupply(slot) or nil
     if not inBank then
         style = "none"
@@ -122,7 +122,7 @@ local function UpdateSlot(slot)
     SetNameLine(slot, decoration, style == "line" and Bank:FormatCount(inBank) or nil)
 end
 
--- hooksecurefunc hooks can't be removed: installed once, UpdateSlot checks IsPartActive().
+-- hooksecurefunc hooks can't be removed: installed once, UpdateSlot checks IsActive().
 local function InstallHook()
     ns:HookSecureFunc(ProfessionsReagentSlotMixin, "Update", UpdateSlot)
 end

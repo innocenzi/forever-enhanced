@@ -62,7 +62,7 @@ Before adding logs, write down the hypotheses, then log what tells them apart, s
 
 In combat, many APIs return secret values that addon code can pass along but not read: tostring, concatenation, comparisons and arithmetic on them throw (e.g. cooldown times, `SecretWhenCooldownsRestricted` in `Blizzard_APIDocumentationGenerated` on the `forever` branch). A throw in the instrumented code breaks what you're observing (a click stops halfway, its hooks don't run), so pass API results to `ForeverEnhancedDebug:Log` as they are and compute nothing from them for a log; when a value must be readable in combat, log the fields documented `NeverSecret` instead (`isActive`, `isOnGCD` of a cooldown). The fake client models no secrets, so the tests won't catch this.
 
-Tags are `<module>.<feature>.<place>` (`inventory.bank.transfers.plan`). Log on change, never every frame (`OnUpdate`, frequent events): throttle or compare with the last value. Logging too much in one round trip beats asking the player for another.
+Tags are `<module>.<feature>.<place>` (`inventory.transfers.plan`). Log on change, never every frame (`OnUpdate`, frequent events): throttle or compare with the last value. Logging too much in one round trip beats asking the player for another.
 
 The tests load the debug addon too: keep `bun run test` green while debugging.
 
@@ -83,7 +83,7 @@ If `bun run debug-log` can't run (no Lua CLI, another machine), fall back to the
 ```
 ForeverEnhanced 1.1.0, build 61234, frFR, exported 2026-11-15 21:04:10 (4521.870), 4 entries
 == session 12, 2026-11-15 20:58:02 ==
-[4518.204] inventory.bank.transfers.plan: 4 {bag=0, slot=3, items={6948, 2589}}
+[4518.204] inventory.transfers.plan: 4 {bag=0, slot=3, items={6948, 2589}}
 [4519.010!] combat.swaps.cast: <secret number> <Button ForeverEnhancedSwapButton1>
 [4519.500-4520.750] combat.swaps.update: nil (x12)
 [4520.900] taint.objectiveTracker: ObjectiveTrackerFrame.dirty tainted by ForeverEnhanced (after MarkDirty)

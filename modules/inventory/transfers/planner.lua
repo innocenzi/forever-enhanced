@@ -10,7 +10,7 @@
 --             (Item marks), whether or not the bank holds them.
 --   "refill": (withdraw, automatic) like "stacks", except for the items marked
 --             for the bank, which the automatic deposit takes back.
---   "upTo":   (withdraw, Bank:WithdrawUpTo) brings the bags up to a total of
+--   "upTo":   (withdraw, Transfers:WithdrawUpTo) brings the bags up to a total of
 --             each item: whole bank stacks, smallest first, while they fit what
 --             is missing, then the rest split off the next one. Each goes onto
 --             a bag stack with room for all of it, or an empty slot.
@@ -19,7 +19,7 @@
 
 local _, ns = ...
 
-local Transfers = ns:GetFeature("inventory", "bank").Transfers
+local Transfers = ns:GetFeature("inventory", "transfers")
 local Locking = ns:GetFeature("inventory", "locking")
 
 local Planner = {}

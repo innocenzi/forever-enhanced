@@ -323,14 +323,15 @@ test("turning the feature off gives Blizzard's tracking back and keeps the count
     equal(world:Slots(0), "S1'(6) V2'(2) - -", "withdrawn")
 end)
 
-test("tracked crafts wait for the bank feature", function(world)
+test("tracked crafts take their reagents without the bank features", function(world)
     Stock(world, {}, { "S1", "V2" }, {
         S1 = { "spice", 20 },
         V2 = { "vial", 20 },
     })
     Track(world, POTION, 1)
     world:Setting("inventory.bank.enabled"):SetValue(false)
+    world:Setting("inventory.transfers.enabled"):SetValue(false)
     VisitBank(world)
-    equal(world:Slots(0), "- - - -", "nothing withdrawn")
+    equal(world:Slots(0), "S1'(3) V2' - -", "withdrawn")
     equal(Plans(world):GetCount(POTION.recipeID), 1, "still counted")
 end)

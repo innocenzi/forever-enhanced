@@ -62,9 +62,11 @@ modules\inventory\bank\view.lua
 modules\inventory\bank\tab.lua
 modules\inventory\bank\tooltip.lua
 modules\inventory\bank\reagents.lua
-modules\inventory\bank\transfers.lua
-modules\inventory\bank\planner.lua
-modules\inventory\bank\buttons.lua
+modules\inventory\transfers\feature.lua
+modules\inventory\transfers\locales.lua
+modules\inventory\transfers\runner.lua
+modules\inventory\transfers\planner.lua
+modules\inventory\transfers\buttons.lua
 modules\inventory\merchant\feature.lua
 modules\inventory\merchant\locales.lua
 modules\inventory\merchant\junk.lua

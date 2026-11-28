@@ -174,7 +174,7 @@ local function ConfirmForget(entry)
         text = L["inventory.bank.forgetConfirm"],
         text_arg1 = entry.name,
         callback = function()
-            if not Bank:IsPartActive("savedBank") then
+            if not Bank:IsActive() then
                 return
             end
             Bank.Store:Forget(entry.key)
@@ -405,7 +405,6 @@ end
 -- The command palette opens it like the tab beside the bags.
 ns:AddCommand(Bank, {
     id = "savedBank",
-    part = "savedBank",
     run = function()
         View:Toggle()
     end,

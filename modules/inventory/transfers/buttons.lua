@@ -8,8 +8,7 @@
 local _, ns = ...
 
 local L = ns.L
-local Bank = ns:GetFeature("inventory", "bank")
-local Transfers = Bank.Transfers
+local Transfers = ns:GetFeature("inventory", "transfers")
 
 local Buttons = {}
 Transfers.Buttons = Buttons
@@ -49,7 +48,7 @@ local function CanTransfer(direction)
     return false
 end
 
--- Only while they show: at the bank, with transfers on.
+-- Only while they show: at the bank, with the feature on.
 local function UpdateButtons()
     if not buttons.deposit:IsVisible() then
         return
@@ -79,13 +78,10 @@ local listener = ns:CreateEventListener({
 local function GenerateMenu(direction)
     return function(_, rootDescription)
         for _, mode in ipairs(GetModes(direction)) do
-            local entry = rootDescription:CreateButton(
-                L["inventory.bank.transfers." .. direction .. "." .. mode],
-                function()
-                    Transfers:Run(direction, mode)
-                end
-            )
-            entry:SetEnabled(not Transfers:IsRunning() and HasMoves(direction, mode))
+            local entry = rootDescription:CreateButton(L["inventory.transfers." .. direction .. "." .. mode], function()
+                Transfers.Runner:Run(direction, mode)
+            end)
+            entry:SetEnabled(not Transfers.Runner:IsRunning() and HasMoves(direction, mode))
         end
     end
 end
@@ -93,16 +89,16 @@ end
 local function CreateButton(direction)
     local button = CreateFrame("Button", nil, BankFrame, "UIPanelButtonTemplate")
     button:SetSize(BUTTON_WIDTH, BUTTON_HEIGHT)
-    button:SetText(L["inventory.bank.transfers." .. direction])
+    button:SetText(L["inventory.transfers." .. direction])
     button:SetMotionScriptsWhileDisabled(true)
     button:SetScript("OnClick", function(self)
         MenuUtil.CreateContextMenu(self, GenerateMenu(direction))
     end)
     button:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(L["inventory.bank.transfers." .. direction .. ".tooltip"])
+        GameTooltip:SetText(L["inventory.transfers." .. direction .. ".tooltip"])
         if not self:IsEnabled() then
-            GameTooltip_AddErrorLine(GameTooltip, L["inventory.bank.transfers." .. direction .. ".nothing"])
+            GameTooltip_AddErrorLine(GameTooltip, L["inventory.transfers." .. direction .. ".nothing"])
         end
         GameTooltip:Show()
     end)
@@ -139,7 +135,6 @@ function Buttons:Disable()
     ns:RefreshItemButtons()
 end
 
-ns:AddItemButtonHandler(Bank, {
-    part = "transfers",
+ns:AddItemButtonHandler(Transfers, {
     Update = RequestUpdate,
 })

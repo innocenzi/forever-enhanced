@@ -14,4 +14,4 @@ ns:AddItemTooltipHandler(Bank, function(tooltip, data)
     if count > 0 then
         tooltip:AddLine(Bank:FormatCount(count))
     end
-end, { part = "savedBank" })
+end)

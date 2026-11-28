@@ -315,6 +315,73 @@ end, {
     end,
 })
 
+test("the bank's parts carry over to Saved bank and Bank transfers", function(world)
+    local features = world.env.ForeverEnhancedDB.modules.inventory.features
+    equal(features.bank.savedBank, nil, "saved bank toggle dropped")
+    equal(features.bank.transfers, nil, "transfers toggle dropped")
+    equal(features.bank.autoRefill, nil, "transfer settings left the saved bank")
+    equal(features.bank.openWithBags, true, "saved bank settings kept")
+    equal(features.bank.reagentMark, "icon", "dropdown kept")
+    equal(features.transfers.enabled, false, "transfers off, as its part was")
+    equal(features.transfers.autoRefill, true, "refill followed")
+    equal(features.transfers.autoSort, true, "sort followed")
+    expect(world.ns:GetFeature("inventory", "bank"):IsActive(), "saved bank on")
+    local alt = world.ns:GetFeature("inventory", "bank").Store:Get("alt-guid")
+    equal(alt and alt.name, "Zed", "saved banks still readable")
+end, {
+    savedVariables = function()
+        return {
+            modules = {
+                inventory = {
+                    features = {
+                        bank = {
+                            enabled = true,
+                            savedBank = true,
+                            openWithBags = true,
+                            reagentMark = "icon",
+                            transfers = false,
+                            autoRefill = true,
+                            autoSort = true,
+                        },
+                    },
+                },
+            },
+            stores = { inventory = { bank = { characters = { ["alt-guid"] = { name = "Zed", tabs = {} } } } } },
+        }
+    end,
+})
+
+test("a saved bank part that was off turns Saved bank off", function(world)
+    local features = world.env.ForeverEnhancedDB.modules.inventory.features
+    equal(features.bank.enabled, false, "saved bank off")
+    equal(features.transfers.enabled, true, "transfers on")
+    equal(features.transfers.autoDeposit, true, "deposit followed")
+end, {
+    savedVariables = function()
+        return {
+            modules = {
+                inventory = {
+                    features = { bank = { savedBank = false, transfers = true, autoDeposit = true } },
+                },
+            },
+        }
+    end,
+})
+
+test("a bank that was off turns both bank features off", function(world)
+    local features = world.env.ForeverEnhancedDB.modules.inventory.features
+    equal(features.bank.enabled, false, "saved bank off")
+    equal(features.transfers.enabled, false, "transfers off")
+end, {
+    savedVariables = function()
+        return {
+            modules = {
+                inventory = { features = { bank = { enabled = false, savedBank = true, transfers = true } } },
+            },
+        }
+    end,
+})
+
 test("a moved setting that had no effect stays off", function(world)
     local quests = world.env.ForeverEnhancedDB.modules.quests.features
     equal(quests.announce.hideQuestie, nil, "left its old feature")

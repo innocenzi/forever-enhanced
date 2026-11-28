@@ -8,7 +8,7 @@
 --              marked bag items glow while the auction house is open
 --              ("auctionGlow");
 --   "bank":    Mark for bank, the banker's icon in the bags; Deposit moves them
---              to the bank (bank feature, "marked" transfer); marked bag items
+--              to the bank (Bank transfers, "marked" transfer); marked bag items
 --              glow while the bank is open ("bankGlow");
 --   "mail":    Mark for mail, asking who to send the item to (shown in its
 --              tooltip), the mail icon in bags and bank; marked bag items glow
