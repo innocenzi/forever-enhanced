@@ -20,7 +20,9 @@
 -- marks, otherwise bank, then mail, then auction house; no bank icon in the
 -- bank). Locked items show no icon. "altClick" picks what
 -- Alt Left Click does: lock the item (Item locking, by default) or one of the
--- marks.
+-- marks. It stays here rather than in Item locking: it gives Alt Left Click to
+-- a mark, and Item locking keeps it whenever that mark or this feature is off,
+-- so the setting means something only while this feature is on.
 -- Two more parts, each behind its toggle:
 --   "notes":   Add note writes a note on that exact item (by GUID, unlike
 --              marks), shown in its tooltip;
@@ -62,14 +64,14 @@ local Marks = ns:RegisterFeature("inventory", "marks", {
         { key = "mailGlow", type = "toggle", default = true, requires = { mail = true } },
         { key = "mailTradeGlow", type = "toggle", default = true, requires = { mail = true } },
         { key = "mailTo", type = "toggle", default = true, requires = { mail = true } },
-        { key = "notes", type = "toggle", default = true },
-        { key = "wowhead", type = "toggle", default = false },
         {
             key = "altClick",
             type = "dropdown",
             default = "lock",
             options = { "lock", "junk", "auction", "bank", "mail" },
         },
+        { key = "notes", type = "toggle", default = true },
+        { key = "wowhead", type = "toggle", default = false },
     },
     presets = {
         minimal = {

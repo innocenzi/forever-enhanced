@@ -508,3 +508,23 @@ test("junk coins follow the bag's exclude from Sell All Junk option", function(w
     world:ExcludeFromJunkSell(0, false)
     expect(world:JunkCoin(4), "coin back")
 end)
+
+test("Alt Left Click sits with the marks, and says it otherwise locks", function(world)
+    local rows = {}
+    for _, key in ipairs({ "mailTo", "altClick", "notes" }) do
+        rows[world:Setting("inventory.marks." .. key)] = key
+    end
+    local order = {}
+    for _, category in ipairs(world.categories) do
+        for _, item in ipairs(category.items) do
+            if rows[item.setting] then
+                table.insert(order, rows[item.setting])
+            end
+        end
+    end
+    equal(table.concat(order, " "), "mailTo altClick notes", "after the marks, before notes")
+    expect(
+        world.L["inventory.marks.altClick.tooltip"]:find(world.L["inventory.locking.title"], 1, true),
+        "names Item locking"
+    )
+end)
