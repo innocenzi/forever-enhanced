@@ -1337,6 +1337,12 @@ local function NewCategory(name)
         GetID = function()
             return name
         end,
+        GetName = function()
+            return name
+        end,
+        GetCategorySet = function(self)
+            return self.registered and Settings.CategorySet.AddOns or Settings.CategorySet.Game
+        end,
     }
     table.insert(world.categories, category)
     local layout = {
@@ -1369,8 +1375,11 @@ Settings = {
     RegisterVerticalLayoutSubcategory = function(_, name)
         return NewCategory(name)
     end,
+    CategorySet = { Game = 1, AddOns = 2 },
+    -- Options' AddOns tab, after its Game tab (SettingsPanel:GetAllCategories).
     RegisterAddOnCategory = function(category)
         category.registered = true
+        table.insert(world.settingsPages, category)
     end,
     RegisterAddOnSetting = function(_, variable, key, tbl, varType, name, default)
         if tbl[key] == nil then
@@ -1452,6 +1461,13 @@ Settings = {
     end,
     RegisterInitializer = function(category, initializer)
         table.insert(category.items, initializer)
+    end,
+    -- Through C_SettingsUtil.OpenSettingsPanel, whose SETTINGS_PANEL_OPEN
+    -- Blizzard's panel handles (Blizzard_SettingsPanel.lua): on that category,
+    -- or where the player left it (world.openedSettings is then false).
+    OpenToCategory = function(categoryID)
+        world.openedSettings = categoryID or false
+        SettingsPanel:Show()
     end,
     -- Options of a dropdown: radio buttons (Add), or checkboxes over a bit mask
     -- (AddCheckbox: value n is bit n - 1, see world:CheckSettingOption).
@@ -9067,6 +9083,35 @@ function world:PickupSpell(spellID)
 end
 
 SettingsPanel = CreateFrame("Frame", "SettingsPanel")
+
+-- Options' pages, top-level ones only: the Game tab's, then the AddOns tab's
+-- (Settings.RegisterAddOnCategory, world:InstallAddOnPage).
+world.settingsPages = {
+    {
+        GetID = function()
+            return 1
+        end,
+        GetName = function()
+            return "Controls"
+        end,
+        GetCategorySet = function()
+            return Settings.CategorySet.Game
+        end,
+    },
+}
+
+function SettingsPanel:GetAllCategories()
+    return world.settingsPages
+end
+
+-- Another addon's page of Options, named `name` (color codes and all).
+function world:InstallAddOnPage(name)
+    Settings.RegisterAddOnCategory(Settings.RegisterVerticalLayoutCategory(name))
+end
+
+-- Blizzard_AddOnList, loaded with the UI: the game menu's AddOns button shows it.
+AddonList = CreateFrame("Frame", "AddonList")
+AddonList:Hide()
 
 function GameTooltip:SetSpellByID(spellID)
     world.tooltip = spellID

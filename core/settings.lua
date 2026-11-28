@@ -792,6 +792,27 @@ local function AddPresets()
     AddControl(rootCategory, "dropdown", setting, GetOptions, L["core.presets.tooltip"])
 end
 
+-- The pages of Options' AddOns tab, every addon's (ours too), in its order:
+-- { name, id } (name: as the addon wrote it, color codes included; id: for
+-- Open, this session only). Read from Blizzard's list (its SettingsPanel,
+-- which our local of that name hides), which reading leaves untainted.
+function SettingsPanel:GetAddOnPages()
+    local pages = {}
+    for _, category in ipairs(_G.SettingsPanel:GetAllCategories()) do
+        if category:GetCategorySet() == Settings.CategorySet.AddOns then
+            table.insert(pages, { name = category:GetName(), id = category:GetID() })
+        end
+    end
+    return pages
+end
+
+-- Blizzard's Options, on the page `id` (GetAddOnPages), else where the player
+-- left them. Settings.OpenToCategory goes through the game's
+-- SETTINGS_PANEL_OPEN, which Blizzard's panel handles itself: it opens untainted.
+function SettingsPanel:Open(id)
+    Settings.OpenToCategory(id)
+end
+
 function SettingsPanel:Build()
     rootCategory = Settings.RegisterVerticalLayoutCategory(ns.title)
 

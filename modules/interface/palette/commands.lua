@@ -1,9 +1,10 @@
 -- Blizzard's commands: the key bindings of Forever's Bindings_Camelot.xml (and
 -- the group finder's, Blizzard_GroupFinder_VanillaStyle) that open a window
--- or toggle part of the interface, and the player's professions, each opening
--- its crafting window, most useful first. Titles are the game's (bindings'
--- names in the Key Bindings, professions' names on the profession window's
--- tabs); English names and keywords are in locales.lua.
+-- or toggle part of the interface, the player's professions, each opening its
+-- crafting window, and the game menu's windows without a binding, most useful
+-- first. Titles are the game's (bindings' names in the Key Bindings,
+-- professions' names on the profession window's tabs), else in locales.lua,
+-- with the English names and keywords.
 
 local _, ns = ...
 
@@ -38,6 +39,41 @@ end
 
 local function PoisonsSpell()
     return IsPlayerSpell(POISONS_SPELL) and POISONS_SPELL or nil
+end
+
+-- The game menu's Options and AddOns, which have no binding, and each addon's
+-- page of Options. Options open untainted (core/settings.lua); the addon
+-- list, no protected window, opens from our code as the game menu's button
+-- would.
+local function OpenSettings(page)
+    ns.SettingsPanel:Open(page and page.pageID)
+end
+
+-- A page's name as shown, without the color codes and icons addons put in it.
+local function PlainText(text)
+    text = text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|cn.-:", ""):gsub("|r", "")
+    text = text:gsub("|T.-|t", ""):gsub("|A.-|a", "")
+    return strtrim(text)
+end
+
+-- One per addon page, keyed by its name: its ID changes between sessions.
+local function AddonPages()
+    local pages = {}
+    for _, page in ipairs(ns.SettingsPanel:GetAddOnPages()) do
+        local name = PlainText(page.name)
+        if name ~= "" then
+            table.insert(pages, {
+                id = name,
+                title = ns.L["interface.palette.commands.addonSettings.format"]:format(name),
+                pageID = page.id,
+            })
+        end
+    end
+    return pages
+end
+
+local function OpenAddons()
+    ShowUIPanel(AddonList)
 end
 
 local COMMANDS = {
@@ -81,6 +117,9 @@ local COMMANDS = {
     { id = "legacy", binding = "TOGGLELEGACYSYSTEM" },
     { id = "cooldowns", binding = "TOGGLECOOLDOWNVIEWERSETTINGS" },
     { id = "menu", binding = "TOGGLEGAMEMENU" },
+    { id = "settings", run = OpenSettings },
+    { id = "addons", run = OpenAddons },
+    { id = "addonSettings", each = AddonPages, run = OpenSettings },
     -- The interface.
     { id = "ui", binding = "TOGGLEUI" },
     { id = "minimap", binding = "TOGGLEMINIMAP" },

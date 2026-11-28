@@ -3,12 +3,12 @@
 --
 -- A command's title is the game's own name, in the client's language, for a
 -- binding (its name in the Key Bindings) and a spell (the one its function
--- gave, a profession's, else the spell's), its key's string otherwise
--- (<module>.<feature>.commands.<id>). Its aliases, found in every
--- language: its English name, the enUS string of its key (for a command the
--- game names, written in enUS only: never shown), and the space-separated
--- words of <...>.commands.<id>.keywords, in English and in the player's
--- language.
+-- gave, a profession's, else the spell's), the one an `each` value gave,
+-- its key's string otherwise (<module>.<feature>.commands.<id>). Its
+-- aliases, found in every language: its English name, the enUS string of its
+-- key (for a command the game names, written in enUS only: never shown), and
+-- the space-separated words of <...>.commands.<id>.keywords, in English and
+-- in the player's language (an `each` value's: its command's).
 --
 -- Text is compared folded: lower case, accents dropped ("reputation" finds
 -- "Réputation"). From the best match to the worst: the title starts with the
@@ -48,14 +48,14 @@ local function GetTitle(command)
     elseif command.spellID then
         return command.title or C_Spell.GetSpellName(command.spellID) or ns.L[command.key]
     end
-    return ns.L[command.key]
+    return command.title or ns.L[command.key]
 end
 
 local function GetAliases(command)
     local candidates = {
-        ns:GetLocaleString("enUS", command.key),
-        ns:GetLocaleString("enUS", command.key .. ".keywords"),
-        rawget(ns.L, command.key .. ".keywords"),
+        ns:GetLocaleString("enUS", command.strings),
+        ns:GetLocaleString("enUS", command.strings .. ".keywords"),
+        rawget(ns.L, command.strings .. ".keywords"),
     }
     local aliases, seen = {}, {}
     for index = 1, 3 do

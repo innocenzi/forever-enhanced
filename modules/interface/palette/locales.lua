@@ -9,6 +9,12 @@ ns:RegisterLocale("enUS", {
     ["interface.palette.placeholder"] = "Type a command",
     ["interface.palette.noResults"] = "No results found",
 
+    -- The game menu's windows without a binding, and each addon's page of Options
+    -- (%s: its name): shown, in both languages.
+    ["interface.palette.commands.settings"] = "Options",
+    ["interface.palette.commands.addonSettings.format"] = "%s options",
+    ["interface.palette.commands.addons"] = "AddOns",
+
     -- The commands' English names (Blizzard's binding and profession names), found in every
     -- language: enUS only, never shown (the client names the commands).
     ["interface.palette.commands.character"] = "Character Pane",
@@ -91,7 +97,10 @@ ns:RegisterLocale("enUS", {
     ["interface.palette.commands.collections.keywords"] = "mounts pets toys appearances",
     ["interface.palette.commands.petbook.keywords"] = "pet spells",
     ["interface.palette.commands.pvp.keywords"] = "honor rank",
-    ["interface.palette.commands.menu.keywords"] = "options settings logout escape",
+    ["interface.palette.commands.menu.keywords"] = "logout escape",
+    ["interface.palette.commands.settings.keywords"] = "settings",
+    ["interface.palette.commands.addonSettings.keywords"] = "addon settings",
+    ["interface.palette.commands.addons.keywords"] = "addon list",
     ["interface.palette.commands.ui.keywords"] = "hide interface",
     ["interface.palette.commands.fps.keywords"] = "fps",
     ["interface.palette.commands.sound.keywords"] = "audio mute",
@@ -107,6 +116,10 @@ ns:RegisterLocale("frFR", {
     ["interface.palette.binding"] = "Palette de commandes",
     ["interface.palette.placeholder"] = "Tapez une commande",
     ["interface.palette.noResults"] = "Aucun résultat trouvé",
+
+    ["interface.palette.commands.settings"] = "Options",
+    ["interface.palette.commands.addonSettings.format"] = "Options de l’add-on %s",
+    ["interface.palette.commands.addons"] = "Add-ons",
 
     -- Other words the commands are found by, besides the client's names.
     ["interface.palette.commands.character.keywords"] = "équipement stuff caractéristiques",
@@ -137,7 +150,10 @@ ns:RegisterLocale("frFR", {
     ["interface.palette.commands.collections.keywords"] = "montures mascottes jouets apparences",
     ["interface.palette.commands.petbook.keywords"] = "sorts du familier",
     ["interface.palette.commands.pvp.keywords"] = "honneur rang",
-    ["interface.palette.commands.menu.keywords"] = "options paramètres déconnexion échap",
+    ["interface.palette.commands.menu.keywords"] = "déconnexion échap",
+    ["interface.palette.commands.settings.keywords"] = "réglages paramètres",
+    ["interface.palette.commands.addonSettings.keywords"] = "réglages paramètres",
+    ["interface.palette.commands.addons.keywords"] = "liste extensions",
     ["interface.palette.commands.ui.keywords"] = "masquer",
     ["interface.palette.commands.fps.keywords"] = "ips",
     ["interface.palette.commands.sound.keywords"] = "audio muet",

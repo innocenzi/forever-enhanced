@@ -297,6 +297,56 @@ test("runs our own code from Enter, and a click of a named button", function(wor
     expect(not IsOpen(world), "closed")
 end)
 
+test("opens the game's options and the addon list", function(world)
+    Open(world)
+    equal(
+        Picked(world, world.L["interface.palette.commands.settings"]),
+        "interface.palette.commands.settings",
+        "found by its name"
+    )
+    Reopen(world)
+    equal(Picked(world, "settings"), "interface.palette.commands.settings", "and by an English keyword")
+    Enter(world)
+    equal(world.openedSettings, false, "where the player left them")
+    expect(not IsOpen(world), "closed")
+
+    world:PressKey(KEY)
+    equal(
+        Picked(world, world.L["interface.palette.commands.addons"]),
+        "interface.palette.commands.addons",
+        "the addon list, by its name"
+    )
+    Enter(world)
+    expect(AddonList:IsShown(), "addon list open")
+end)
+
+test("opens each addon's page of Options, named after the addon", function(world)
+    world:InstallAddOnPage("|cff33ff99Questie|r")
+    world:InstallAddOnPage("Bagnon")
+    local QUESTIE = "interface.palette.commands.addonSettings.Questie"
+    expect(Listed(world, QUESTIE), "Questie's")
+    expect(Listed(world, "interface.palette.commands.addonSettings.Bagnon"), "Bagnon's")
+    expect(Listed(world, "interface.palette.commands.addonSettings." .. world.ns.title), "ours")
+    expect(not Listed(world, "interface.palette.commands.addonSettings.Controls"), "not the game's pages")
+
+    local title
+    for _, entry in ipairs(Palette(world).Search:GetEntries()) do
+        if entry.key == QUESTIE then
+            title = entry.title
+        end
+    end
+    equal(title, world.L["interface.palette.commands.addonSettings.format"]:format("Questie"), "without its colors")
+
+    Open(world)
+    equal(Picked(world, "questie"), QUESTIE, "found by the addon's name")
+    Enter(world)
+    equal(world.openedSettings, "|cff33ff99Questie|r", "on its page")
+    expect(not IsOpen(world), "closed")
+
+    world:PressKey(KEY)
+    equal(Picked(world, "addon settings"), QUESTIE, "by English words, the last one run first")
+end)
+
 test("swaps layer from Enter, a key press", function(world)
     world:StandAt(482, 425)
     Open(world)
