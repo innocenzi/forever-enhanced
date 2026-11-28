@@ -1,4 +1,4 @@
--- The withdrawal: when the bank opens, with "withdraw", Bank transfers brings
+-- The withdrawal: when the bank opens, with "withdraw", inventory.transfers brings
 -- the bags up to what the counted recipes still need (Transfers:WithdrawUpTo). Once
 -- it's done, with "announce", chat lists what came from the bank and what is
 -- still missing, when something came out.

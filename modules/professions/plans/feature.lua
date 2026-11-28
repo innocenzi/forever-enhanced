@@ -5,8 +5,8 @@
 -- stay Blizzard's own. With "withdraw", every bank visit brings the bags up to
 -- what the counted recipes still need.
 --
--- Bank transfers does the moving (Transfers:WithdrawUpTo), whether or not it
--- is on: its Deposit and Withdraw buttons aren't needed.
+-- The transfer buttons do the moving (Transfers:WithdrawUpTo), whether or not
+-- they are on.
 --
 -- Files of this slice:
 --   feature.lua     registration, schema, lifecycle and the counts (this file)

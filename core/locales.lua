@@ -3,7 +3,7 @@ local _, ns = ...
 ns:RegisterLocale("enUS", {
     ["core.enable"] = "Enable",
     ["core.needs"] = "Requires %s.",
-    ["core.needsSetting"] = "Requires %s in %s.",
+    ["core.needsSetting"] = 'Requires "%s" in %s.',
     ["core.general"] = "General",
     ["core.binding.listening"] = "Press a key",
     ["core.language"] = "Language",
@@ -33,8 +33,8 @@ ns:RegisterLocale("enUS", {
 
 ns:RegisterLocale("frFR", {
     ["core.enable"] = "Activer",
-    ["core.needs"] = "Nécessite %s.",
-    ["core.needsSetting"] = "Nécessite %s dans %s.",
+    ["core.needs"] = "Requiert %s.",
+    ["core.needsSetting"] = "Requiert « %s » dans %s.",
     ["core.general"] = "Général",
     ["core.binding.listening"] = "Appuyez sur une touche",
     ["core.language"] = "Langue",

@@ -26,7 +26,7 @@ ns:RegisterLocale("enUS", {
     ["inventory.marks.mailTo"] = "Fill in the recipient",
     ["inventory.marks.mailTo.tooltip"] = "Fills in the mail's recipient when you attach marked items to it.",
     ["inventory.marks.altClick"] = "Alt Left Click",
-    ["inventory.marks.altClick.tooltip"] = "Controls whether Alt Left Click on an item in your bags or bank locks it (Item locking) or toggles one of its marks.",
+    ["inventory.marks.altClick.tooltip"] = "Controls whether Alt Left Click on an item in your bags or bank locks it (Item locking) or adds or removes a mark.",
     ["inventory.marks.altClick.lock"] = "Lock",
     ["inventory.marks.altClick.junk"] = "Mark as junk",
     ["inventory.marks.altClick.auction"] = "Mark for auction house",

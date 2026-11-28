@@ -1,7 +1,7 @@
 local _, ns = ...
 
 ns:RegisterLocale("enUS", {
-    ["inventory.transfers.title"] = "Bank transfers",
+    ["inventory.transfers.title"] = "Deposit and Withdraw buttons",
     ["inventory.transfers.description"] = "Moves items between your bags and your bank in one click, to top off stacks or gather each item in one place.",
     ["inventory.transfers.deposit"] = "Deposit",
     ["inventory.transfers.withdraw"] = "Withdraw",
@@ -23,7 +23,7 @@ ns:RegisterLocale("enUS", {
 })
 
 ns:RegisterLocale("frFR", {
-    ["inventory.transfers.title"] = "Transferts bancaires",
+    ["inventory.transfers.title"] = "Boutons Dépôt et Retrait",
     ["inventory.transfers.description"] = "Déplace des objets entre vos sacs et votre banque en un clic, pour compléter les piles ou regrouper chaque objet au même endroit.",
     ["inventory.transfers.deposit"] = "Dépôt",
     ["inventory.transfers.withdraw"] = "Retrait",

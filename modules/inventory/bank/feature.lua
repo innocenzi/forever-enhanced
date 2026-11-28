@@ -6,7 +6,7 @@
 -- "reagentMark" marks the recipe reagents the saved bank can supply. Other
 -- features read the saved count with Bank:CountSavedItem.
 --
--- The Deposit and Withdraw buttons are Bank transfers' (inventory.transfers):
+-- The Deposit and Withdraw buttons are a feature of their own (inventory.transfers):
 -- both were parts of this feature, see core/database.lua.
 --
 -- Files of this slice:

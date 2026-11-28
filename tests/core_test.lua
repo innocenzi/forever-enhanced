@@ -350,7 +350,7 @@ end, {
     end,
 })
 
-test("the bank's parts carry over to Saved bank and Bank transfers", function(world)
+test("the bank's parts carry over to Saved bank and the transfer buttons", function(world)
     local features = world.env.ForeverEnhancedDB.modules.inventory.features
     equal(features.bank.savedBank, nil, "saved bank toggle dropped")
     equal(features.bank.transfers, nil, "transfers toggle dropped")

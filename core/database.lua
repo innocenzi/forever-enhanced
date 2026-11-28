@@ -281,7 +281,7 @@ local function Migrate(savedModules, stores)
         reagents.professions = nil
     end
 
-    -- The bank's two parts became features: Bank transfers takes the transfer
+    -- The bank's two parts became features: Deposit and Withdraw buttons take the transfer
     -- settings, on only if its part was in effect, and the bank feature, now
     -- Saved bank, stays on only if its saved bank part was on.
     if inventory then

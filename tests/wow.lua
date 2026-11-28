@@ -7162,7 +7162,7 @@ function world:ContextMenu()
     return RunMenuGenerator(self.contextMenu.owner, self.contextMenu.generator)
 end
 
--- Bank transfers: the Deposit or Withdraw button on the bank frame.
+-- Deposit and Withdraw buttons: the Deposit or Withdraw button on the bank frame.
 function world:TransferButton(direction)
     return FindFrame(function(frame)
         return frame.template == "UIPanelButtonTemplate" and frame.text == self.L["inventory.transfers." .. direction]

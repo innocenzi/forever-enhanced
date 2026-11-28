@@ -1,4 +1,4 @@
--- Bank transfers: Deposit / Withdraw, onto partial stacks or all matching items.
+-- Deposit and Withdraw buttons: Deposit / Withdraw, onto partial stacks or all matching items.
 -- Every stackable item here stacks to 20. Each test sets its own bags (container 0) and
 -- bank (tabs 6 and 7, of 4 and 2 slots), opens the bank, then uses the menus.
 
@@ -337,7 +337,7 @@ test("the automatic deposit waits for the bank mark", function(world)
     equal(world:Slots(0), "W1(5) - - -", "bags")
 end)
 
-test("the automatic transfers stop with Bank transfers", function(world)
+test("the automatic transfers stop with the transfer buttons", function(world)
     Stock(world, { "L1" }, { "L3" }, {}, {
         L1 = { "linen", 15 },
         L3 = { "linen", 12 },
@@ -499,7 +499,7 @@ test("withdrawing up to a total takes what the bank has", function(world)
     equal(world:Slots(0), "L3(2) - - -", "bags")
 end)
 
-test("withdrawing up to a total needs the open bank, not Bank transfers", function(world)
+test("withdrawing up to a total needs the open bank, not the transfer buttons", function(world)
     Stock(world, {}, { "L3" }, {}, {
         L3 = { "linen", 12 },
     })
@@ -511,7 +511,7 @@ test("withdrawing up to a total needs the open bank, not Bank transfers", functi
     equal(world:Slots(0), "L3' - - -", "bags")
 end)
 
-test("closing the bank stops a withdrawal while Bank transfers is off", function(world)
+test("closing the bank stops a withdrawal while the transfer buttons is off", function(world)
     Stock(world, {}, { "L3", "L4" }, {}, {
         L3 = { "linen", 12 },
         L4 = { "linen", 12 },
