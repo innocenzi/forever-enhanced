@@ -40,15 +40,10 @@ ns:RegisterLocale("enUS", {
     ["inventory.marks.mailRecipient"] = "Mail to: %s",
     ["inventory.marks.notes"] = "Notes",
     ["inventory.marks.notes.tooltip"] = 'Adds "Add note" to the item menu: the note shows in that item\'s tooltip only.',
-    ["inventory.marks.wowhead"] = "Wowhead link",
-    ["inventory.marks.wowhead.tooltip"] = 'Adds "Wowhead link" to the item menu, to look the item up on Wowhead.',
     ["inventory.marks.addNote"] = "Add note",
     ["inventory.marks.editNote"] = "Edit note",
     ["inventory.marks.notePrompt"] = "Enter a note for %s:",
     ["inventory.marks.noteLine"] = '"%s"',
-    ["inventory.marks.wowheadLink"] = "Wowhead link",
-    ["inventory.marks.wowheadPrompt"] = "Press Ctrl+C to copy the Wowhead link for %s.",
-    ["inventory.marks.wowheadURL"] = "https://www.wowhead.com/forever/item=%s",
 })
 
 ns:RegisterLocale("frFR", {
@@ -91,13 +86,8 @@ ns:RegisterLocale("frFR", {
     ["inventory.marks.mailRecipient"] = "Envoyer à : %s",
     ["inventory.marks.notes"] = "Notes",
     ["inventory.marks.notes.tooltip"] = "Ajoute « Ajouter une note » au menu des objets : la note ne s’affiche que dans l’infobulle de cet objet.",
-    ["inventory.marks.wowhead"] = "Lien Wowhead",
-    ["inventory.marks.wowhead.tooltip"] = "Ajoute « Lien Wowhead » au menu des objets, pour consulter l’objet sur Wowhead.",
     ["inventory.marks.addNote"] = "Ajouter une note",
     ["inventory.marks.editNote"] = "Modifier la note",
     ["inventory.marks.notePrompt"] = "Entrez une note pour %s :",
     ["inventory.marks.noteLine"] = "« %s »",
-    ["inventory.marks.wowheadLink"] = "Lien Wowhead",
-    ["inventory.marks.wowheadPrompt"] = "Appuyez sur Ctrl+C pour copier le lien Wowhead de %s.",
-    ["inventory.marks.wowheadURL"] = "https://www.wowhead.com/forever/fr/item=%s",
 })

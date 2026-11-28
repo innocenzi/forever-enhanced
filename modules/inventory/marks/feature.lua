@@ -23,11 +23,11 @@
 -- marks. It stays here rather than in Item locking: it gives Alt Left Click to
 -- a mark, and Item locking keeps it whenever that mark or this feature is off,
 -- so the setting means something only while this feature is on.
--- Two more parts, each behind its toggle:
+-- One more part, behind its toggle:
 --   "notes":   Add note writes a note on that exact item (by GUID, unlike
---              marks), shown in its tooltip;
---   "wowhead": Wowhead link shows the item's Wowhead page address, ready to
---              copy (off by default).
+--              marks), shown in its tooltip.
+-- The Wowhead link, once a part of this feature, is a feature of its own
+-- (inventory.wowhead): it isn't a mark.
 --
 -- Files of this slice:
 --   feature.lua  registration, schema and lifecycle (this file)
@@ -37,7 +37,6 @@
 --   junk.lua     adds items marked as junk to the junk Sell All Junk sells
 --   buttons.lua  icons, Alt Left Click and the marks' item menu entries
 --   notes.lua    notes: store, dialog, menu entry and tooltip line
---   wowhead.lua  wowhead: dialog and menu entry
 
 local _, ns = ...
 
@@ -71,7 +70,6 @@ local Marks = ns:RegisterFeature("inventory", "marks", {
             options = { "lock", "junk", "auction", "bank", "mail" },
         },
         { key = "notes", type = "toggle", default = true },
-        { key = "wowhead", type = "toggle", default = false },
     },
     presets = {
         minimal = {
@@ -83,7 +81,6 @@ local Marks = ns:RegisterFeature("inventory", "marks", {
             mailTradeGlow = true,
             mailTo = true,
             notes = true,
-            wowhead = false,
         },
         enhanced = {
             enabled = true,
@@ -94,7 +91,6 @@ local Marks = ns:RegisterFeature("inventory", "marks", {
             mailTradeGlow = true,
             mailTo = true,
             notes = true,
-            wowhead = true,
         },
     },
 })
@@ -128,7 +124,6 @@ function Marks:SyncParts()
         self:SyncPart(destination, GetPart(destination))
     end
     self:SyncPart("notes", self.Notes)
-    self:SyncPart("wowhead", self.Wowhead)
     self.Mail:SyncAutofill()
 end
 

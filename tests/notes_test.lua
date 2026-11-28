@@ -1,4 +1,4 @@
--- Item marks and notes: notes and the Wowhead link in the item menu (Alt Right Click),
+-- Item marks and notes, and Wowhead link: notes and the link in the item menu (Alt Right Click),
 -- and the menu's order. The fake bag starts as G1 G2 - GJUNK; items are their
 -- own IDs and names.
 
@@ -129,16 +129,16 @@ end, {
 -- Wowhead link -----------------------------------------------------------------
 
 local function EnableWowhead(world)
-    world:Setting("inventory.marks.wowhead"):SetValue(true)
+    world:Setting("inventory.wowhead.enabled"):SetValue(true)
 end
 
 local function WowheadEntry(world, slot)
     local menu = assert(world:AltRightClick(slot), "item menu opened")
-    return world:MenuEntry(menu, world.L["inventory.marks.wowheadLink"])
+    return world:MenuEntry(menu, world.L["inventory.wowhead.link"])
 end
 
 local function URL(world, itemID)
-    return world.L["inventory.marks.wowheadURL"]:format(itemID)
+    return world.L["inventory.wowhead.url"]:format(itemID)
 end
 
 test("Wowhead link shows the item's address, selected", function(world)
@@ -175,7 +175,7 @@ test("turning Wowhead link off removes the entry and closes its dialog", functio
     expect(not WowheadEntry(world, 1), "no entry by default")
     EnableWowhead(world)
     WowheadEntry(world, 1).callback()
-    world:Setting("inventory.marks.wowhead"):SetValue(false)
+    world:Setting("inventory.wowhead.enabled"):SetValue(false)
     equal(world:Dialog(), nil, "dialog closed")
     expect(not WowheadEntry(world, 1), "no entry")
 end)
@@ -193,7 +193,7 @@ test(
         equal(menu[4].text, world.L["inventory.marks.markAsJunk"], "junk fourth")
         equal(menu[5].text, world.L["inventory.marks.markForAuction"], "auction house fifth")
         equal(menu[6].text, world.L["inventory.marks.markForBank"], "bank sixth")
-        equal(menu[#menu - 1].text, world.L["inventory.marks.wowheadLink"], "Wowhead link before the note")
+        equal(menu[#menu - 1].text, world.L["inventory.wowhead.link"], "Wowhead link before the note")
         equal(menu[#menu].text, world.L["inventory.marks.addNote"], "note last")
     end
 )

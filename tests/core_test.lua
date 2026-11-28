@@ -382,6 +382,45 @@ end, {
     end,
 })
 
+test("the Wowhead link leaves Item marks for a feature of its own", function(world)
+    local features = world.env.ForeverEnhancedDB.modules.inventory.features
+    equal(features.marks.wowhead, nil, "left Item marks")
+    equal(features.wowhead.enabled, true, "on, as it was")
+    expect(world.ns:GetFeature("inventory", "wowhead"):IsActive(), "active")
+end, {
+    savedVariables = function()
+        return {
+            modules = { inventory = { features = { marks = { enabled = true, wowhead = true } } } },
+        }
+    end,
+})
+
+test("a Wowhead link that had no effect stays off", function(world)
+    local features = world.env.ForeverEnhancedDB.modules.inventory.features
+    equal(features.wowhead.enabled, false, "Item marks was off")
+end, {
+    savedVariables = function()
+        return {
+            modules = { inventory = { features = { marks = { enabled = false, wowhead = true } } } },
+        }
+    end,
+})
+
+test("the Wowhead link is a checkbox at the top of the Bags page, off by default", function(world)
+    local bags = Page(world, "bags")
+    local found = false
+    for _, item in ipairs(bags.items) do
+        if item.setting == world:Setting("inventory.wowhead.enabled") then
+            found = true
+            equal(item.setting.name, world.L["inventory.wowhead.title"], "named after the feature")
+            break
+        end
+        expect(not item.header, "before the first section")
+    end
+    expect(found, "on the Bags page")
+    expect(not world.ns:GetFeature("inventory", "wowhead"):IsActive(), "off by default")
+end)
+
 test("a moved setting that had no effect stays off", function(world)
     local quests = world.env.ForeverEnhancedDB.modules.quests.features
     equal(quests.announce.hideQuestie, nil, "left its old feature")

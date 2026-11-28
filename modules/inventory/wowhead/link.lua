@@ -1,5 +1,5 @@
--- Wowhead link (the "wowhead" part): "Wowhead link" in the item menu shows the
--- item's Wowhead (Forever) page address, selected, ready to copy: the client
+-- Wowhead link: "Wowhead link" in the item menu shows the item's Wowhead
+-- (Forever) page address, selected, ready to copy: the client
 -- can't open web pages or write to the clipboard. The page is in the addon's
 -- language.
 --
@@ -8,10 +8,10 @@
 
 local _, ns = ...
 
-local Marks = ns:GetFeature("inventory", "marks")
+local Wowhead = ns:GetFeature("inventory", "wowhead")
 
-local Wowhead = {}
-Marks.Wowhead = Wowhead
+local Link = {}
+Wowhead.Link = Link
 
 local DIALOG = "FOREVER_ENHANCED_WOWHEAD_LINK"
 local MENU_ORDER = 30
@@ -49,29 +49,22 @@ local function ShowLink(itemLocation, guid)
     if ns.Containers:GetItemGUID(itemLocation) ~= guid then
         return
     end
-    local url = ns.L["inventory.marks.wowheadURL"]:format(C_Item.GetItemID(itemLocation))
-    StaticPopupDialogs[DIALOG].text = ns.L["inventory.marks.wowheadPrompt"]
+    local url = ns.L["inventory.wowhead.url"]:format(C_Item.GetItemID(itemLocation))
+    StaticPopupDialogs[DIALOG].text = ns.L["inventory.wowhead.prompt"]
     StaticPopup_Show(DIALOG, C_Item.GetItemLink(itemLocation), nil, { url = url })
 end
 
-ns:AddItemButtonHandler(Marks, {
-    part = "wowhead",
+ns:AddItemButtonHandler(Wowhead, {
     menuOrder = MENU_ORDER,
     AddMenuEntries = function(rootDescription, itemLocation, guid)
         if guid then
-            rootDescription:CreateButton(ns.L["inventory.marks.wowheadLink"], function()
+            rootDescription:CreateButton(ns.L["inventory.wowhead.link"], function()
                 ShowLink(itemLocation, guid)
             end)
         end
     end,
 })
 
--- The click shield takes Alt clicks only while some feature adds menu entries.
-function Wowhead:Enable()
-    ns:RefreshItemButtons()
-end
-
-function Wowhead:Disable()
+function Link:HideDialog()
     StaticPopup_Hide(DIALOG)
-    ns:RefreshItemButtons()
 end

@@ -294,6 +294,12 @@ local function Migrate(savedModules, stores)
         end
         bank.savedBank = nil
     end
+
+    -- The Wowhead link moved from Item marks to a feature of its own: on only
+    -- if it was in effect.
+    if inventory then
+        MovePartToFeature(inventory, "marks", "wowhead", "wowhead", {})
+    end
 end
 
 -- Brings character data saved by earlier versions up to date.
