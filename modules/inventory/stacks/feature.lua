@@ -13,10 +13,6 @@ local _, ns = ...
 local Stacks = ns:RegisterFeature("inventory", "stacks", {
     page = "bags",
     order = 2,
-    presets = {
-        minimal = { enabled = true },
-        enhanced = { enabled = true },
-    },
 })
 
 function Stacks:OnEnable()

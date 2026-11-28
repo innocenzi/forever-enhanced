@@ -34,24 +34,6 @@ local Helpers = ns:RegisterFeature("quests", "helpers", {
         { key = "sparkles", type = "toggle", default = true },
         { key = "hideAnnouncements", type = "toggle", default = false },
     },
-    presets = {
-        minimal = {
-            enabled = true,
-            objectives = true,
-            leftovers = true,
-            leftoverMark = true,
-            sparkles = true,
-            hideAnnouncements = false,
-        },
-        enhanced = {
-            enabled = true,
-            objectives = true,
-            leftovers = true,
-            leftoverMark = true,
-            sparkles = true,
-            hideAnnouncements = true,
-        },
-    },
 })
 
 -- The objectives part: its tooltip lines read the shared objectives index.

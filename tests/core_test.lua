@@ -167,22 +167,6 @@ test("a text setting uses our text row and takes its default from the locale", f
     equal(db.template, default, "blank text")
 end)
 
-test("the root page holds the general settings only", function(world)
-    local root = world.categories[1]
-    equal(#root.items, 3, "rows")
-    equal(root.items[1].header, world.L["core.general"], "header")
-    equal(root.items[3].setting, world:Setting("preset"), "preset")
-
-    local language = root.items[2]
-    equal(language.setting, world:Setting("language"), "language")
-    equal(language.tooltip, world.L["core.language.tooltip"], "language tooltip")
-    equal(#language.options, 3, "language options")
-    equal(language.options[1].value, "auto", "client language first")
-    equal(language.options[1].label, world.L["core.language.auto"], "its label")
-    equal(language.options[2].label, "English", "named in its own language")
-    equal(language.options[3].label, "Français", "named in its own language")
-end)
-
 test("every page shows the features that name it, whatever their module", function(world)
     for index, page in ipairs(world.ns.PAGES) do
         local category, features = Page(world, page)
@@ -538,152 +522,209 @@ test("a text setting left at its default follows the language", function(world)
     equal(db.template, "{quest} done", "a custom text is kept")
 end)
 
--- The root page's preset dropdown.
-local function PresetDropdown(world)
-    local setting = world:Setting("preset")
-    for _, item in ipairs(world.categories[1].items) do
-        if item.setting == setting then
-            return item
-        end
-    end
-end
-
--- Picks the preset and accepts the confirmation.
-local function ApplyPreset(world, presetId)
-    world:Setting("preset"):SetValue(presetId)
-    world.popups[#world.popups].callback()
-end
-
 local function Feature(world, moduleId, id)
     return world.ns:GetFeature(moduleId, id)
 end
 
-test("the preset dropdown lists the presets after a placeholder", function(world)
-    local dropdown = PresetDropdown(world)
-    expect(dropdown, "dropdown on the root page")
-    equal(dropdown.tooltip, world.L["core.presets.tooltip"], "tooltip")
-    equal(#dropdown.options, 3, "options")
-    equal(dropdown.options[1].value, "none", "placeholder first")
-    equal(dropdown.options[1].label, world.L["core.presets.none"], "its label")
-    equal(dropdown.options[2].value, "minimal", "presets in order")
-    equal(dropdown.options[2].label, world.L["core.presets.minimal"], "preset label")
-    equal(dropdown.options[3].tooltip, world.L["core.presets.enhanced.tooltip"], "preset tooltip")
-end)
-
-test("picking a preset asks first and keeps the placeholder", function(world)
-    world:Setting("preset"):SetValue("enhanced")
-    local popup = world.popups[#world.popups]
-    expect(popup, "confirmation shown")
-    equal(popup.text, world.L["core.presets.confirm"]:format(world.L["core.presets.enhanced"]), "text")
-    equal(world:Setting("preset"):GetValue(), "none", "dropdown still shows its placeholder")
-    expect(not Feature(world, "inventory", "cheapest"):IsActive(), "waits for the player")
-
-    popup.callback()
-    expect(Feature(world, "inventory", "cheapest"):IsActive(), "applied once accepted")
-
-    local count = #world.popups
-    world:Setting("preset"):SetValue("none")
-    equal(#world.popups, count, "the placeholder asks nothing")
-end)
-
-test("the enhanced preset turns every feature on", function(world)
-    world:Setting("interface.windows.enabled"):SetValue(false)
-    ApplyPreset(world, "enhanced")
-
-    for _, module in world.ns:EnumerateModules() do
-        for _, feature in ipairs(module.sortedFeatures) do
-            expect(feature:IsActive(), feature:GetLocaleKey() .. " active")
+-- The Quick setup row `rowId`: its definition, setting and dropdown.
+local function QuickRow(world, rowId)
+    local row = world.ns.QuickSetup:GetRow(rowId)
+    local setting = world:Setting("quickSetup." .. rowId)
+    for _, item in ipairs(world.categories[1].items) do
+        if item.setting == setting then
+            return row, setting, item
         end
     end
-    local modules = world.env.ForeverEnhancedDB.modules
-    equal(modules.inventory.features.bank.openWithBags, true, "bank opens with bags")
-    equal(modules.quests.features.helpers.hideAnnouncements, true, "quest addon announcements hidden")
-end)
-
-test("the minimal preset turns chatty features off and keeps what it doesn't list", function(world)
-    ApplyPreset(world, "enhanced")
-    world:Setting("interface.windows.modifier"):SetValue("alt")
-    ApplyPreset(world, "minimal")
-
-    expect(Feature(world, "inventory", "merchant"):IsPartActive("search"), "merchant search on")
-    equal(world:Setting("inventory.merchant.autoSellJunk"):GetValue(), false, "auto sell junk off")
-    equal(world:Setting("inventory.merchant.autoRepair"):GetValue(), false, "auto repair off")
-    expect(Feature(world, "inventory", "marks"):IsPartActive("junk"), "junk marking on")
-    expect(not Feature(world, "quests", "announce"):IsActive(), "announcements off")
-    expect(not Feature(world, "interface", "glow"):IsActive(), "glow off")
-    expect(Feature(world, "inventory", "locking"):IsActive(), "locking on")
-    expect(Feature(world, "professions", "reagents"):IsActive(), "reagent uses on")
-    expect(not Feature(world, "quests", "tracking"):IsActive(), "nearby tracking off")
-
-    local modules = world.env.ForeverEnhancedDB.modules
-    equal(modules.map.features.pin.announce, false, "waypoint quiet")
-    equal(modules.inventory.features.bank.openWithBags, false, "bank opens on its own")
-    equal(modules.interface.features.windows.modifier, "alt", "unlisted setting kept")
-end)
-
--- Every feature's saved values, by locale key.
-local function Snapshot(world)
-    local values = {}
-    for _, module in world.ns:EnumerateModules() do
-        for _, feature in ipairs(module.sortedFeatures) do
-            local copy = {}
-            for key, value in pairs(feature.db) do
-                copy[key] = value
-            end
-            values[feature:GetLocaleKey()] = copy
-        end
-    end
-    return values
 end
 
-test("a preset gives the same options whatever was picked before", function(world)
-    for _, pair in ipairs({ { "minimal", "enhanced" }, { "enhanced", "minimal" } }) do
-        local presetId, otherId = pair[1], pair[2]
-        ApplyPreset(world, presetId)
-        local expected = Snapshot(world)
-        ApplyPreset(world, otherId)
-        ApplyPreset(world, presetId)
-        local actual = Snapshot(world)
-        for key, values in pairs(expected) do
-            -- The settings of a feature the preset turns off have no effect.
-            if values.enabled then
-                for settingKey, value in pairs(values) do
-                    equal(
-                        actual[key][settingKey],
-                        value,
-                        presetId .. " after " .. otherId .. ": " .. key .. "." .. settingKey
-                    )
-                end
-            else
-                equal(actual[key].enabled, false, presetId .. " after " .. otherId .. ": " .. key .. " off")
+-- The dropdown's options as it opens now: their values in order.
+local function OptionValues(dropdown)
+    local values = {}
+    for _, option in ipairs(dropdown.getOptions()) do
+        table.insert(values, option.value)
+    end
+    return table.concat(values, " ")
+end
+
+test("the root page shows the language, then the Quick setup rows", function(world)
+    local root = world.categories[1]
+    local rows = world.ns.QuickSetup.ROWS
+    equal(#root.items, 3 + #rows, "rows")
+    equal(root.items[1].header, world.L["core.general"], "header")
+    equal(root.items[2].setting, world:Setting("language"), "language")
+    equal(root.items[3].header, world.L["core.quickSetup"], "Quick setup header")
+    equal(root.items[3].tooltip, world.L["core.quickSetup.tooltip"], "its tooltip")
+    for index, row in ipairs(rows) do
+        local item = root.items[3 + index]
+        equal(item.setting, world:Setting("quickSetup." .. row.id), row.id .. " in order")
+        equal(item.setting.name, world.L["core.quickSetup." .. row.id], row.id .. " label")
+        equal(item.template, "ForeverEnhancedSettingsDropdownControlTemplate", row.id .. " our dropdown")
+    end
+
+    local language = root.items[2]
+    equal(language.tooltip, world.L["core.language.tooltip"], "language tooltip")
+    equal(#language.options, 3, "language options")
+    equal(language.options[1].value, "auto", "client language first")
+    equal(language.options[1].label, world.L["core.language.auto"], "its label")
+    equal(language.options[2].label, "English", "named in its own language")
+    equal(language.options[3].label, "Français", "named in its own language")
+end)
+
+test("a fresh install shows each row's default answer, with no Custom", function(world)
+    local QuickSetup = world.ns.QuickSetup
+    for _, row in ipairs(QuickSetup.ROWS) do
+        local _, setting, dropdown = QuickRow(world, row.id)
+        equal(setting:GetValue(), QuickSetup:GetDefaultAnswer(row), row.id)
+        equal(setting:GetDefaultValue(), QuickSetup:GetDefaultAnswer(row), row.id .. " default")
+        equal(#dropdown.getOptions(), #row.answers, row.id .. " lists its answers only")
+    end
+end)
+
+test("an answer's tooltip says what it does, then what it turns on", function(world)
+    local _, _, dropdown = QuickRow(world, "merchant")
+    local both = dropdown.options[3]
+    equal(both.value, "both", "answers in order")
+    equal(both.label, world.L["core.quickSetup.merchant.both"], "label")
+    local expected = table.concat({
+        world.L["core.quickSetup.merchant.both.tooltip"],
+        "",
+        GREEN_FONT_COLOR:WrapTextInColorCode(world.L["inventory.merchant.autoSellJunk"]),
+        GREEN_FONT_COLOR:WrapTextInColorCode(world.L["inventory.merchant.autoRepair"]),
+    }, "\n")
+    equal(both.tooltip, expected, "tooltip")
+    equal(dropdown.options[1].tooltip, world.L["core.quickSetup.merchant.none.tooltip"], "nothing turned on")
+
+    local _, _, tracker = QuickRow(world, "tracker")
+    expect(
+        tracker.options[2].tooltip:find(world.L["quests.tracking.title"], 1, true),
+        "a feature turned on is named by its title"
+    )
+end)
+
+test("picking any answer makes its row show it, and only it", function(world)
+    local QuickSetup = world.ns.QuickSetup
+    for _, row in ipairs(QuickSetup.ROWS) do
+        local _, setting = QuickRow(world, row.id)
+        for _, answer in ipairs(row.answers) do
+            for _, other in ipairs(row.answers) do
+                setting:SetValue(other.id)
+                setting:SetValue(answer.id)
+                local matching = QuickSetup:GetMatchingAnswers(row)
+                equal(table.concat(matching, " "), answer.id, row.id .. ": " .. answer.id .. " after " .. other.id)
             end
         end
     end
 end)
 
-test("preset values are checked against the schemas", function(world)
-    local presets = Feature(world, "inventory", "locking").presets
+test("picking an answer sets its options through the settings", function(world)
+    local _, setting = QuickRow(world, "merchant")
+    setting:SetValue("both")
+    equal(world:Setting("inventory.merchant.autoSellJunk"):GetValue(), true, "auto sell junk")
+    equal(world:Setting("inventory.merchant.autoRepair"):GetValue(), true, "auto repair")
+    setting:SetValue("sell")
+    equal(world:Setting("inventory.merchant.autoRepair"):GetValue(), false, "auto repair off again")
+
+    local _, bars = QuickRow(world, "bars")
+    bars:SetValue("food")
+    expect(Feature(world, "inventory", "food"):IsActive(), "food on action bars on")
+    expect(Feature(world, "combat", "ranks"):IsActive(), "rank upgrades kept")
+    bars:SetValue("none")
+    expect(not Feature(world, "combat", "ranks"):IsActive(), "rank upgrades off")
+
+    local _, tracker = QuickRow(world, "tracker")
+    tracker:SetValue("nearby")
+    expect(Feature(world, "quests", "tracking"):IsActive(), "nearby tracking on")
+    equal(world:Setting("quests.tracking.keepManual"):GetValue(), true, "keeps quests tracked by hand")
+
+    local _, errors = QuickRow(world, "errors")
+    errors:SetValue("combat")
+    expect(Feature(world, "combat", "errors"):IsActive(), "errors hidden")
+    equal(world:Setting("combat.errors.combat"):GetValue(), true, "only in combat")
+    errors:SetValue("always")
+    equal(world:Setting("combat.errors.combat"):GetValue(), false, "all the time")
+end)
+
+test("an answer that needs its feature turns it on", function(world)
+    world:Setting("inventory.merchant.enabled"):SetValue(false)
+    world:Setting("quests.helpers.enabled"):SetValue(false)
+
+    local _, merchant = QuickRow(world, "merchant")
+    equal(merchant:GetValue(), "none", "nothing sold while the merchant feature is off")
+    merchant:SetValue("sell")
+    expect(Feature(world, "inventory", "merchant"):IsActive(), "merchant feature on")
+    equal(world:Setting("inventory.merchant.autoSellJunk"):GetValue(), true, "auto sell junk")
+
+    local _, questie = QuickRow(world, "questie")
+    questie:SetValue("hide")
+    expect(Feature(world, "quests", "helpers"):IsPartActive("hideAnnouncements"), "announcements hidden")
+end)
+
+test("a row reads what is in effect, not what is saved", function(world)
+    local _, merchant = QuickRow(world, "merchant")
+    merchant:SetValue("both")
+    world:Setting("inventory.merchant.enabled"):SetValue(false)
+    equal(merchant:GetValue(), "none", "auto selling saved but off with its feature")
+
+    world:Setting("inventory.merchant.enabled"):SetValue(true)
+    equal(merchant:GetValue(), "both", "back on with it")
+end)
+
+test("a row matching none of its answers shows Custom", function(world)
+    local row, merchant, dropdown = QuickRow(world, "merchant")
+    world:Setting("inventory.merchant.autoRepair"):SetValue(true)
+    equal(merchant:GetValue(), "custom", "repair without selling")
+    equal(OptionValues(dropdown), "none sell both custom", "Custom listed after the answers")
+
+    local custom = dropdown.getOptions()[4]
+    equal(custom.label, world.L["core.quickSetup.custom"], "label")
+    local page = world.L["core.pages." .. world.ns.QuickSetup:GetPage(row).id]
+    local expected = table.concat({
+        world.L["core.quickSetup.custom.tooltip"]:format(page),
+        "",
+        GRAY_FONT_COLOR:WrapTextInColorCode(world.L["inventory.merchant.autoSellJunk"]),
+        GREEN_FONT_COLOR:WrapTextInColorCode(world.L["inventory.merchant.autoRepair"]),
+    }, "\n")
+    equal(custom.tooltip, expected, "where the options are, and which are on")
+
+    merchant:SetValue("custom")
+    equal(world:Setting("inventory.merchant.autoRepair"):GetValue(), true, "picking Custom changes nothing")
+
+    merchant:SetValue("none")
+    equal(OptionValues(dropdown), "none sell both", "Custom gone once an answer matches")
+end)
+
+test("a setting an answer leaves out doesn't count", function(world)
+    local _, bars = QuickRow(world, "bars")
+    bars:SetValue("food")
+    world:Setting("inventory.food.buffFood"):SetValue(true)
+    equal(bars:GetValue(), "food", "buff food isn't the row's")
+
+    world:Setting("inventory.food.pick"):SetValue("cheapest")
+    equal(bars:GetValue(), "custom", "the cheapest food isn't the best")
+end)
+
+test("Quick setup rows are checked against the schemas at load", function(world)
+    local QuickSetup = world.ns.QuickSetup
+    local values = QuickSetup:GetRow("merchant").answers[2].values
     local function Loads()
         return pcall(function()
             world.ns.Database:Initialize()
         end)
     end
-    expect(Loads(), "the shipped presets are valid")
+    expect(Loads(), "the shipped rows are valid")
 
-    presets.minimal.bogus = true
+    table.insert(values, { "inventory.merchant.bogus", true })
     expect(not Loads(), "unknown setting")
-    presets.minimal.bogus = nil
-
-    presets.minimal.indicator = "removed-style"
+    values[#values] = { "inventory.food.pick", "removed-style" }
     expect(not Loads(), "value outside the options")
-    presets.minimal.indicator = nil
-
-    presets.minimal.enabled = "yes"
+    values[#values] = { "inventory.merchant.enabled", "yes" }
     expect(not Loads(), "wrong type")
-    presets.minimal.enabled = true
-
-    presets.custom = {}
-    expect(not Loads(), "unknown preset")
+    values[#values] = { "combat.ranks.enabled", true }
+    expect(not Loads(), "a path of another row")
+    values[#values] = { "map.pin.enabled", true }
+    expect(not Loads(), "a feature of another page")
+    table.remove(values)
+    expect(Loads(), "valid again")
 end)
 
 -- Chat messages look like the game's system messages, where the player shows them.
@@ -787,19 +828,10 @@ test("a saved selection fills missing options and drops unknown ones", function(
     equal(features.cheapest.ignore.food, true, "not a table: the default")
 end)
 
-test("presets set a multiselect's whole selection", function(world)
+test("setting a multiselect from code sets its whole selection", function(world)
     local Cheapest = Feature(world, "inventory", "cheapest")
-    world:CheckSettingOption(IGNORE, world.L[IGNORE .. ".food"], false)
-    ApplyPreset(world, "enhanced")
-    equal(Cheapest.db.ignore.food, true, "checked again")
-
-    Cheapest.presets.enhanced.ignore = { food = true }
-    ApplyPreset(world, "enhanced")
+    world.ns.SettingsPanel:SetValue(IGNORE, { food = true })
     equal(Cheapest.db.ignore.food, true, "listed")
     equal(Cheapest.db.ignore.tools, false, "left out: unchecked")
-
-    Cheapest.presets.enhanced.ignore = { bogus = true }
-    expect(not pcall(function()
-        world.ns.Database:Initialize()
-    end), "unknown option")
+    equal(world:Setting(IGNORE):GetValue(), 1, "its mask")
 end)

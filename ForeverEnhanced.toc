@@ -29,7 +29,7 @@ core\commands.lua
 core\itembuttons.lua
 core\junk.lua
 core\database.lua
-core\presets.lua
+core\quicksetup.lua
 core\settings.lua
 core\settings.xml
 core\locales.lua

@@ -11,9 +11,9 @@ ns:RegisterLocale("enUS", {
 
 ns:RegisterLocale("frFR", {
     ["map.seamless.title"] = "Carte du monde continue",
-    ["map.seamless.description"] = "Affiche la carte du monde d’un seul tenant : effectuez un zoom arrière depuis une zone vers ses voisines, son continent et le monde, et faites-la défiler partout.",
+    ["map.seamless.description"] = "Affiche le monde comme une seule grande carte : dézoomez d’une zone vers ses voisines, son continent, puis le monde, et faites-la défiler partout.",
     ["map.seamless.unexplored"] = "Afficher les zones inexplorées",
-    ["map.seamless.unexplored.tooltip"] = "Affiche chaque zone en entier après un zoom arrière, pas seulement les parties que vous avez explorées.",
+    ["map.seamless.unexplored.tooltip"] = "Affiche chaque zone en entier dès que vous dézoomez, pas seulement les parties que vous avez explorées.",
     ["map.seamless.quests"] = "Afficher les quêtes partout",
     ["map.seamless.quests.tooltip"] = "Affiche aussi toutes les quêtes de votre journal sur les continents et le monde entier, pas seulement celle que vous suivez.",
 })

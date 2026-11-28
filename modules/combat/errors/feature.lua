@@ -27,10 +27,6 @@ local Errors = ns:RegisterFeature("combat", "errors", {
         { key = "spells", type = "toggle", default = false, action = "choose" },
         { key = "combat", type = "toggle", default = false },
     },
-    presets = {
-        minimal = { enabled = false },
-        enhanced = { enabled = true, spells = false, combat = true },
-    },
 })
 
 Errors.MAX_SPELLS = 24

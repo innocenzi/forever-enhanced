@@ -1387,7 +1387,7 @@ Settings = {
         end
         return NewSetting(variable, varType, { key = key, tbl = tbl, name = name, default = default })
     end,
-    -- A setting over get/set functions instead of a saved table (e.g. the preset picker).
+    -- A setting over get/set functions instead of a saved table (e.g. a Quick setup row).
     RegisterProxySetting = function(_, variable, varType, name, default, getValue, setValue)
         return NewSetting(
             variable,
@@ -1430,12 +1430,15 @@ Settings = {
     end,
     -- A row with any template: created, then registered to the category. `options`
     -- is what the template's control reads: a function returning a dropdown's
-    -- options (kept here as the options it returns), or a slider's options.
+    -- options (kept here as the options it returns at build time, and as
+    -- `getOptions`, which the dropdown calls again each time it opens), or a
+    -- slider's options.
     CreateControlInitializer = function(template, setting, options, tooltip)
         assert(template, "missing template")
         local initializer = { template = template, setting = setting, tooltip = tooltip }
         if type(options) == "function" then
             initializer.options = options()
+            initializer.getOptions = options
         elseif options then
             initializer.slider = options
         end

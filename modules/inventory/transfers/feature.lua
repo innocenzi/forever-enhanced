@@ -25,10 +25,6 @@ local Transfers = ns:RegisterFeature("inventory", "transfers", {
         { key = "autoDeposit", type = "toggle", default = false, needs = "inventory.marks.bank" },
         { key = "autoSort", type = "toggle", default = false },
     },
-    presets = {
-        minimal = { enabled = true, autoRefill = false, autoDeposit = false, autoSort = true },
-        enhanced = { enabled = true, autoRefill = true, autoDeposit = true, autoSort = true },
-    },
 })
 
 function Transfers:OnEnable()

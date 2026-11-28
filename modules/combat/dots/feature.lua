@@ -37,10 +37,6 @@ local DoTs = ns:RegisterFeature("combat", "dots", {
     settings = {
         { key = "share", type = "toggle", default = true },
     },
-    presets = {
-        minimal = { enabled = false },
-        enhanced = { enabled = true },
-    },
 })
 
 function DoTs:OnEnable()

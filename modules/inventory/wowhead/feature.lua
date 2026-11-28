@@ -13,10 +13,6 @@ local Wowhead = ns:RegisterFeature("inventory", "wowhead", {
     page = "bags",
     order = 7,
     enabledByDefault = false,
-    presets = {
-        minimal = { enabled = false },
-        enhanced = { enabled = true },
-    },
 })
 
 -- The click shield takes Alt clicks only while some feature adds menu entries.

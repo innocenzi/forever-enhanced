@@ -80,10 +80,6 @@ local Seamless = ns:RegisterFeature("map", "seamless", {
         { key = "unexplored", type = "toggle", default = false },
         { key = "quests", type = "toggle", default = true },
     },
-    presets = {
-        minimal = { enabled = false },
-        enhanced = { enabled = true },
-    },
 })
 
 Seamless.MEDIA = "Interface\\AddOns\\ForeverEnhanced\\modules\\map\\seamless\\media\\"

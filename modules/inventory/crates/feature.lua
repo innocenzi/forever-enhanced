@@ -16,8 +16,4 @@ local _, ns = ...
 ns:RegisterFeature("inventory", "crates", {
     page = "bags",
     order = 6,
-    presets = {
-        minimal = { enabled = true },
-        enhanced = { enabled = true },
-    },
 })

@@ -43,10 +43,6 @@ local Swaps = ns:RegisterFeature("combat", "swaps", {
     -- It takes over the keys of the buttons it swaps: the player opts in.
     enabledByDefault = false,
     action = "edit",
-    presets = {
-        minimal = { enabled = false },
-        enhanced = { enabled = true },
-    },
 })
 
 Swaps.MAX_SWAPS = 10

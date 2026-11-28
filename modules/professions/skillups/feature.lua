@@ -21,10 +21,6 @@ local _, ns = ...
 local SkillUps = ns:RegisterFeature("professions", "skillups", {
     page = "professions",
     order = 2,
-    presets = {
-        minimal = { enabled = true },
-        enhanced = { enabled = true },
-    },
 })
 
 -- Nothing to undo on disable: the hooks check IsActive(), and the tooltips they

@@ -35,10 +35,6 @@ local Food = ns:RegisterFeature("inventory", "food", {
         },
         { key = "buffFood", type = "toggle", default = false },
     },
-    presets = {
-        minimal = { enabled = false },
-        enhanced = { enabled = true, pick = "level", buffFood = false },
-    },
 })
 
 function Food:OnEnable()

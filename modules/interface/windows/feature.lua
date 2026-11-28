@@ -20,10 +20,6 @@ local Windows = ns:RegisterFeature("interface", "windows", {
     settings = {
         { key = "modifier", type = "dropdown", default = "none", options = { "none", "shift", "ctrl", "alt" } },
     },
-    presets = {
-        minimal = { enabled = true },
-        enhanced = { enabled = true },
-    },
 })
 
 function Windows:OnEnable()

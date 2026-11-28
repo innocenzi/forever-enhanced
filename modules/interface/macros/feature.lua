@@ -39,10 +39,6 @@ local Macros = ns:RegisterFeature("interface", "macros", {
         { key = "layout", type = "toggle", default = true },
         { key = "labels", type = "toggle", default = true },
     },
-    presets = {
-        minimal = { enabled = true, search = true, duplicate = true, save = true, layout = true, labels = false },
-        enhanced = { enabled = true, search = true, duplicate = true, save = true, layout = true, labels = true },
-    },
 })
 
 local function SyncParts(self)

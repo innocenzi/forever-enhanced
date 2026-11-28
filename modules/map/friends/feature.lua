@@ -30,10 +30,6 @@ local Friends = ns:RegisterFeature("map", "friends", {
         { key = "share", type = "toggle", default = true },
         { key = "openmap", type = "toggle", default = false },
     },
-    presets = {
-        minimal = { enabled = false },
-        enhanced = { enabled = true, openmap = true },
-    },
 })
 
 function Friends:OnEnable()

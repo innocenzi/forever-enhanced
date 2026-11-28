@@ -12,10 +12,6 @@ local _, ns = ...
 local Ranks = ns:RegisterFeature("combat", "ranks", {
     page = "combat",
     order = 1,
-    presets = {
-        minimal = { enabled = true },
-        enhanced = { enabled = true },
-    },
 })
 
 -- Every action slot, the bars of every page included.

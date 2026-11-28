@@ -21,10 +21,6 @@ local Reagents = ns:RegisterFeature("professions", "reagents", {
     settings = {
         { key = "onlyMine", type = "toggle", default = false },
     },
-    presets = {
-        minimal = { enabled = true },
-        enhanced = { enabled = true },
-    },
 })
 
 -- Rogues' Poisons, which GetProfessions() leaves out: learned with its spell.

@@ -12,10 +12,6 @@ local _, ns = ...
 local ComboPoints = ns:RegisterFeature("combat", "combopoints", {
     page = "combat",
     order = 3,
-    presets = {
-        minimal = { enabled = true },
-        enhanced = { enabled = true },
-    },
 })
 
 function ComboPoints:OnEnable()

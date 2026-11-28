@@ -25,10 +25,6 @@ local Plans = ns:RegisterFeature("professions", "plans", {
         { key = "withdraw", type = "toggle", default = true },
         { key = "announce", type = "toggle", default = true, requires = { withdraw = true } },
     },
-    presets = {
-        minimal = { enabled = true, withdraw = true, announce = true },
-        enhanced = { enabled = true, withdraw = true, announce = true },
-    },
 })
 
 -- The most crafts a recipe can count (three digits).

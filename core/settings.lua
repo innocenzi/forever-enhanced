@@ -1,6 +1,6 @@
 -- Builds the Options > AddOns panel from the registered pages and features.
 --
--- Root page: language and preset picker (core/presets.lua).
+-- Root page: language, then the Quick setup rows (core/quicksetup.lua).
 -- One subcategory per page of ns.PAGES (core/pages.lua), holding the features
 -- that name it, in their order: first the features without settings, each a
 -- single checkbox named after the feature; then per feature with settings, a
@@ -455,8 +455,8 @@ local controls = {
 }
 
 local rootCategory
--- Registered settings by path ("<module>.<feature>.<key>"):
--- presets change values through them, so controls and callbacks follow.
+-- Registered settings by path ("<module>.<feature>.<key>"): Quick setup
+-- changes values through them, so controls and callbacks follow.
 local settingsByPath = {}
 -- Paths of multiselect settings -> their schema entry, to convert selections.
 local masksByPath = {}
@@ -562,6 +562,11 @@ function RequirementMet(feature, entry)
     end
     local key, value = GetRequirement(entry)
     return key == nil or (feature.db[key] == value and RequirementMet(feature, FindEntry(feature, key)))
+end
+
+-- Whether the entry's value is in effect: its feature on, its requirement met.
+function SettingsPanel:IsSettingInEffect(feature, entry)
+    return feature.db.enabled == true and RequirementMet(feature, entry)
 end
 
 -- The entry's tooltip, ending with what it needs: "Requires Bank in Item marks and notes."
@@ -752,44 +757,70 @@ local function AddLanguage()
     end)
 end
 
--- The preset picker: picking a preset asks for confirmation, then applies it.
--- Nothing is saved: the dropdown always reads "none", so it keeps showing its
--- placeholder.
-local PRESET_NONE = "none"
-
-local function ConfirmPreset(presetId)
-    if presetId == PRESET_NONE then
-        return
+-- An answer's tooltip: what it does, then the options it turns on, in green.
+local function GetAnswerTooltip(row, answerId)
+    local lines = { L["core.quickSetup." .. row.id .. "." .. answerId .. ".tooltip"] }
+    local names = ns.QuickSetup:GetTurnedOn(row, answerId)
+    if #names > 0 then
+        table.insert(lines, "")
+        for _, name in ipairs(names) do
+            table.insert(lines, GREEN_FONT_COLOR:WrapTextInColorCode(name))
+        end
     end
-    StaticPopup_ShowCustomGenericConfirmation({
-        text = L["core.presets.confirm"]:format(L["core.presets." .. presetId]),
-        callback = function()
-            ns:ApplyPreset(presetId)
-        end,
-    })
+    return table.concat(lines, "\n")
 end
 
-local function AddPresets()
+-- The Custom option's tooltip: where the row's options are, and which are on.
+local function GetCustomTooltip(row)
+    local page = ns.QuickSetup:GetPage(row)
+    local lines = { L["core.quickSetup.custom.tooltip"]:format(L["core.pages." .. page.id]), "" }
+    for _, state in ipairs(ns.QuickSetup:GetOptionStates(row)) do
+        local color = state.on and GREEN_FONT_COLOR or GRAY_FONT_COLOR
+        table.insert(lines, color:WrapTextInColorCode(state.name))
+    end
+    return table.concat(lines, "\n")
+end
+
+-- A Quick setup row: a dropdown whose value is the answer in effect, read from
+-- the options it owns (Custom when none matches: listed then, and only then,
+-- picking it does nothing). Picking an answer sets its options. The root page
+-- never shows those options, and its rows read their value again when shown.
+local function AddQuickSetupRow(row)
+    local QuickSetup = ns.QuickSetup
     local setting = Settings.RegisterProxySetting(
         rootCategory,
-        VARIABLE_PREFIX .. "preset",
+        VARIABLE_PREFIX .. "quickSetup." .. row.id,
         Settings.VarType.String,
-        L["core.presets"],
-        PRESET_NONE,
+        L["core.quickSetup." .. row.id],
+        QuickSetup:GetDefaultAnswer(row),
         function()
-            return PRESET_NONE
+            return QuickSetup:GetCurrentAnswer(row)
         end,
-        ConfirmPreset
+        function(answerId)
+            if answerId ~= QuickSetup.CUSTOM then
+                QuickSetup:Apply(row, answerId)
+            end
+        end
     )
     local function GetOptions()
         local container = Settings.CreateControlTextContainer()
-        container:Add(PRESET_NONE, L["core.presets.none"])
-        for _, presetId in ipairs(ns.PRESETS) do
-            container:Add(presetId, L["core.presets." .. presetId], L["core.presets." .. presetId .. ".tooltip"])
+        for _, answer in ipairs(row.answers) do
+            local labelKey = "core.quickSetup." .. row.id .. "." .. answer.id
+            container:Add(answer.id, L[labelKey], GetAnswerTooltip(row, answer.id))
+        end
+        if QuickSetup:GetCurrentAnswer(row) == QuickSetup.CUSTOM then
+            container:Add(QuickSetup.CUSTOM, L["core.quickSetup.custom"], GetCustomTooltip(row))
         end
         return container:GetData()
     end
-    AddControl(rootCategory, "dropdown", setting, GetOptions, L["core.presets.tooltip"])
+    AddControl(rootCategory, "dropdown", setting, GetOptions)
+end
+
+local function AddQuickSetup()
+    AddSectionHeader(rootCategory, L["core.quickSetup"], L["core.quickSetup.tooltip"])
+    for _, row in ipairs(ns.QuickSetup.ROWS) do
+        AddQuickSetupRow(row)
+    end
 end
 
 -- The pages of Options' AddOns tab, every addon's (ours too), in its order:
@@ -818,7 +849,7 @@ function SettingsPanel:Build()
 
     AddSectionHeader(rootCategory, L["core.general"])
     AddLanguage()
-    AddPresets()
+    AddQuickSetup()
 
     for _, page in ns:EnumeratePages() do
         AddPage(page)

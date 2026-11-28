@@ -36,10 +36,6 @@ local Merchant = ns:RegisterFeature("inventory", "merchant", {
         { key = "guildFunds", type = "toggle", default = false, requires = { autoRepair = true } },
         { key = "announce", type = "toggle", default = true },
     },
-    presets = {
-        minimal = { enabled = true, search = true, repairGlow = true, autoSellJunk = false, autoRepair = false },
-        enhanced = { enabled = true, search = true, repairGlow = true, autoSellJunk = true, autoRepair = true },
-    },
 })
 
 local listener = ns:CreateEventListener({

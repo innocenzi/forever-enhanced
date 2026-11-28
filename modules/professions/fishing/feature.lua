@@ -34,10 +34,6 @@ local Fishing = ns:RegisterFeature("professions", "fishing", {
         { key = "swap", type = "toggle", default = true },
         { key = "delay", type = "slider", default = 30, min = 15, max = 300, step = 15, requires = { swap = true } },
     },
-    presets = {
-        minimal = { enabled = true, swap = true, delay = 30 },
-        enhanced = { enabled = true, swap = true, delay = 30 },
-    },
 })
 
 -- Fishing's first rank: every rank shares its name, and a name casts the highest known.

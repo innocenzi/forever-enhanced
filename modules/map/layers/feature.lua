@@ -35,10 +35,6 @@ local Layers = ns:RegisterFeature("map", "layers", {
         { key = "accept", type = "toggle", default = true },
         { key = "host", type = "toggle", default = false },
     },
-    presets = {
-        minimal = { enabled = false },
-        enhanced = { enabled = true, accept = true, host = false },
-    },
 })
 
 -- Whether LayerSwap does the swapping: then the feature only shows the layer.

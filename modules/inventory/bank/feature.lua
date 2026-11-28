@@ -35,10 +35,6 @@ local Bank = ns:RegisterFeature("inventory", "bank", {
             options = { "line", "icon", "count", "none" },
         },
     },
-    presets = {
-        minimal = { enabled = true, openWithBags = false },
-        enhanced = { enabled = true, openWithBags = true },
-    },
 })
 
 -- "7 in the bank", in gold: the bank count wherever the slice shows it.

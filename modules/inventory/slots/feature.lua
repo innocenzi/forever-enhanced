@@ -19,10 +19,6 @@ local Slots = ns:RegisterFeature("inventory", "slots", {
     settings = {
         { key = "showIcon", type = "toggle", default = true },
     },
-    presets = {
-        minimal = { enabled = true, showIcon = true },
-        enhanced = { enabled = true, showIcon = true },
-    },
 })
 
 function Slots:OnEnable()

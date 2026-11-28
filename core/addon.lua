@@ -122,8 +122,7 @@ end
 -- `definition` becomes the feature object:
 -- { page (an id of ns.PAGES), order (its place on that page, unique there),
 --   enabledByDefault (true when omitted), settings = { schema entries },
---   action = key (a button beside the feature's checkbox, see OnAction),
---   presets = { [presetId] = { enabled = boolean, [settingKey] = value } } }.
+--   action = key (a button beside the feature's checkbox, see OnAction) }.
 function ns:RegisterFeature(moduleId, id, definition)
     local module = assert(modules[moduleId], "unknown module: " .. moduleId)
     local name = moduleId .. "." .. id
@@ -140,7 +139,6 @@ function ns:RegisterFeature(moduleId, id, definition)
     feature.page = page
     feature.enabledByDefault = feature.enabledByDefault ~= false
     feature.settings = feature.settings or {}
-    feature.presets = feature.presets or {}
     feature.active = false
     feature.activeParts = {}
 

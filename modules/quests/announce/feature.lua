@@ -20,10 +20,6 @@ local Announce = ns:RegisterFeature("quests", "announce", {
         { key = "template", type = "text" },
         { key = "channel", type = "dropdown", default = "instance", options = { "instance", "party" } },
     },
-    presets = {
-        minimal = { enabled = false },
-        enhanced = { enabled = true },
-    },
 })
 
 function Announce:OnEnable()

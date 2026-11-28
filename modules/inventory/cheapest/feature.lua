@@ -56,16 +56,6 @@ local Cheapest = ns:RegisterFeature("inventory", "cheapest", {
         { key = "ignore", type = "multiselect", default = IGNORE_ALL, options = IGNORE_OPTIONS },
         { key = "excludeReagentBag", type = "toggle", default = true },
     },
-    presets = {
-        minimal = { enabled = false },
-        enhanced = {
-            enabled = true,
-            onlyWhenFull = true,
-            indicator = "glow",
-            excludeReagentBag = true,
-            ignore = IGNORE_ALL,
-        },
-    },
 })
 
 function Cheapest:OnEnable()

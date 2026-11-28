@@ -35,10 +35,6 @@ local Pin = ns:RegisterFeature("map", "pin", {
         { key = "share", type = "toggle", default = true },
         { key = "autoAccept", type = "toggle", default = false, requires = { share = true } },
     },
-    presets = {
-        minimal = { enabled = true, announce = false },
-        enhanced = { enabled = true, announce = true },
-    },
 })
 
 -- Places the map pin at (x, y) on `mapID` (normalized), tracked when `track`.

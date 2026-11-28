@@ -32,10 +32,6 @@ local Auction = ns:RegisterFeature("inventory", "auction", {
         { key = "unit", type = "toggle", default = true },
         { key = "age", type = "toggle", default = false },
     },
-    presets = {
-        minimal = { enabled = true, scan = true, unit = true, age = false },
-        enhanced = { enabled = true, scan = true, unit = true, age = false },
-    },
 })
 
 local listener = ns:CreateEventListener({

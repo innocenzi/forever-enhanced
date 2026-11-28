@@ -14,10 +14,6 @@ local _, ns = ...
 local Levels = ns:RegisterFeature("map", "levels", {
     page = "map",
     order = 3,
-    presets = {
-        minimal = { enabled = true },
-        enhanced = { enabled = true },
-    },
 })
 
 function Levels:OnEnable()

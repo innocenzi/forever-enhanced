@@ -71,28 +71,6 @@ local Marks = ns:RegisterFeature("inventory", "marks", {
         },
         { key = "notes", type = "toggle", default = true },
     },
-    presets = {
-        minimal = {
-            enabled = true,
-            junkCoin = "merchant",
-            auctionGlow = true,
-            bankGlow = true,
-            mailGlow = true,
-            mailTradeGlow = true,
-            mailTo = true,
-            notes = true,
-        },
-        enhanced = {
-            enabled = true,
-            junkCoin = "always",
-            auctionGlow = true,
-            bankGlow = true,
-            mailGlow = true,
-            mailTradeGlow = true,
-            mailTo = true,
-            notes = true,
-        },
-    },
 })
 
 Marks.DESTINATIONS = DESTINATIONS

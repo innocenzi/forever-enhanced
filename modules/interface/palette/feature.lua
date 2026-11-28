@@ -29,10 +29,6 @@ local Palette = ns:RegisterFeature("interface", "palette", {
     settings = {
         { key = "key", type = "binding", binding = BINDING },
     },
-    presets = {
-        minimal = { enabled = true },
-        enhanced = { enabled = true },
-    },
 })
 
 Palette.BINDING = BINDING

@@ -41,10 +41,6 @@ local Tracking = ns:RegisterFeature("quests", "tracking", {
         { key = "dungeons", type = "toggle", default = true },
         { key = "keepManual", type = "toggle", default = false },
     },
-    presets = {
-        minimal = { enabled = false },
-        enhanced = { enabled = true },
-    },
 })
 
 function Tracking:OnEnable()
