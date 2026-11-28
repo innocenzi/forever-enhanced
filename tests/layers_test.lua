@@ -646,3 +646,23 @@ test("turning it off puts everything back", function(world)
     equal(Sent(world), "", "no asks")
     equal(world:TickerCount(), 0, "tickers")
 end)
+
+test("the swap key is a binding row on the feature's settings", function(world)
+    local setting = world:Setting("map.layers.key")
+    local row
+    for _, category in ipairs(world.categories) do
+        for _, initializer in ipairs(category.items) do
+            if initializer.setting == setting then
+                row = initializer
+            end
+        end
+    end
+    expect(row, "row registered")
+    equal(row.template, "ForeverEnhancedSettingsBindingControlTemplate", "row template")
+    equal(setting.name, world.L["map.layers.key"], "label")
+    setting:SetValue("F5")
+    equal(GetBindingAction("F5"), "FOREVERENHANCED_SWAPLAYER", "bound")
+    equal(world.ns:GetFeature("map", "layers").db.key, nil, "not saved with the settings")
+    world:Setting("map.layers.enabled"):SetValue(false)
+    expect(not row.predicate(), "greyed out with the feature off")
+end)

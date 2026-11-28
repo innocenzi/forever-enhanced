@@ -24,10 +24,14 @@
 
 local _, ns = ...
 
+-- The key binding the player sets (here, or in Key Bindings): Bindings.xml.
+local BINDING = "FOREVERENHANCED_SWAPLAYER"
+
 local Layers = ns:RegisterFeature("map", "layers", {
     page = "map",
     order = 6,
     settings = {
+        { key = "key", type = "binding", binding = BINDING },
         { key = "accept", type = "toggle", default = true },
         { key = "host", type = "toggle", default = false },
     },
