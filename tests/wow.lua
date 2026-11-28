@@ -1323,6 +1323,13 @@ function Initializer:AddModifyPredicate(predicate)
     self.predicate = predicate
 end
 
+-- Like Blizzard's: the row re-evaluates its state when one of these settings
+-- (by variable, CVar or not) changes.
+function Initializer:AddEvaluateStateCVar(variable)
+    self.evaluateStateCVars = self.evaluateStateCVars or {}
+    table.insert(self.evaluateStateCVars, variable)
+end
+
 local function NewCategory(name)
     local category = {
         name = name,

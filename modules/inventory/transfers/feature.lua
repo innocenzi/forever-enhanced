@@ -22,7 +22,7 @@ local Transfers = ns:RegisterFeature("inventory", "transfers", {
     order = 2,
     settings = {
         { key = "autoRefill", type = "toggle", default = false },
-        { key = "autoDeposit", type = "toggle", default = false },
+        { key = "autoDeposit", type = "toggle", default = false, needs = "inventory.marks.bank" },
         { key = "autoSort", type = "toggle", default = false },
     },
     presets = {

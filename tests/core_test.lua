@@ -107,6 +107,41 @@ test("a setting that requires another sits under it and greys out", function(wor
     expect(not range.predicate(), "greyed out with the feature off")
 end)
 
+-- The row of a setting, on whichever page.
+local function Row(world, path)
+    local setting = world:Setting(path)
+    for _, category in ipairs(world.categories) do
+        for _, initializer in ipairs(category.items) do
+            if initializer.setting == setting then
+                return initializer
+            end
+        end
+    end
+end
+
+test("a setting that needs another feature greys out without it, saying what it needs", function(world)
+    local row = assert(Row(world, "inventory.transfers.autoDeposit"), "row")
+    expect(row.predicate(), "editable with Item marks' Bank on")
+    world:Setting("inventory.marks.bank"):SetValue(false)
+    expect(not row.predicate(), "greyed out with the bank mark off")
+    world:Setting("inventory.marks.bank"):SetValue(true)
+    world:Setting("inventory.marks.enabled"):SetValue(false)
+    expect(not row.predicate(), "greyed out with Item marks off")
+    world:Setting("inventory.marks.enabled"):SetValue(true)
+    world:Setting("inventory.transfers.enabled"):SetValue(false)
+    expect(not row.predicate(), "greyed out with its own feature off")
+
+    local hint = world.L["core.needsSetting"]:format(world.L["inventory.marks.bank"], world.L["inventory.marks.title"])
+    equal(
+        row.tooltip,
+        world.L["inventory.transfers.autoDeposit.tooltip"] .. "\n\n" .. hint,
+        "tooltip ends with the hint"
+    )
+    local followed = table.concat(row.evaluateStateCVars, " ")
+    equal(followed, "ForeverEnhanced.inventory.marks.enabled ForeverEnhanced.inventory.marks.bank", "follows them")
+    equal(Row(world, "inventory.transfers.autoRefill").evaluateStateCVars, nil, "rows without needs follow nothing")
+end)
+
 test("a text setting uses our text row and takes its default from the locale", function(world)
     local setting = world:Setting("quests.announce.template")
     local row

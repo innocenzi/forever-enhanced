@@ -22,6 +22,11 @@
 -- An entry with `requires = { key = value }` sits under that earlier entry,
 -- indented one step further, and is greyed out unless it has that value (and
 -- that entry is editable).
+--
+-- An entry with `needs = "<module>.<feature>"` or `"<module>.<feature>.<key>"`
+-- only works while that other feature is on (and that toggle of it checked,
+-- and editable): it's greyed out otherwise, wherever that feature's page is,
+-- and its tooltip ends with what it needs (core.needs, core.needsSetting).
 
 local _, ns = ...
 
@@ -517,10 +522,75 @@ local function FindEntry(feature, key)
     end
 end
 
--- Whether the entry's requirement holds, and its required entry's, up the chain.
-local function RequirementMet(feature, entry)
+-- The feature, and the toggle entry if any, an entry's `needs` names; nil without.
+local function GetNeed(entry)
+    if not entry.needs then
+        return nil
+    end
+    local moduleId, featureId, key = entry.needs:match("^([^.]+)%.([^.]+)%.?([^.]*)$")
+    local other
+    for _, module in ns:EnumerateModules() do
+        if module.id == moduleId then
+            other = module.features[featureId]
+        end
+    end
+    assert(other, "unknown feature needed: " .. entry.needs)
+    if key == "" then
+        return other
+    end
+    local needed = FindEntry(other, key)
+    assert(needed and needed.type == "toggle", "needs names a toggle: " .. entry.needs)
+    return other, needed
+end
+
+local RequirementMet
+
+-- Whether what the entry needs is on: the other feature, and its toggle if named.
+local function NeedMet(entry)
+    local other, needed = GetNeed(entry)
+    if not other then
+        return true
+    end
+    return other.db.enabled == true and (not needed or (other.db[needed.key] == true and RequirementMet(other, needed)))
+end
+
+-- Whether the entry's requirement holds, its required entry's up the chain, and
+-- what each of them needs.
+function RequirementMet(feature, entry)
+    if not NeedMet(entry) then
+        return false
+    end
     local key, value = GetRequirement(entry)
     return key == nil or (feature.db[key] == value and RequirementMet(feature, FindEntry(feature, key)))
+end
+
+-- The entry's tooltip, ending with what it needs: "Requires Bank in Item marks and notes."
+local function GetTooltip(entry, tooltip)
+    local other, needed = GetNeed(entry)
+    if not other then
+        return tooltip
+    end
+    local title = L[other:GetLocaleKey("title")]
+    local text = needed and L["core.needsSetting"]:format(L[other:GetLocaleKey(needed.key)], title)
+        or L["core.needs"]:format(title)
+    return tooltip and tooltip .. "\n\n" .. text or text
+end
+
+-- Re-evaluates the row whenever a setting of another feature that it, or an
+-- entry up its chain, needs changes: Blizzard only follows the parent's.
+local function FollowNeeds(initializer, feature, entry)
+    local other, needed = GetNeed(entry)
+    if other then
+        initializer:AddEvaluateStateCVar(VARIABLE_PREFIX .. other:GetLocaleKey("enabled"))
+        if needed then
+            initializer:AddEvaluateStateCVar(VARIABLE_PREFIX .. other:GetLocaleKey(needed.key))
+            FollowNeeds(initializer, other, needed)
+        end
+    end
+    local key = GetRequirement(entry)
+    if key then
+        FollowNeeds(initializer, feature, FindEntry(feature, key))
+    end
 end
 
 -- The initializer the entry hangs under: the feature toggle, or the entry it
@@ -582,10 +652,11 @@ local function AddSchemaEntry(category, feature, entry, parentInitializer)
             RegisterSetting(category, labelKey, entry.key, feature.db, control.varType, L[labelKey], entry.default)
     end
 
-    local initializer =
-        control.create(category, setting, OptionalText(labelKey .. ".tooltip"), entry, labelKey, feature)
+    local tooltip = GetTooltip(entry, OptionalText(labelKey .. ".tooltip"))
+    local initializer = control.create(category, setting, tooltip, entry, labelKey, feature)
     SetParent(initializer, parentInitializer)
     SetDepth(initializer, GetDepth(feature, entry))
+    FollowNeeds(initializer, feature, entry)
     -- Predicates aren't inherited from grandparents: check the whole chain here.
     initializer:AddModifyPredicate(function()
         return feature.db.enabled and RequirementMet(feature, entry)
