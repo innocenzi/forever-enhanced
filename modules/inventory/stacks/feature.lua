@@ -11,7 +11,8 @@
 local _, ns = ...
 
 local Stacks = ns:RegisterFeature("inventory", "stacks", {
-    order = 4,
+    page = "bags",
+    order = 2,
     presets = {
         minimal = { enabled = true },
         enhanced = { enabled = true },

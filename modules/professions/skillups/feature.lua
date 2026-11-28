@@ -19,6 +19,7 @@
 local _, ns = ...
 
 local SkillUps = ns:RegisterFeature("professions", "skillups", {
+    page = "professions",
     order = 2,
     presets = {
         minimal = { enabled = true },

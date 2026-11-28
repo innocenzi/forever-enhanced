@@ -19,6 +19,7 @@
 local _, ns = ...
 
 local Plans = ns:RegisterFeature("professions", "plans", {
+    page = "professions",
     order = 3,
     settings = {
         { key = "withdraw", type = "toggle", default = true },

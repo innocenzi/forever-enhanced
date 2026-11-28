@@ -11,6 +11,7 @@
 local _, ns = ...
 
 local Announce = ns:RegisterFeature("quests", "announce", {
+    page = "quests",
     order = 3,
     -- It speaks in group chat: the player opts in.
     enabledByDefault = false,

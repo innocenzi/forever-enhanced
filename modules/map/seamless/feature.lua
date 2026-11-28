@@ -72,6 +72,7 @@
 local _, ns = ...
 
 local Seamless = ns:RegisterFeature("map", "seamless", {
+    page = "map",
     order = 1,
     -- It changes how Blizzard's world map zooms out: the player opts in.
     enabledByDefault = false,

@@ -16,6 +16,7 @@
 local _, ns = ...
 
 local Reagents = ns:RegisterFeature("professions", "reagents", {
+    page = "professions",
     order = 1,
     settings = {
         { key = "onlyMine", type = "toggle", default = false },

@@ -38,7 +38,8 @@ local DEFAULTS = {
 }
 
 local Swaps = ns:RegisterFeature("combat", "swaps", {
-    order = 5,
+    page = "combat",
+    order = 6,
     -- It takes over the keys of the buttons it swaps: the player opts in.
     enabledByDefault = false,
     action = "edit",

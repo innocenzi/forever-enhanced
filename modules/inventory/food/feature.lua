@@ -23,7 +23,8 @@
 local _, ns = ...
 
 local Food = ns:RegisterFeature("inventory", "food", {
-    order = 10,
+    page = "combat",
+    order = 5,
     enabledByDefault = false,
     settings = {
         {

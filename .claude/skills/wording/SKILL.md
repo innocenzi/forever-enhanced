@@ -17,7 +17,7 @@ A string can follow every rule in `AGENTS.md` > Localization and still mean noth
 
 For each key, find where it's shown and what the player sees around it. Grep the key, and its prefix when code builds it (`core/settings.lua` appends `.title`, `.description`, `.tooltip`, `.format`, `.<option>`).
 
-- **Settings panel** (`core/settings.lua`): the module's page, titled `<module>.title`. Features without settings are one checkbox each at the top, labeled with the title, the description as tooltip. Others get a section header (title; description as its tooltip), an "Enable" checkbox (same tooltip) and the settings below, nested under their `requires` parent. A tooltip opens beside its label, with the label as its heading: it must not repeat it.
+- **Settings panel** (`core/settings.lua`): the feature's page (its `page`, titled `core.pages.<page>`), shared with features of other modules. Features without settings are one checkbox each at the top, labeled with the title, the description as tooltip. Others get a section header (title; description as its tooltip), an "Enable" checkbox (same tooltip) and the settings below, nested under their `requires` parent. A tooltip opens beside its label, with the label as its heading: it must not repeat it.
 - **Item tooltips**: lines under the sell price (`price = true`) or at the end, among Blizzard's own lines (`In bank: 7` next to `Sell Price:`).
 - **Item menu** (Alt Right Click on a bag or bank item): entries among other features' entries.
 - **Chat**: `ns:Print` reads as a system message, with no addon name. The player must tell what happened without knowing an addon did it.

@@ -10,6 +10,7 @@
 local _, ns = ...
 
 local Ranks = ns:RegisterFeature("combat", "ranks", {
+    page = "combat",
     order = 1,
     presets = {
         minimal = { enabled = true },

@@ -24,6 +24,7 @@
 local _, ns = ...
 
 local Pin = ns:RegisterFeature("map", "pin", {
+    page = "map",
     order = 2,
     settings = {
         { key = "commands", type = "toggle", default = true },

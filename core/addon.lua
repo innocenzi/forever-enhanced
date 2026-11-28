@@ -1,6 +1,9 @@
 -- Namespace, module/feature registry and feature lifecycle.
 --
--- A module groups features (one settings subcategory per module).
+-- A module groups the code of related features (modules/<module>/) and
+-- namespaces their saved variables and locale keys; its order is the order
+-- their features are enabled in. Each feature names the settings page it shows
+-- on (core/pages.lua), whatever its module.
 -- A feature is a self-contained vertical slice. It is active only when the
 -- addon is ready and the feature is enabled.
 -- Core calls feature:OnEnable() / feature:OnDisable() on every transition.
@@ -16,6 +19,15 @@ _G.BINDING_HEADER_FOREVERENHANCED = ns.title
 
 local modules = {}
 local sortedModules = {}
+
+-- Settings pages, in ns.PAGES order: { id, sortedFeatures }.
+local sortedPages = {}
+local pagesById = {}
+for _, id in ipairs(ns.PAGES) do
+    local page = { id = id, sortedFeatures = {} }
+    pagesById[id] = page
+    table.insert(sortedPages, page)
+end
 
 local function ByOrder(a, b)
     if a.order ~= b.order then
@@ -108,17 +120,24 @@ function ns:RegisterModule(id, definition)
 end
 
 -- `definition` becomes the feature object:
--- { order, enabledByDefault (true when omitted), settings = { schema entries },
+-- { page (an id of ns.PAGES), order (its place on that page, unique there),
+--   enabledByDefault (true when omitted), settings = { schema entries },
 --   action = key (a button beside the feature's checkbox, see OnAction),
 --   presets = { [presetId] = { enabled = boolean, [settingKey] = value } } }.
 function ns:RegisterFeature(moduleId, id, definition)
     local module = assert(modules[moduleId], "unknown module: " .. moduleId)
-    assert(not module.features[id], "feature already registered: " .. moduleId .. "." .. id)
+    local name = moduleId .. "." .. id
+    assert(not module.features[id], "feature already registered: " .. name)
+    local page = assert(pagesById[definition.page], "unknown page for " .. name .. ": " .. tostring(definition.page))
+    assert(definition.order, "no order for " .. name)
+    for _, other in ipairs(page.sortedFeatures) do
+        assert(other.order ~= definition.order, "order already taken on page " .. page.id .. ": " .. name)
+    end
 
     local feature = Mixin(definition, FeatureMixin)
     feature.id = id
     feature.module = module
-    feature.order = feature.order or math.huge
+    feature.page = page
     feature.enabledByDefault = feature.enabledByDefault ~= false
     feature.settings = feature.settings or {}
     feature.presets = feature.presets or {}
@@ -128,6 +147,8 @@ function ns:RegisterFeature(moduleId, id, definition)
     module.features[id] = feature
     table.insert(module.sortedFeatures, feature)
     table.sort(module.sortedFeatures, ByOrder)
+    table.insert(page.sortedFeatures, feature)
+    table.sort(page.sortedFeatures, ByOrder)
     return feature
 end
 
@@ -137,6 +158,10 @@ end
 
 function ns:EnumerateModules()
     return ipairs(sortedModules)
+end
+
+function ns:EnumeratePages()
+    return ipairs(sortedPages)
 end
 
 local function ShouldBeActive(feature)

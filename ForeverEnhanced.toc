@@ -21,6 +21,7 @@ core\search.lua
 core\moves.lua
 core\tooltips.lua
 core\locale.lua
+core\pages.lua
 core\addon.lua
 core\messages.lua
 core\pacing.lua

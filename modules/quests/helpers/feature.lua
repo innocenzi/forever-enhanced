@@ -25,6 +25,7 @@
 local _, ns = ...
 
 local Helpers = ns:RegisterFeature("quests", "helpers", {
+    page = "quests",
     order = 1,
     settings = {
         { key = "objectives", type = "toggle", default = true },

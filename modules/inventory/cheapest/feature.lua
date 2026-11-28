@@ -47,7 +47,8 @@ for _, option in ipairs(IGNORE_OPTIONS) do
 end
 
 local Cheapest = ns:RegisterFeature("inventory", "cheapest", {
-    order = 8,
+    page = "bags",
+    order = 5,
     enabledByDefault = false,
     settings = {
         { key = "onlyWhenFull", type = "toggle", default = true },

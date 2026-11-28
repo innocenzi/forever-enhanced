@@ -5,13 +5,13 @@ local function Locking(world)
 end
 
 test("builds the settings panel from the registered schemas", function(world)
-    local root, inventory = world.categories[1], world.categories[2]
+    local root, bags = world.categories[1], world.categories[2]
     expect(root.registered, "root category registered as an AddOn category")
-    equal(#world.categories, 7, "categories")
-    equal(inventory.name, world.L["inventory.title"], "module subcategory name")
+    equal(#world.categories, 1 + #world.ns.PAGES, "categories")
+    equal(bags.name, world.L["core.pages.bags"], "page subcategory name")
 
     local dropdown -- Item Locking's indicator
-    for _, initializer in ipairs(inventory.items) do
+    for _, initializer in ipairs(bags.items) do
         if initializer.setting == world:Setting("inventory.locking.indicator") then
             dropdown = initializer
         end
@@ -54,10 +54,32 @@ test("drops unknown keys and resets unknown options and out-of-range slider valu
     equal(tracking.count, 5, "out of range")
 end)
 
+-- The panel's subcategory of `page`, and the features shown on it (their
+-- Enable checkboxes), by locale key.
+local function Page(world, page)
+    local features = {}
+    for _, module in world.ns:EnumerateModules() do
+        for _, feature in ipairs(module.sortedFeatures) do
+            features[world:Setting(feature:GetLocaleKey("enabled"))] = feature:GetLocaleKey()
+        end
+    end
+    for _, category in ipairs(world.categories) do
+        if category.name == world.L["core.pages." .. page] then
+            local shown = {}
+            for _, item in ipairs(category.items) do
+                if item.setting and features[item.setting] then
+                    table.insert(shown, features[item.setting])
+                end
+            end
+            return category, shown
+        end
+    end
+end
+
 -- The quests page initializer bound to quests.tracking.<key>.
 local function QuestsInitializer(world, key)
     local setting = world:Setting("quests.tracking." .. key)
-    for _, initializer in ipairs(world.categories[3].items) do
+    for _, initializer in ipairs(Page(world, "quests").items) do
         if initializer.setting == setting then
             return initializer
         end
@@ -88,7 +110,7 @@ end)
 test("a text setting uses our text row and takes its default from the locale", function(world)
     local setting = world:Setting("quests.announce.template")
     local row
-    for _, initializer in ipairs(world.categories[3].items) do
+    for _, initializer in ipairs(Page(world, "quests").items) do
         if initializer.setting == setting then
             row = initializer
         end
@@ -126,9 +148,39 @@ test("the root page holds the general settings only", function(world)
     equal(language.options[3].label, "Français", "named in its own language")
 end)
 
+test("every page shows the features that name it, whatever their module", function(world)
+    for index, page in ipairs(world.ns.PAGES) do
+        local category, features = Page(world, page)
+        equal(world.categories[index + 1], category, page .. " in panel order")
+        expect(#features > 0, page .. " shows features")
+    end
+
+    local _, combat = Page(world, "combat")
+    expect(tContains(combat, "inventory.food"), "a feature shows on its page, not its module's")
+    local _, professions = Page(world, "professions")
+    expect(tContains(professions, "interface.glow"), "the nearest object's glow with the professions")
+
+    local shown = 0
+    for _, page in ipairs(world.ns.PAGES) do
+        shown = shown + #select(2, Page(world, page))
+    end
+    local registered = 0
+    for _, module in world.ns:EnumerateModules() do
+        registered = registered + #module.sortedFeatures
+    end
+    equal(shown, registered, "every feature on exactly one page")
+end)
+
+test("a feature names a known page and a free place on it", function(world)
+    local ok, message = pcall(world.ns.RegisterFeature, world.ns, "combat", "unknown", { page = "nowhere", order = 1 })
+    expect(not ok and message:find("unknown page"), "unknown page refused")
+    ok, message = pcall(world.ns.RegisterFeature, world.ns, "combat", "taken", { page = "combat", order = 1 })
+    expect(not ok and message:find("order already taken"), "taken order refused")
+end)
+
 test("a feature without settings is one checkbox at the top of its page", function(world)
-    local combat = world.categories[7]
-    equal(combat.name, world.L["combat.title"], "page")
+    local combat = Page(world, "combat")
+    expect(combat, "page")
 
     local ranks = combat.items[1]
     equal(ranks.setting, world:Setting("combat.ranks.enabled"), "first row")
@@ -139,7 +191,7 @@ end)
 
 test("a feature's action is a button beside its checkbox", function(world)
     local row, category = world:SettingsButton(world.L["combat.swaps.title"])
-    equal(category.name, world.L["combat.title"], "on its module's page")
+    equal(category.name, world.L["core.pages.combat"], "on its page")
     equal(row.template, "ForeverEnhancedSettingsCheckboxWithButtonControlTemplate", "our checkbox with button row")
     expect(row.setting == world:Setting("combat.swaps.enabled"), "the feature's checkbox")
     equal(row.tooltip, world.L["combat.swaps.description"], "its description as tooltip")
@@ -304,7 +356,7 @@ end)
 test("a chosen language wins over the client's", function(world)
     local other = OtherLocale(world.env.TEST_LOCALE)
     equal(world.L["core.enable"], ENABLE[other], "core.enable")
-    equal(world.categories[2].name, world.L["inventory.title"], "settings panel in that language")
+    equal(world.categories[2].name, world.L["core.pages.bags"], "settings panel in that language")
     equal(world:Setting("language").tbl.language, other, "kept")
 end, {
     savedVariables = function(locale)
@@ -561,7 +613,7 @@ end
 
 test("a multiselect is a dropdown of checkboxes over the saved selection", function(world)
     local row = IgnoreRow(world)
-    expect(row, "a row on the module's page")
+    expect(row, "a row on the Bags page")
     equal(row.template, "ForeverEnhancedSettingsDropdownControlTemplate", "our dropdown row")
     equal(#row.options, 8, "options")
     expect(row.options[1].checkbox, "checkboxes")

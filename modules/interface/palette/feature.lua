@@ -24,7 +24,8 @@ local _, ns = ...
 local BINDING = "FOREVERENHANCED_PALETTE"
 
 local Palette = ns:RegisterFeature("interface", "palette", {
-    order = 4,
+    page = "interface",
+    order = 3,
     settings = {
         { key = "key", type = "binding", binding = BINDING },
     },

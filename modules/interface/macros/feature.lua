@@ -30,7 +30,8 @@
 local _, ns = ...
 
 local Macros = ns:RegisterFeature("interface", "macros", {
-    order = 3,
+    page = "interface",
+    order = 2,
     settings = {
         { key = "search", type = "toggle", default = true },
         { key = "duplicate", type = "toggle", default = true },

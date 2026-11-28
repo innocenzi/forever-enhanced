@@ -32,6 +32,7 @@
 local _, ns = ...
 
 local DoTs = ns:RegisterFeature("combat", "dots", {
+    page = "combat",
     order = 4,
     settings = {
         { key = "share", type = "toggle", default = true },

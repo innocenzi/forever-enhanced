@@ -19,6 +19,14 @@ ns:RegisterLocale("enUS", {
     ["core.junk.sellConfirm"] = "Are you sure you want to sell %d junk |4item:items;?",
     ["core.junk.sellConfirmKept"] = "Are you sure you want to sell %d junk |4item:items;? %d locked |4item:items; will be kept.",
     ["core.junk.allKept"] = "All of your junk is locked.",
+    ["core.pages.bags"] = "Bags",
+    ["core.pages.bank"] = "Bank",
+    ["core.pages.trading"] = "Buying and selling",
+    ["core.pages.quests"] = "Quests",
+    ["core.pages.map"] = "Map",
+    ["core.pages.professions"] = "Professions",
+    ["core.pages.combat"] = "Combat",
+    ["core.pages.interface"] = "Interface",
 })
 
 ns:RegisterLocale("frFR", {
@@ -40,4 +48,12 @@ ns:RegisterLocale("frFR", {
     ["core.junk.sellConfirm"] = "Voulez-vous vraiment vendre %d |4objet:objets; de camelote ?",
     ["core.junk.sellConfirmKept"] = "Voulez-vous vraiment vendre %d |4objet:objets; de camelote ? %d |4objet verrouillé sera conservé:objets verrouillés seront conservés;.",
     ["core.junk.allKept"] = "Toute votre camelote est verrouillée.",
+    ["core.pages.bags"] = "Sacs",
+    ["core.pages.bank"] = "Banque",
+    ["core.pages.trading"] = "Achat et vente",
+    ["core.pages.quests"] = "Quêtes",
+    ["core.pages.map"] = "Carte",
+    ["core.pages.professions"] = "Métiers",
+    ["core.pages.combat"] = "Combat",
+    ["core.pages.interface"] = "Interface",
 })

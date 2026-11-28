@@ -18,6 +18,7 @@
 local _, ns = ...
 
 local Errors = ns:RegisterFeature("combat", "errors", {
+    page = "combat",
     order = 2,
     -- Errors tell the player why an action failed: the player opts in.
     enabledByDefault = false,

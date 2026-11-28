@@ -14,7 +14,8 @@
 local _, ns = ...
 
 local Slots = ns:RegisterFeature("inventory", "slots", {
-    order = 5,
+    page = "bags",
+    order = 3,
     settings = {
         { key = "showIcon", type = "toggle", default = true },
     },

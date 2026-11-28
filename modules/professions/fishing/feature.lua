@@ -27,6 +27,7 @@ local BUTTON_NAME = "ForeverEnhancedFishingButton"
 local BINDING = "CLICK " .. BUTTON_NAME .. ":LeftButton"
 
 local Fishing = ns:RegisterFeature("professions", "fishing", {
+    page = "professions",
     order = 4,
     settings = {
         { key = "key", type = "binding", binding = BINDING },

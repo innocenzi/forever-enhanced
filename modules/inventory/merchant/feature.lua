@@ -16,6 +16,7 @@
 local _, ns = ...
 
 local Merchant = ns:RegisterFeature("inventory", "merchant", {
+    page = "trading",
     order = 1,
     settings = {
         { key = "search", type = "toggle", default = true },

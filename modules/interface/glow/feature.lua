@@ -44,7 +44,8 @@ end
 table.insert(settings, { key = "icon", type = "toggle", default = true })
 
 local ObjectGlow = ns:RegisterFeature("interface", "glow", {
-    order = 2,
+    page = "professions",
+    order = 5,
     -- It changes the game's targeting (see above): the player opts in.
     enabledByDefault = false,
     settings = settings,

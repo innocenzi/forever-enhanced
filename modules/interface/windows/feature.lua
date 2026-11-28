@@ -15,6 +15,7 @@
 local _, ns = ...
 
 local Windows = ns:RegisterFeature("interface", "windows", {
+    page = "interface",
     order = 1,
     settings = {
         { key = "modifier", type = "dropdown", default = "none", options = { "none", "shift", "ctrl", "alt" } },

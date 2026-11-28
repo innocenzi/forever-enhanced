@@ -16,6 +16,7 @@
 local _, ns = ...
 
 local Tracking = ns:RegisterFeature("quests", "tracking", {
+    page = "quests",
     order = 2,
     -- It takes over the objective tracker: the player opts in.
     enabledByDefault = false,

@@ -34,7 +34,8 @@
 local _, ns = ...
 
 local Bank = ns:RegisterFeature("inventory", "bank", {
-    order = 2,
+    page = "bank",
+    order = 1,
     settings = {
         { key = "savedBank", type = "toggle", default = true },
         { key = "tooltipCount", type = "toggle", default = true, requires = { savedBank = true } },

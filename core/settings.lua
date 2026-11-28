@@ -1,15 +1,16 @@
--- Builds the Options > AddOns panel from the registered modules and features.
+-- Builds the Options > AddOns panel from the registered pages and features.
 --
 -- Root page: language and preset picker (core/presets.lua).
--- Module page: first the features without settings, each a single checkbox
--- named after the feature; then per feature with settings, a section header,
--- an "Enable" checkbox, and the feature's schema entries as its children. A
--- feature's action is a button beside its checkbox, usable while checked,
--- that calls feature:OnAction(key); a toggle entry's action is one beside
--- the entry's checkbox.
+-- One subcategory per page of ns.PAGES (core/pages.lua), holding the features
+-- that name it, in their order: first the features without settings, each a
+-- single checkbox named after the feature; then per feature with settings, a
+-- section header, an "Enable" checkbox, and the feature's schema entries as
+-- its children. A feature's action is a button beside its checkbox, usable
+-- while checked, that calls feature:OnAction(key); a toggle entry's action is
+-- one beside the entry's checkbox.
 --
 -- Labels come from locale keys by convention:
---   <module>.title, <module>.description
+--   core.pages.<page>
 --   <module>.<feature>.title, <module>.<feature>.description
 --   <module>.<feature>.<key>, <module>.<feature>.<key>.tooltip (optional)
 --   <module>.<feature>.<key>.<option> for each dropdown or multiselect option
@@ -636,14 +637,14 @@ end
 
 -- Features without settings come first, outside any section: under a header
 -- they would read as settings of that header's feature.
-local function AddModule(module)
-    local category = Settings.RegisterVerticalLayoutSubcategory(rootCategory, L[module.id .. ".title"])
-    for _, feature in ipairs(module.sortedFeatures) do
+local function AddPage(page)
+    local category = Settings.RegisterVerticalLayoutSubcategory(rootCategory, L["core.pages." .. page.id])
+    for _, feature in ipairs(page.sortedFeatures) do
         if #feature.settings == 0 then
             AddFeatureToggle(category, feature, L[feature:GetLocaleKey("title")])
         end
     end
-    for _, feature in ipairs(module.sortedFeatures) do
+    for _, feature in ipairs(page.sortedFeatures) do
         if #feature.settings > 0 then
             AddFeature(category, feature)
         end
@@ -727,8 +728,8 @@ function SettingsPanel:Build()
     AddLanguage()
     AddPresets()
 
-    for _, module in ns:EnumerateModules() do
-        AddModule(module)
+    for _, page in ns:EnumeratePages() do
+        AddPage(page)
     end
 
     Settings.RegisterAddOnCategory(rootCategory)
