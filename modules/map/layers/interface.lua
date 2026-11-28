@@ -63,6 +63,15 @@ function Interface:Enable()
     ns:HookSecureFunc("Minimap_SetTooltip", AddTooltipLine)
 end
 
+-- The command palette's Swap layer: the key binding, run from the palette's Enter.
+ns:AddCommand(Layers, {
+    id = "swap",
+    binding = "FOREVERENHANCED_SWAPLAYER",
+    IsAvailable = function()
+        return not Layers:StandsDown()
+    end,
+})
+
 -- The key binding's name, in the player's language once it's known.
 ns:CreateEventListener({
     PLAYER_LOGIN = function(listener)

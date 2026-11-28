@@ -24,6 +24,7 @@ core\locale.lua
 core\addon.lua
 core\messages.lua
 core\pacing.lua
+core\commands.lua
 core\itembuttons.lua
 core\junk.lua
 core\database.lua
@@ -197,6 +198,12 @@ modules\interface\macros\duplicate.lua
 modules\interface\macros\layout.lua
 modules\interface\macros\save.lua
 modules\interface\macros\labels.lua
+modules\interface\palette\feature.lua
+modules\interface\palette\locales.lua
+modules\interface\palette\commands.lua
+modules\interface\palette\search.lua
+modules\interface\palette\store.lua
+modules\interface\palette\window.lua
 
 # Map
 modules\map\module.lua

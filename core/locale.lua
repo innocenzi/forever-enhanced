@@ -50,6 +50,11 @@ function ns:SetLanguage(language)
     end
 end
 
+-- The string for `key` in `locale`, whatever the language picked, or nil.
+function ns:GetLocaleString(locale, key)
+    return strings[locale] and strings[locale][key]
+end
+
 function ns:GetLanguageName(locale)
     return LANGUAGE_NAMES[locale]
 end

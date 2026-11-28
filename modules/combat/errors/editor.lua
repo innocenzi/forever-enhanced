@@ -242,3 +242,15 @@ function Editor:Hide()
         frame:Hide()
     end
 end
+
+-- The command palette opens it like the settings' Choose spells button,
+-- while that setting is checked.
+ns:AddCommand(Errors, {
+    id = "choose",
+    run = function()
+        Editor:Toggle()
+    end,
+    IsAvailable = function()
+        return Errors.db.spells == true
+    end,
+})

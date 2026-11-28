@@ -20,6 +20,7 @@ A lightweight utility addon for Forever. It keeps the default UI familiar while 
 - Auction house prices in item tooltips
 - Automatic junk selling and repairs at merchants
 - Show how much health your damage over time effects will still take on enemy health bars
+- A command palette to open menus quickly and free up some keybindings
 
 &nbsp;
 

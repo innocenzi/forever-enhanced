@@ -305,3 +305,11 @@ function Editor:Hide()
         frame:Hide()
     end
 end
+
+-- The command palette opens it like the settings' Edit button.
+ns:AddCommand(Swaps, {
+    id = "edit",
+    run = function()
+        Editor:Toggle()
+    end,
+})

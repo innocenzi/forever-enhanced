@@ -401,3 +401,15 @@ function View:ShowPage(page)
     currentPage = page
     self:Refresh()
 end
+
+-- The command palette opens it like the tab beside the bags.
+ns:AddCommand(Bank, {
+    id = "savedBank",
+    part = "savedBank",
+    run = function()
+        View:Toggle()
+    end,
+    IsAvailable = function()
+        return not Bank.Snapshot:IsBankOpen()
+    end,
+})

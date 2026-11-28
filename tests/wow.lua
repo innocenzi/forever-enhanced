@@ -347,8 +347,7 @@ for _, name in ipairs({
     "SetClampedToScreen",
     "SetAutoFocus",
     "HighlightText",
-    "ClearFocus",
-    "SetMaxLetters",
+    "SetTextInsets",
     "SetNumeric",
     "SetBlendMode",
     "SetIgnoreParentAlpha",
@@ -427,9 +426,36 @@ function Region:SetTextColor(r, g, b)
     self.textColor = { r = r, g = g, b = b }
 end
 
--- The edit box with the keyboard focus: world.focus.
+-- The edit box with the keyboard focus: world.focus. It loses it to
+-- ClearFocus, another edit box's SetFocus, or hiding (OnEditFocusLost).
+local function LoseFocus()
+    local focus = world.focus
+    if focus then
+        world.focus = nil
+        focus:RunScript("OnEditFocusLost")
+    end
+end
+
 function Region:SetFocus()
-    world.focus = self
+    if world.focus ~= self then
+        LoseFocus()
+        world.focus = self
+    end
+end
+
+function Region:ClearFocus()
+    if world.focus == self then
+        LoseFocus()
+    end
+end
+
+function Region:HasFocus()
+    return world.focus == self
+end
+
+-- Typing stops at the limit (0: none).
+function Region:SetMaxLetters(maxLetters)
+    self.maxLetters = maxLetters
 end
 
 -- Check buttons.
@@ -479,6 +505,9 @@ function Region:Hide()
     if self.shown then
         self.shown = false
         self:RunScript("OnHide")
+        if world.focus and not world.focus:IsVisible() then
+            LoseFocus()
+        end
     end
 end
 
@@ -2179,6 +2208,10 @@ end
 
 LE_PARTY_CATEGORY_HOME = 1
 LE_PARTY_CATEGORY_INSTANCE = 2
+
+function IsInGuild()
+    return world.inGuild == true
+end
 
 function IsInGroup(category)
     if category == LE_PARTY_CATEGORY_HOME then
@@ -6171,7 +6204,12 @@ function world:Slots(bagID)
 end
 
 -- Professions the player has learned, by GetProfessions slot (1-2 primary, then
--- First Aid, Fishing, Cooking...): { skillLine, rank }. Empty slots are nil.
+-- First Aid, Fishing, Cooking...): { skillLine, rank, modifier, spell,
+-- crafting, spellName }. Empty slots are nil. spell: its first spellbook
+-- item's spell, named spellName (in Forever, often a camp spell: Fishing's
+-- is « Appât appâteur »), else like the profession; crafting: that spell opens
+-- a crafting window, which casting it opens: world.openedProfession, its
+-- skill line.
 world.professions = {}
 -- Spells the player knows (IsPlayerSpell), as a set: Poisons (2842) for one.
 world.playerSpells = {}
@@ -6229,12 +6267,26 @@ function GetProfessions()
     return unpack(indices, 1, PROFESSION_SLOTS)
 end
 
+-- The professions' spellbook items come after the tabs' (C_SpellBook): the
+-- profession of slot n is at PROFESSION_SPELL_OFFSET + n.
+local PROFESSION_SPELL_OFFSET = 1000
+
 -- name, texture, rank, maxRank, numSpells, spellOffset, skillLine, rankModifier, ...
 -- (profession.modifier: skill bonuses, racial ones).
 function GetProfessionInfo(index)
     local profession = assert(world.professions[index], "no profession at " .. tostring(index))
     local name = PROFESSION_NAMES[TEST_LOCALE][profession.skillLine]
-    return name, 136240, profession.rank or 1, 300, 1, 0, profession.skillLine, profession.modifier or 0
+    local spellOffset = PROFESSION_SPELL_OFFSET + index - 1
+    return name, 136240, profession.rank or 1, 300, 1, spellOffset, profession.skillLine, profession.modifier or 0
+end
+
+-- The profession whose spell is `spellID`, or nil.
+local function ProfessionOfSpell(spellID)
+    for _, profession in pairs(world.professions) do
+        if profession.spell == spellID then
+            return profession
+        end
+    end
 end
 
 -- The player points at a world object (a herb or ore node) named `name`: the
@@ -6275,6 +6327,10 @@ function world:UnitTooltip(level, lines)
 end
 
 C_TradeSkillUI = {
+    CanTradeSkillShowCraftingUI = function(spellID)
+        local profession = ProfessionOfSpell(spellID)
+        return profession ~= nil and profession.crafting == true
+    end,
     GetTradeSkillDisplayName = function(skillLineID)
         return (assert(PROFESSION_NAMES[TEST_LOCALE][skillLineID], "no profession " .. tostring(skillLineID)))
     end,
@@ -8018,7 +8074,13 @@ end
 
 local function PerformAction(frame, actionType, button)
     if actionType == "spell" then
-        CastSpellByName(ButtonAttribute(frame, "spell", button))
+        -- Like SECURE_ACTIONS.spell: a number is a spell ID.
+        local spell = ButtonAttribute(frame, "spell", button)
+        if tonumber(spell) then
+            CastSpellByID(tonumber(spell))
+        else
+            CastSpellByName(spell)
+        end
     elseif actionType ~= nil then
         error("unmodelled action type " .. tostring(actionType))
     end
@@ -8185,6 +8247,11 @@ function GetBindingName(command)
     return _G["BINDING_NAME_" .. command] or command
 end
 
+-- Like Blizzard's (BindingUtil.lua) for unmodified keys: the key's name.
+function GetBindingText(key)
+    return key
+end
+
 -- Replaces the owner's override of `key` by `override` (nil: none).
 local function SetOverride(owner, key, override)
     for i = #world.overrides, 1, -1 do
@@ -8248,6 +8315,10 @@ C_Spell = {
         if base then
             return SPELL_NAMES[TEST_LOCALE][base]
         end
+        local profession = ProfessionOfSpell(spellID)
+        if profession then
+            return profession.spellName or PROFESSION_NAMES[TEST_LOCALE][profession.skillLine]
+        end
         -- Profession recipes, which the player never casts from the action bars.
         return world.recipeNames[spellID]
     end,
@@ -8282,8 +8353,13 @@ C_Spell = {
     end,
 }
 
--- The spellbook's items are numbered across its tabs, in order.
+-- The spellbook's items are numbered across its tabs, in order, then come
+-- the professions' (GetProfessionInfo's spellOffset).
 local function SpellBookItem(slot)
+    if slot > PROFESSION_SPELL_OFFSET then
+        local profession = world.professions[slot - PROFESSION_SPELL_OFFSET]
+        return profession and profession.spell and { spellID = profession.spell }
+    end
     for _, line in ipairs(world.spellBook) do
         if slot <= #line.spells then
             return line.spells[slot]
@@ -8357,6 +8433,12 @@ C_SpellBook = {
             isOffSpec = false,
         }
     end,
+    -- world.petSpells: how many spells the pet has; nothing without any.
+    HasPetSpells = function()
+        if world.petSpells then
+            return world.petSpells, "PET"
+        end
+    end,
 }
 
 local CAST_REFUSED = "%s: Not yet recovered"
@@ -8419,6 +8501,20 @@ function world:StopChannel()
     if channel then
         self.channel = nil
         self:Fire("UNIT_SPELLCAST_CHANNEL_STOP", "player", channel.castGUID, channel.spellID)
+    end
+end
+
+-- A profession's spell opens its crafting window, if it has one; any other
+-- casts like its name (world.casts lists names).
+function CastSpellByID(spellID)
+    local profession = ProfessionOfSpell(spellID)
+    if not profession then
+        CastSpellByName(C_Spell.GetSpellName(spellID))
+        return
+    end
+    table.insert(world.casts, C_Spell.GetSpellName(spellID))
+    if profession.crafting then
+        world.openedProfession = profession.skillLine
     end
 end
 
@@ -8674,6 +8770,10 @@ end
 -- the target; INTERACTMOUSEOVER on the mouseover).
 world.interactions = {}
 local GAME_COMMANDS = { INTERACTTARGET = true, INTERACTMOUSEOVER = true }
+-- Every other binding command a key runs (Blizzard's TOGGLECHARACTER0...,
+-- whose bodies the fake client doesn't have), on key down, in order: the
+-- game runs them from the key press, as its own code.
+world.ranBindings = {}
 
 -- One click of a frame (the mouse, or a click binding), with its pre and post
 -- clicks, then the errors of the casts it made.
@@ -8742,6 +8842,9 @@ local function RunKey(key, down)
         end
         return
     end
+    if target and down then
+        table.insert(world.ranBindings, target)
+    end
     for _, frame in ipairs(world.frames) do
         if target and frame.bindingAction == target then
             if down then
@@ -8758,12 +8861,112 @@ local function RunKey(key, down)
     end
 end
 
+-- The edit box with the focus gets every key before the bindings: OnKeyDown
+-- / OnKeyUp with the key alone, its modifiers held ("CTRL-K": K with Ctrl
+-- down). Then, on the key going down, it types the key's character (OnChar,
+-- then OnTextChanged with userInput true; at the text's end only), deletes
+-- the last character on Backspace, and runs OnEnterPressed, OnEscapePressed
+-- or OnTabPressed. The key goes on to the bindings only when the edit box
+-- lets it through (SetPropagateKeyboardInput, off by default); measured,
+-- Enter let through still runs OnEnterPressed first, and the release of a
+-- key let through goes to the bindings too, never to the edit box. Not
+-- modelled (measured: they work): held keys repeating, selecting, cutting
+-- and pasting. IsKeyDown(key): whether the key (as SendKey names it) is held.
+world.keysDown = {}
+local passedKeys = {}
+
+function IsKeyDown(key)
+    return world.keysDown[key] == true
+end
+
+function Region:SetPropagateKeyboardInput(propagate)
+    AssertAllowed("SetPropagateKeyboardInput")
+    self.propagateKeyboardInput = propagate == true
+end
+
+local MODIFIERS = { ALT = "alt", CTRL = "ctrl", SHIFT = "shift" }
+
+-- The key without its modifiers, and the modifier flags it holds.
+local function SplitModifiers(key)
+    local held = {}
+    while true do
+        local modifier, rest = key:match("^(%u+)%-(.+)$")
+        if not MODIFIERS[modifier] then
+            return key, held
+        end
+        held[MODIFIERS[modifier]] = true
+        key = rest
+    end
+end
+
+local EDIT_BOX_SCRIPTS =
+    { ENTER = "OnEnterPressed", NUMPADENTER = "OnEnterPressed", ESCAPE = "OnEscapePressed", TAB = "OnTabPressed" }
+
+-- What a focused edit box does with a key going down.
+local function EditBoxKey(editBox, key, char)
+    if EDIT_BOX_SCRIPTS[key] then
+        editBox:RunScript(EDIT_BOX_SCRIPTS[key])
+    elseif key == "BACKSPACE" then
+        local text = editBox:GetText()
+        if text ~= "" then
+            editBox.text = text:gsub("[%z\1-\127\194-\244][\128-\191]*$", "")
+            editBox:RunScript("OnTextChanged", true)
+        end
+    elseif char then
+        local text = editBox:GetText()
+        local limit = editBox.maxLetters or 0
+        local _, length = text:gsub("[^\128-\191]", "")
+        if limit == 0 or length < limit then
+            editBox.text = text .. char
+            editBox:RunScript("OnChar", char)
+            editBox:RunScript("OnTextChanged", true)
+        end
+    end
+end
+
+-- Whether the focused edit box kept the key from the bindings.
+local function EditBoxTakes(key, down, char)
+    if not down and passedKeys[key] then
+        passedKeys[key] = nil
+        return false
+    end
+    local editBox = world.focus
+    if not (editBox and editBox:IsVisible()) then
+        return false
+    end
+    local base, held = SplitModifiers(key)
+    local alt, ctrl, shift = world.alt, world.ctrl, world.shift
+    for flag in pairs(held) do
+        world[flag] = true
+    end
+    editBox:RunScript(down and "OnKeyDown" or "OnKeyUp", base)
+    local propagate = editBox.propagateKeyboardInput == true
+    if down and editBox:HasFocus() then
+        EditBoxKey(editBox, base, char)
+    end
+    world.alt, world.ctrl, world.shift = alt, ctrl, shift
+    passedKeys[key] = down and propagate or nil
+    return not propagate
+end
+
 -- The key, then the errors of the casts it made.
-local function SendKey(key, down)
+local function SendKey(key, down, char)
+    world.keysDown[key] = down or nil
     world.hardware = world.hardware + 1
-    RunKey(key, down)
+    if not EditBoxTakes(key, down, char) then
+        RunKey(key, down)
+    end
     world.hardware = world.hardware - 1
     DeliverErrors()
+end
+
+-- Types `text`, a key press per character (UTF-8), in the same frame.
+function world:Type(text)
+    for char in text:gmatch("[%z\1-\127\194-\244][\128-\191]*") do
+        local key = char == " " and "SPACE" or char:upper()
+        SendKey(key, true, char)
+        SendKey(key, false)
+    end
 end
 
 function world:KeyDown(key)

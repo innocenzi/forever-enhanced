@@ -11,6 +11,8 @@ ns:RegisterLocale("enUS", {
     ["map.layers.unknown"] = "Layer unknown",
     ["map.layers.asking"] = "Asking for another layer...",
     ["map.layers.swap"] = "Swap layer",
+    -- The command palette's English name for Swap layer (enUS only, never shown).
+    ["map.layers.commands.swap"] = "Swap layer",
     ["map.layers.stop"] = "Cancel layer swap",
     ["map.layers.inGroup"] = "Leave your group to swap layers.",
     ["map.layers.instance"] = "Layers only exist in the open world.",
