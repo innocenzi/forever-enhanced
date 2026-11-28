@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.10.0 - 2026-11-28
+
+
+### Features
+- **map:** show zone level ranges on the world map
+- **professions:** fish with a single key that equips your pole and reels in
+- **interface:** open windows and toggles from a command palette
+- **core:** group settings pages by player activity
+- **inventory:** split the bank into Saved bank and Bank transfers
+- **inventory:** show the Alt Left Click choice beside the marks it picks from
+- **inventory:** move the Wowhead link out of Item marks into its own checkbox
+- **map:** set the Swap layer key from the Layer swap settings
+- **core:** grey out settings that need another feature, saying which
+- **interface:** open Options, the addon list and each addon's settings from the palette
+- **core:** replace presets with plain Quick setup questions
+
+
+### Fixes
+- **inventory:** name the transfer feature after its Deposit and Withdraw buttons
+
 ## 1.9.2 - 2026-11-26
 
 
